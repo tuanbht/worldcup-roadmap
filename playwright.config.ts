@@ -16,9 +16,18 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3217',
     trace: 'on-first-retry',
+    // Pin zone + locale so kickoff text (rendered via the date-fns-tz façade
+    // against its 'UTC' default) is byte-stable across machines/CI, keeping the
+    // visual snapshots reproducible. Device descriptors (e.g. iPhone 13) do not
+    // set timezoneId/locale, so these apply uniformly to every project.
+    timezoneId: 'UTC',
+    locale: 'en-US',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
     { name: 'mobile', use: { ...devices['iPhone 13'] } },
   ],
   webServer: [

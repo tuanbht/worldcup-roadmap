@@ -9,6 +9,7 @@ concern instead of hand-rolling it.** Don't reinvent solved problems (dates, HTT
 validation, testing). Pick the de-facto-standard library for each concern and use it consistently.
 
 Resolved with the requester:
+
 - **Scope = infrastructure only.** Library-first applies to cross-cutting concerns. **Bespoke domain
   logic stays hand-written** — no library models World Cup rules (standings, bracket topology, seeding,
   the deterministic simulator). See _Non-goals_.
@@ -20,32 +21,33 @@ Resolved with the requester:
 
 ## Canonical stack map (single source of truth)
 
-| Concern | Library (pick) | Status | Notes |
-|---|---|---|---|
-| Framework / routing / bundler | **Vite + React SPA + Hono API** (was Next.js 15) | ⚠️ migrating | Superseded by `migrate-to-vite-react.md`; Vite builds the SPA, Hono serves `/api/worldcup`. |
-| Language | **TypeScript 5** | ✅ in repo | — |
-| Styling | **Tailwind CSS v4** | ➕ add | Replace bespoke CSS. Keep the oklch design tokens via Tailwind v4 `@theme` (tokens stay, expressed through Tailwind). Add `prettier-plugin-tailwindcss` for class order. |
-| Accessible UI primitives | **shadcn/ui** (Radix) | ➕ add (optional) | For dialogs/tabs/tooltip etc. Most popular, accessible-by-default. |
-| Server state / data fetching | **TanStack Query** (`@tanstack/react-query`) | ➕ add | Client-side fetch/caching + **live polling** (mock has a live Final; `env.ts` already defines live/idle cache TTLs). Pair with native `fetch`. Don't copy server state into a client store. |
-| Client state (only if needed) | **Zustand** | ➕ add if needed | React Flow already uses it internally. Per project patterns. |
-| URL state (filters / active view) | **nuqs** | ➕ add if needed | Type-safe Next search params. |
-| Date/time + timezone | **date-fns** + **date-fns-tz** | ➕ add | Kickoffs are ISO-UTC (`Match.kickoff`); render in venue/user tz. (`Luxon` is the acceptable alternative — pick **one**, don't ship both.) |
-| Validation | **Zod** | ✅ in repo | The standard; already the data boundary (`parseTournament`, `env.ts`). Keep. |
-| Graph / zoomable canvas | **React Flow** (`@xyflow/react`) | ✅ dep (unused) | Smooth mouse-wheel zoom requirement. See `zoomable-roadmap-graph.md`. |
-| Tree / bracket layout | **d3-hierarchy** | ➕ add | A bracket is a binary tree → `d3.tree`/`d3.cluster`. **Supersedes Dagre** from the earlier spec (dagre/dagre-d3 are deprecated). `elkjs` only if needed. |
-| Icons | **lucide-react** | ➕ add | Most popular React icon set. |
-| UI animation (non-graph) | **Framer Motion** (`motion`) | ➕ add (sparingly) | Compositor-friendly only. React Flow handles graph motion. |
-| HTTP client | native **fetch** | ✅ native | No dep. Wrapped by TanStack Query. (`ky` only if a thin wrapper is truly wanted.) |
-| Number / locale formatting | native **Intl** | ✅ native | No dep needed. |
-| Unit / component testing | **Vitest** + **@testing-library/react** (+ `jest-dom`, `user-event`) | ⚠️ partial | Vitest configured; add Testing Library. |
-| E2E testing | **Playwright** (`@playwright/test`) | ➕ add | Mandated by project testing rules. |
-| Lint / format | **Prettier** (+ tailwind plugin) | ⚠️ partial | `eslint-config-next` removed with Next; no ESLint config remains. Add Prettier. |
-| Fonts | **@fontsource/archivo** + **@fontsource/inter** | ✅ in repo | Was `next/font`; now self-hosted via `@fontsource` (`font-display: swap`). |
-| Images / flags | plain `<img loading="lazy" width height>` | ✅ in repo | Was `next/image`; the `next.config.ts` `remotePatterns` FIFA-host allow-list is dropped with Next. `Flag.tsx` loads flags directly with a monogram `onError` fallback. A future CSP must allow `https://api.fifa.com` + `https://digitalhub.fifa.com` in `img-src`. |
+| Concern                           | Library (pick)                                                       | Status                    | Notes                                                                                                                                                                                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework / routing / bundler     | **Vite + React SPA + Hono API** (was Next.js 15)                     | ✅ migrated               | Per `migrate-to-vite-react.md`; Vite builds the SPA (`src/main.tsx`), Hono serves `/api/worldcup`. Next.js removed — no `'use client'`, no route handlers.                                                                                                          |
+| Language                          | **TypeScript 5**                                                     | ✅ in repo                | —                                                                                                                                                                                                                                                                   |
+| Styling                           | **Tailwind CSS v4**                                                  | ✅ in repo                | Single styling system; oklch design tokens live in `src/styles/global.css` via Tailwind v4 `@theme`. `prettier-plugin-tailwindcss` added for class order.                                                                                                           |
+| Accessible UI primitives          | **shadcn/ui** (Radix)                                                | ➕ add (optional)         | For dialogs/tabs/tooltip etc. Most popular, accessible-by-default.                                                                                                                                                                                                  |
+| Server state / data fetching      | **TanStack Query** (`@tanstack/react-query`)                         | ✅ in repo                | Client-side fetch/caching + **live polling** via `useTournamentQuery.ts` over the Hono API (replaced the hand-rolled `fetch`+`setInterval`). Pairs with native `fetch`. Server state not copied into a client store.                                                |
+| Client state (only if needed)     | **Zustand**                                                          | ➕ add if needed          | React Flow already uses it internally. Per project patterns.                                                                                                                                                                                                        |
+| URL state (filters / active view) | **nuqs**                                                             | ➕ add if needed          | Type-safe URL search-param state. Not added — `useStageView` already does URL state by hand correctly.                                                                                                                                                              |
+| Date/time + timezone              | **date-fns** + **date-fns-tz**                                       | ✅ in repo                | All kickoff rendering routes through `src/lib/datetime.ts` (`formatInTimeZone` + `parseISO`); `format.ts` re-exports it. No `Intl` date formatting remains. Single date lib (no Luxon/moment/dayjs).                                                                |
+| Validation                        | **Zod**                                                              | ✅ in repo                | The standard; already the data boundary (`parseTournament`, `env.ts`). Keep.                                                                                                                                                                                        |
+| Graph / zoomable canvas           | **React Flow** (`@xyflow/react`)                                     | ✅ in repo                | Smooth mouse-wheel zoom; owns graph motion. See `zoomable-roadmap-graph.md`.                                                                                                                                                                                        |
+| Tree / bracket layout             | **d3-hierarchy**                                                     | ✅ in repo (dep)          | Added (+ `@types/d3-hierarchy`) with a smoke test; bracket→tree construction lands in req #2. A bracket is a binary tree → `d3.tree`/`d3.cluster`. **Supersedes Dagre** (never added; dagre/dagre-d3 deprecated). `elkjs` only if needed.                           |
+| Icons                             | **lucide-react**                                                     | ✅ in repo                | Most popular React icon set. The `MatchDetailPanel` close `✕` glyph is now an accessible `<X aria-hidden />`; no inline icon glyphs/SVGs remain in `src/`.                                                                                                          |
+| UI animation (non-graph)          | **Framer Motion** (`motion`)                                         | ⏸ deferred — no consumer | Not added (anti-bloat). The only non-graph motion is the `MatchDetailPanel` slide, already a compositor-only CSS `transition-transform`; React Flow owns graph motion. Revisit when a surface needs orchestrated enter/exit CSS can't express.                      |
+| HTTP client                       | native **fetch**                                                     | ✅ native                 | No dep. Wrapped by TanStack Query. (`ky` only if a thin wrapper is truly wanted.)                                                                                                                                                                                   |
+| Number / locale formatting        | native **Intl**                                                      | ✅ native                 | No dep needed.                                                                                                                                                                                                                                                      |
+| Unit / component testing          | **Vitest** + **@testing-library/react** (+ `jest-dom`, `user-event`) | ✅ in repo                | Vitest + Testing Library (`react`/`jest-dom`/`user-event`/`jsdom`) wired via `vitest.setup.ts`; component tests use the per-file `// @vitest-environment jsdom` pragma.                                                                                             |
+| E2E testing                       | **Playwright** (`@playwright/test`)                                  | ✅ in repo                | Critical flows (`e2e/roadmap`, `a11y`, `visual`). `use.timezoneId: 'UTC'` + `locale: 'en-US'` pin kickoff text deterministically.                                                                                                                                   |
+| Lint / format                     | **Prettier** (+ tailwind plugin)                                     | ✅ in repo                | `prettier` + `prettier-plugin-tailwindcss` added; config + `format`/`format:check` scripts in `package.json`. No ESLint config (removed with Next).                                                                                                                 |
+| Fonts                             | **@fontsource/archivo** + **@fontsource/inter**                      | ✅ in repo                | Was `next/font`; now self-hosted via `@fontsource` (`font-display: swap`).                                                                                                                                                                                          |
+| Images / flags                    | plain `<img loading="lazy" width height>`                            | ✅ in repo                | Was `next/image`; the `next.config.ts` `remotePatterns` FIFA-host allow-list is dropped with Next. `Flag.tsx` loads flags directly with a monogram `onError` fallback. A future CSP must allow `https://api.fifa.com` + `https://digitalhub.fifa.com` in `img-src`. |
 
 Legend: ✅ already in place · ⚠️ partially present · ➕ to add.
 
 ## Non-goals (stays hand-written — do NOT library-ize)
+
 - Domain rules and derivations: `computeGroups` (standings), `buildBracket` (topology), `R32_SEEDING`,
   `stage-order`, and the deterministic mock simulator (`mulberry32` PRNG, Poisson `drawGoals`, `decide`).
   These encode WC-specific rules or are tiny deterministic helpers with no canonical library.
@@ -53,14 +55,19 @@ Legend: ✅ already in place · ⚠️ partially present · ➕ to add.
   well-understood) rather than adding `seedrandom` — determinism of fixtures matters more than the dep.
 
 ## Tensions to reconcile (call out, don't silently duplicate)
+
 - **Tailwind vs design tokens:** keep the oklch token set, but define it in Tailwind v4 `@theme` — one
   styling system, not two. Don't keep a parallel bespoke CSS framework.
-- **TanStack Query vs Next Server Components:** server components/route handlers do the initial fetch +
-  Zod validation; TanStack Query owns client-side **live polling** and cache. Don't duplicate server state.
-- **date lib vs `Intl`:** standardize tz conversions on the chosen date lib; simple display may use `Intl`,
-  but all kickoff/timezone rendering goes through one consistent path.
+- **TanStack Query vs the Hono API (post-migration):** the **Hono** `/api/worldcup` endpoint does the
+  server-side fetch + Zod validation; **TanStack Query** owns client-side fetch, **live polling**, and cache
+  (`useTournamentQuery.ts`). Don't duplicate server state into a client store. (Next.js server components /
+  route handlers no longer exist — superseded by the Vite + Hono migration.)
+- **date lib vs `Intl`:** tz conversions are standardized on **date-fns + date-fns-tz** via the single
+  `src/lib/datetime.ts` façade; all kickoff/timezone rendering goes through it. Native `Intl` may still be used
+  for number/locale formatting, but **not** for date/timezone display.
 
 ## Acceptance criteria (reviewable)
+
 - This stack map is the single source of truth; a PR adding a custom util for a listed concern must use
   the mapped library or justify the deviation in review.
 - **No hand-rolled date/timezone formatting** — all `kickoff` rendering goes through the tz lib.
@@ -72,10 +79,12 @@ Legend: ✅ already in place · ⚠️ partially present · ➕ to add.
 - Domain logic remains pure, framework-agnostic TypeScript (unchanged by this policy).
 
 ## Review enforcement (per strictness = strong default)
+
 - Hand-rolling a mapped concern without justification → **MEDIUM** (return for rework or written rationale).
 - Introducing a **second** library for an already-covered concern (dependency bloat / inconsistency) → **HIGH**.
 - Replacing domain logic with a library against _Non-goals_ → **reject** (out of scope).
 
 ## Follow-up: update the existing spec
+
 `requirements/zoomable-roadmap-graph.md` predates this policy — update it to: Dagre → **d3-hierarchy**,
 add **Tailwind** for styling, **TanStack Query** for any live data, and the **tz lib** for kickoff display.

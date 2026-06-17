@@ -48,22 +48,41 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
     >
       <span
         aria-hidden="true"
-        className="absolute inset-y-2.5 left-0 w-[3px] rounded-full bg-edge-strong group-data-[status=live]:bg-live group-data-[final=true]:bg-gold"
+        className="bg-edge-strong group-data-[status=live]:bg-live group-data-[final=true]:bg-gold absolute inset-y-2.5 left-0 w-[3px] rounded-full"
       />
       <Handle id="tl" type="target" position={Position.Left} className={HANDLE} />
       <Handle id="tr" type="target" position={Position.Right} className={HANDLE} />
 
       <header className="flex items-center justify-between gap-2">
-        <span className="truncate text-[0.72rem] uppercase tracking-[0.08em] text-dim">{data.roundLabel}</span>
+        <span className="text-dim truncate text-[0.72rem] tracking-[0.08em] uppercase">
+          {data.roundLabel}
+        </span>
         <StatusPill status={status} minute={data.minute} kickoff={data.kickoff} />
       </header>
 
       <div className="mt-0.5 flex flex-1 flex-col justify-center gap-0.5">
-        <TeamRow team={home} goals={score.home} penalty={score.penaltyHome} isWinner={homeWin} dim={finished && awayWin} showScore={showScore} />
-        <TeamRow team={away} goals={score.away} penalty={score.penaltyAway} isWinner={awayWin} dim={finished && homeWin} showScore={showScore} />
+        <TeamRow
+          team={home}
+          goals={score.home}
+          penalty={score.penaltyHome}
+          isWinner={homeWin}
+          dim={finished && awayWin}
+          showScore={showScore}
+        />
+        <TeamRow
+          team={away}
+          goals={score.away}
+          penalty={score.penaltyAway}
+          isWinner={awayWin}
+          dim={finished && homeWin}
+          showScore={showScore}
+        />
       </div>
 
-      <footer data-lod-detail className="flex items-center justify-between gap-2 text-[0.72rem] text-muted">
+      <footer
+        data-lod-detail
+        className="text-muted flex items-center justify-between gap-2 text-[0.72rem]"
+      >
         <span>{formatDateTime(data.kickoff)}</span>
         {data.venue.name && <span className="max-w-[50%] truncate">{data.venue.name}</span>}
       </footer>

@@ -12,6 +12,7 @@ to the R32 matches they seed.
 ## Scope
 
 ### In scope
+
 - Emit a `match` node for **every `GROUP_STAGE` match** (72 in the mock — see derivation below),
   reusing the existing `match` node type and `matchData()` payload.
 - Horizontal group band: one lane per group; the `GroupTableNode` stays at lane start (x=0); group
@@ -37,6 +38,7 @@ to the R32 matches they seed.
   DOM component test — no new test runner deps (Option (b) — `[Rev:H1]`, see Test Strategy).
 
 ### Out of scope
+
 - Domain logic: `computeGroups`, `buildBracket`, `R32_SEEDING`, `stage-order`, the mock simulator —
   unchanged (library-first non-goals).
 - `parseTournament` / `tournament-schema` — **no change**: domain `Match` already carries
@@ -75,29 +77,29 @@ must preserve the same `slotIndex` child ordering — `[Rev:H2]`.)
 
 ## Files
 
-| Path | Action | Responsibility |
-|---|---|---|
-| `package.json` | modify | Add `d3-hierarchy` dep + `@types/d3-hierarchy` devDep. (Confirmed **absent** today.) |
-| `src/features/roadmap/layout/layout-constants.ts` | modify | Add `LANE_PITCH_Y`, `GROUP_MATCH_STEP_X`, `GROUP_GAP`, `TABLE_W`, `STAGE_PITCH_Y`, `LEAF_PITCH_X`, `SECTION_GAP`, `groupBandHeight(groupCount)`. Retire the now-unused horizontal `STEP`/`ROW_PITCH` (and `GROUP_GAP_X`/`GROUP_GAP_Y` if `computeGroupGrid` is deleted). Keep `XY`, `NODE_W/H`, `GROUP_W/H`. |
-| `src/features/roadmap/layout/group-layout.ts` | rewrite | Replace `computeGroupGrid`/`groupGridWidth` (deletion safe — `[Rev:M2]`) with `computeGroupMatchLanes(tournament): GroupLaneLayout` — per-group lane y, table x=0, match positions keyed by `matchId` sorted by `kickoff`. |
-| `src/features/roadmap/layout/bracket-layout.ts` | rewrite | Vertical top→bottom KO via `d3-hierarchy` `d3.tree`. New signature `computeBracketLayout(bracket, bandOffsetY)` (`[Rev:M2]`). Children resolved by `slot.source.kind` (`[Rev:H2]`); depth→y downward; midpoint→x; `THIRD_PLACE` beside normalized Final (`[Rev:M1]`). Returns `Map<string, XY>`. Pure, O(n). |
-| `src/features/roadmap/build-graph.ts` | rewrite | Single continuous graph: emit `match` nodes for every group match (`matchData`) + `group` table nodes + KO match nodes; compose group band above + KO below; feeder edges group→R32; `handlesFor` returns `{sourceHandle:'b', targetHandle:'t'}` for all edges; `matchData` now reads `match.group`/`match.matchday` (`null` in fallback). Drop the 3-view branching + `groupsOnlyGraph`. New signature `buildRoadmapGraph(tournament)` (no `view` arg). |
-| `src/features/roadmap/graph-model.ts` | modify | Add `group: string \| null` and `matchday: number \| null` to `MatchNodeData`. Replace `RoadmapView = 'groups'\|'bracket'\|'full'` with `RoadmapFocus = 'all'\|'groups'\|'knockout'`. |
-| `src/components/nodes/MatchNode.tsx` | modify | Replace `tl/tr` target + `sl/sr` source handles with one `top` target (`id="t"`) + one `bottom` source (`id="b"`); render "Group A · MD1" label (Tailwind utilities, `data-lod-detail`, `[Rev:L1]`) when `group` set; optional group-vs-KO visual variant. |
-| `src/components/nodes/GroupTableNode.tsx` | modify | Move the `sr` (Right) source handle to a `bottom` source handle so feeder edges flow downward. |
-| `src/components/edges/AdvanceEdge.tsx` | verify | Confirm `getBezierPath` renders cleanly for top↔bottom (positions/`sourcePosition`/`targetPosition` are passed by RF from the handle sides — no code change expected). |
-| `src/features/roadmap/hooks/useStageView.ts` | modify | Default focus `'all'`; persist `?focus=` param; expose `setFocus`. Keep the hook name `useStageView` to minimize churn; rename internals to focus. |
-| `src/components/roadmap/StageToggle.tsx` | modify | Repurpose: on change, scroll/fit to the chosen phase via RF `fitBounds`/`setCenter`; no layout swap. Options `All / Groups / Knockout`. |
-| `src/features/roadmap/hooks/useFitOnChange.ts` | modify | Retune padding so the taller continuous canvas frames cleanly; key becomes data-length only. |
-| `src/features/roadmap/hooks/useBracketKeyboard.ts` | modify (small) | **Only** retune fit padding for the taller canvas; keep F/0/Esc bindings. No node-to-node traversal added (`[Rev:M3]`). |
-| `src/components/roadmap/RoadmapCanvas.tsx` | modify | Call `buildRoadmapGraph(tournament)` (no view); wire focus → camera; `useFitOnChange(nodes.length)`. |
-| `src/features/roadmap/hooks/useRoadmapGraph.ts` | modify | Drop the `view` param: `useRoadmapGraph(tournament)` → memo on `tournament` only. |
-| `src/app/globals.css` | modify (small) | Keep `.advance-edge` classes; add only a band-divider affordance if needed. Group-card label/variant live as Tailwind on the component (`[Rev:L1]`). |
-| `src/features/roadmap/layout/bracket-layout.test.ts` | rewrite | New vertical assertions (depth→y monotonic, midpoint→x via slot pairing, third-place beside Final, `bandOffsetY` arg). |
-| `src/features/roadmap/layout/group-layout.test.ts` | rewrite | Cover `computeGroupMatchLanes` (lane count, ordering, x monotonic, distinct lane y, table at x=0). |
-| `src/features/roadmap/build-graph.test.ts` | replace wholesale | New continuous-graph assertions (`[Rev:M2]` — old file imports `computeGroupGrid`/`groupGridWidth` and calls `computeBracketLayout(bracket)` one-arg, all gone). 72 group nodes, 12 tables, KO below band, downward `b`/`t` handles, feeders, purity. |
-| `e2e/per-match-orientation.spec.ts` | create | Playwright smoke: load → **ctrl+wheel** zoom (`[Rev:M4]`) → a group match node + a Final node both reachable. |
-| `e2e/roadmap.spec.ts`, `e2e/visual.spec.ts`, `e2e/a11y.spec.ts`, `e2e/wheel-zoom.spec.ts` | modify | Drop `?view=`/the `view=groups` toggle assertion; update to `?focus=`/default; refresh node counts & screenshot baselines. |
+| Path                                                                                      | Action            | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package.json`                                                                            | modify            | Add `d3-hierarchy` dep + `@types/d3-hierarchy` devDep. (Confirmed **absent** today.)                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/features/roadmap/layout/layout-constants.ts`                                         | modify            | Add `LANE_PITCH_Y`, `GROUP_MATCH_STEP_X`, `GROUP_GAP`, `TABLE_W`, `STAGE_PITCH_Y`, `LEAF_PITCH_X`, `SECTION_GAP`, `groupBandHeight(groupCount)`. Retire the now-unused horizontal `STEP`/`ROW_PITCH` (and `GROUP_GAP_X`/`GROUP_GAP_Y` if `computeGroupGrid` is deleted). Keep `XY`, `NODE_W/H`, `GROUP_W/H`.                                                                                                                                             |
+| `src/features/roadmap/layout/group-layout.ts`                                             | rewrite           | Replace `computeGroupGrid`/`groupGridWidth` (deletion safe — `[Rev:M2]`) with `computeGroupMatchLanes(tournament): GroupLaneLayout` — per-group lane y, table x=0, match positions keyed by `matchId` sorted by `kickoff`.                                                                                                                                                                                                                               |
+| `src/features/roadmap/layout/bracket-layout.ts`                                           | rewrite           | Vertical top→bottom KO via `d3-hierarchy` `d3.tree`. New signature `computeBracketLayout(bracket, bandOffsetY)` (`[Rev:M2]`). Children resolved by `slot.source.kind` (`[Rev:H2]`); depth→y downward; midpoint→x; `THIRD_PLACE` beside normalized Final (`[Rev:M1]`). Returns `Map<string, XY>`. Pure, O(n).                                                                                                                                             |
+| `src/features/roadmap/build-graph.ts`                                                     | rewrite           | Single continuous graph: emit `match` nodes for every group match (`matchData`) + `group` table nodes + KO match nodes; compose group band above + KO below; feeder edges group→R32; `handlesFor` returns `{sourceHandle:'b', targetHandle:'t'}` for all edges; `matchData` now reads `match.group`/`match.matchday` (`null` in fallback). Drop the 3-view branching + `groupsOnlyGraph`. New signature `buildRoadmapGraph(tournament)` (no `view` arg). |
+| `src/features/roadmap/graph-model.ts`                                                     | modify            | Add `group: string \| null` and `matchday: number \| null` to `MatchNodeData`. Replace `RoadmapView = 'groups'\|'bracket'\|'full'` with `RoadmapFocus = 'all'\|'groups'\|'knockout'`.                                                                                                                                                                                                                                                                    |
+| `src/components/nodes/MatchNode.tsx`                                                      | modify            | Replace `tl/tr` target + `sl/sr` source handles with one `top` target (`id="t"`) + one `bottom` source (`id="b"`); render "Group A · MD1" label (Tailwind utilities, `data-lod-detail`, `[Rev:L1]`) when `group` set; optional group-vs-KO visual variant.                                                                                                                                                                                               |
+| `src/components/nodes/GroupTableNode.tsx`                                                 | modify            | Move the `sr` (Right) source handle to a `bottom` source handle so feeder edges flow downward.                                                                                                                                                                                                                                                                                                                                                           |
+| `src/components/edges/AdvanceEdge.tsx`                                                    | verify            | Confirm `getBezierPath` renders cleanly for top↔bottom (positions/`sourcePosition`/`targetPosition` are passed by RF from the handle sides — no code change expected).                                                                                                                                                                                                                                                                                  |
+| `src/features/roadmap/hooks/useStageView.ts`                                              | modify            | Default focus `'all'`; persist `?focus=` param; expose `setFocus`. Keep the hook name `useStageView` to minimize churn; rename internals to focus.                                                                                                                                                                                                                                                                                                       |
+| `src/components/roadmap/StageToggle.tsx`                                                  | modify            | Repurpose: on change, scroll/fit to the chosen phase via RF `fitBounds`/`setCenter`; no layout swap. Options `All / Groups / Knockout`.                                                                                                                                                                                                                                                                                                                  |
+| `src/features/roadmap/hooks/useFitOnChange.ts`                                            | modify            | Retune padding so the taller continuous canvas frames cleanly; key becomes data-length only.                                                                                                                                                                                                                                                                                                                                                             |
+| `src/features/roadmap/hooks/useBracketKeyboard.ts`                                        | modify (small)    | **Only** retune fit padding for the taller canvas; keep F/0/Esc bindings. No node-to-node traversal added (`[Rev:M3]`).                                                                                                                                                                                                                                                                                                                                  |
+| `src/components/roadmap/RoadmapCanvas.tsx`                                                | modify            | Call `buildRoadmapGraph(tournament)` (no view); wire focus → camera; `useFitOnChange(nodes.length)`.                                                                                                                                                                                                                                                                                                                                                     |
+| `src/features/roadmap/hooks/useRoadmapGraph.ts`                                           | modify            | Drop the `view` param: `useRoadmapGraph(tournament)` → memo on `tournament` only.                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/app/globals.css`                                                                     | modify (small)    | Keep `.advance-edge` classes; add only a band-divider affordance if needed. Group-card label/variant live as Tailwind on the component (`[Rev:L1]`).                                                                                                                                                                                                                                                                                                     |
+| `src/features/roadmap/layout/bracket-layout.test.ts`                                      | rewrite           | New vertical assertions (depth→y monotonic, midpoint→x via slot pairing, third-place beside Final, `bandOffsetY` arg).                                                                                                                                                                                                                                                                                                                                   |
+| `src/features/roadmap/layout/group-layout.test.ts`                                        | rewrite           | Cover `computeGroupMatchLanes` (lane count, ordering, x monotonic, distinct lane y, table at x=0).                                                                                                                                                                                                                                                                                                                                                       |
+| `src/features/roadmap/build-graph.test.ts`                                                | replace wholesale | New continuous-graph assertions (`[Rev:M2]` — old file imports `computeGroupGrid`/`groupGridWidth` and calls `computeBracketLayout(bracket)` one-arg, all gone). 72 group nodes, 12 tables, KO below band, downward `b`/`t` handles, feeders, purity.                                                                                                                                                                                                    |
+| `e2e/per-match-orientation.spec.ts`                                                       | create            | Playwright smoke: load → **ctrl+wheel** zoom (`[Rev:M4]`) → a group match node + a Final node both reachable.                                                                                                                                                                                                                                                                                                                                            |
+| `e2e/roadmap.spec.ts`, `e2e/visual.spec.ts`, `e2e/a11y.spec.ts`, `e2e/wheel-zoom.spec.ts` | modify            | Drop `?view=`/the `view=groups` toggle assertion; update to `?focus=`/default; refresh node counts & screenshot baselines.                                                                                                                                                                                                                                                                                                                               |
 
 ## Data Model / Types
 
@@ -107,11 +109,17 @@ export type MatchNodeData = {
   matchId: string;
   stage: Stage;
   roundLabel: string;
-  group: string | null;      // NEW — "A".."L" for group matches, null in KO
-  matchday: number | null;   // NEW — 1..3 group, null otherwise
-  home: TeamRef; away: TeamRef; score: Score; status: MatchStatus;
-  kickoff: string | null; minute: number | null; venue: Venue;
-  isFinal: boolean; isThirdPlace: boolean;
+  group: string | null; // NEW — "A".."L" for group matches, null in KO
+  matchday: number | null; // NEW — 1..3 group, null otherwise
+  home: TeamRef;
+  away: TeamRef;
+  score: Score;
+  status: MatchStatus;
+  kickoff: string | null;
+  minute: number | null;
+  venue: Venue;
+  isFinal: boolean;
+  isThirdPlace: boolean;
 };
 
 // Focus replaces the 3-layout view — camera target only, no graph-shape change.
@@ -119,20 +127,20 @@ export type RoadmapFocus = 'all' | 'groups' | 'knockout';
 
 // group-layout.ts
 export interface GroupLaneLayout {
-  readonly table: ReadonlyMap<string, XY>;   // key = group name "A".."L"; x=0, y=lane
+  readonly table: ReadonlyMap<string, XY>; // key = group name "A".."L"; x=0, y=lane
   readonly matches: ReadonlyMap<string, XY>; // key = group-match matchId
-  readonly bandHeight: number;               // = groupBandHeight(groupCount)
+  readonly bandHeight: number; // = groupBandHeight(groupCount)
 }
 export function computeGroupMatchLanes(tournament: Tournament): GroupLaneLayout;
 
 // layout-constants.ts (illustrative values; tune in impl — tests assert RELATIONS, not absolutes)
-export const LANE_PITCH_Y = GROUP_H + 40;       // distance between group lanes
-export const TABLE_W = GROUP_W;                  // table width consumed before matches
-export const GROUP_GAP = 56;                     // gap table → first match
-export const GROUP_MATCH_STEP_X = NODE_W + 56;   // x step between matches in a lane
-export const STAGE_PITCH_Y = NODE_H + 110;       // vertical distance between KO stages
-export const LEAF_PITCH_X = NODE_W + 36;         // horizontal spacing of R32 leaves
-export const SECTION_GAP = 240;                  // group band → KO band gap
+export const LANE_PITCH_Y = GROUP_H + 40; // distance between group lanes
+export const TABLE_W = GROUP_W; // table width consumed before matches
+export const GROUP_GAP = 56; // gap table → first match
+export const GROUP_MATCH_STEP_X = NODE_W + 56; // x step between matches in a lane
+export const STAGE_PITCH_Y = NODE_H + 110; // vertical distance between KO stages
+export const LEAF_PITCH_X = NODE_W + 36; // horizontal spacing of R32 leaves
+export const SECTION_GAP = 240; // group band → KO band gap
 export function groupBandHeight(groupCount: number): number; // groupCount * LANE_PITCH_Y
 
 // bracket-layout.ts — d3-hierarchy, NEW two-arg signature ([Rev:M2])
@@ -141,16 +149,19 @@ export function computeBracketLayout(bracket: Bracket, bandOffsetY: number): Map
 ```
 
 ### `matchData()` change (`[Rev:L2]`)
+
 `matchData(node, match)` in `build-graph.ts` is the only place `MatchNodeData` is populated. It now
 also emits `group`/`matchday`:
+
 - concrete-match branch: `group: match.group`, `matchday: match.matchday`;
 - bracket-node-without-match fallback branch: `group: null`, `matchday: null`.
-No schema/parse change — domain `Match.group`/`Match.matchday` already exist.
+  No schema/parse change — domain `Match.group`/`Match.matchday` already exist.
 
 ### Group lane layout (`computeGroupMatchLanes`)
+
 - Group-stage matches = `tournament.matches.filter(m => m.stage === 'GROUP_STAGE')`. **Count is
   derived from the fixture, not hardcoded**; for the 48-team mock it is `12 groups × 3 matchdays × 2
-  = 72`.
+= 72`.
 - For each group letter in `A..L` order (lane index `i`): `laneY = i * LANE_PITCH_Y`. Table position
   `{x: 0, y: laneY}` keyed by group name.
 - That group's matches, **sorted by `kickoff.localeCompare` ascending** (kickoff is ISO-UTC, so
@@ -160,6 +171,7 @@ No schema/parse change — domain `Match.group`/`Match.matchday` already exist.
 - `bandHeight = groupBandHeight(groupCount)`.
 
 ### KO layout via d3-hierarchy (`[Rev:H2]`, `[Rev:M1]`)
+
 - **Children resolution (the H2 fix).** `BracketSlot.source` is the discriminated union
   `{kind:'group'|'winnerOf'|'loserOf', ...}` — there is **no bare `matchId`** on a slot. Build the
   d3 hierarchy with a child accessor that switches on `kind`:
@@ -178,15 +190,16 @@ No schema/parse change — domain `Match.group`/`Match.matchday` already exist.
 - **Coordinates.** `d3.tree().nodeSize([LEAF_PITCH_X, STAGE_PITCH_Y])` → use `node.x` for x and flip
   depth for y: `y = bandOffsetY + (maxDepth - node.depth) * STAGE_PITCH_Y` so R32 leaves
   (deepest) sit at top and the Final (depth 0) at the bottom. `bandOffsetY = groupBandHeight +
-  SECTION_GAP` is passed in from `build-graph.ts`.
+SECTION_GAP` is passed in from `build-graph.ts`.
 - **x-origin normalization order (`[Rev:M1]`).** After the tree pass, compute `minX` over all tree
   nodes and shift every tree node by `-minX` so the canvas starts at x≥0. **THIRD_PLACE is placed
   AFTER this shift, relative to the already-normalized Final x:** `{x: normalizedFinalX +
-  LEAF_PITCH_X, y: finalY}`. THIRD_PLACE has no `winnerOf` children (its slots are `loserOf` the two
+LEAF_PITCH_X, y: finalY}`. THIRD_PLACE has no `winnerOf` children (its slots are `loserOf` the two
   semifinals — `build-bracket.ts:148-153`), so it is **excluded from the midpoint-x assertion** and
   is not part of the d3 tree. Layout and tests therefore agree on the same normalized origin.
 
 ### Handles
+
 - `MatchNode`: one `top` target (`id="t"`, `Position.Top`) + one `bottom` source (`id="b"`,
   `Position.Bottom`). Remove `tl/tr/sl/sr`.
 - `handlesFor()` collapses to a constant `{ sourceHandle: 'b', targetHandle: 't' }` for **all**
@@ -199,9 +212,11 @@ Vitest **node-environment** unit tests (pure layout + build-graph — fixture-de
 hardcoded) + one Playwright smoke. **No DOM component test and no new test-runner deps.**
 
 ### Test-environment decision — Option (b) (`[Rev:H1]`)
+
 `vitest.config.ts` runs `environment: 'node'` with `include: ['src/**/*.test.ts']` (no `.tsx`) and
 `package.json` has no `@testing-library/react`, `jest-dom`, `user-event`, or `jsdom`/`happy-dom`. We
 **drop the DOM MatchNode component test** and instead:
+
 - assert the handle-id contract purely through `buildRoadmapGraph` output — every advance and feeder
   edge has `sourceHandle === 'b'` and `targetHandle === 't'`, and **no** edge uses `sl/sr/tl/tr`;
 - assert the rendered top/bottom handles + the "Group A · MD1" label in the **Playwright** DOM smoke
@@ -211,7 +226,9 @@ hardcoded) + one Playwright smoke. **No DOM component test and no new test-runne
   `src/features/roadmap/build-graph.ts`). No `.tsx` glob, no jsdom, no setup file is added.
 
 ### Behaviors to test (unit — `src/**/*.test.ts`, node env)
+
 **`computeGroupMatchLanes`** (`group-layout.test.ts`)
+
 1. Emits a position for every `GROUP_STAGE` match (count == `matches.filter(stage==='GROUP_STAGE')`
    → 72 for the mock, derived not hardcoded).
 2. Within each lane, matches ordered by ascending `kickoff` → x strictly increasing; all share one `y`.
@@ -219,30 +236,19 @@ hardcoded) + one Playwright smoke. **No DOM component test and no new test-runne
 4. Table position is at `x=0` at the lane's `y`; first match x ≥ `TABLE_W + GROUP_GAP`.
 5. Pure: structurally equal across calls; does not mutate a deep-frozen tournament.
 
-**`computeBracketLayout` (vertical)** (`bracket-layout.test.ts`)
-6. Positions every bracket node (32 including THIRD_PLACE).
-7. KO `y` increases monotonically with stage depth (R32 minimal/top → FINAL maximal/bottom).
-8. Each parent's `x` equals the midpoint of its two **structural** children's `x` (±ε), where
-   children are resolved via `slot.source.kind==='winnerOf'` → `source.matchId` (the H2 ordering).
-   THIRD_PLACE excluded (no winner children — `[Rev:M1]`).
-9. `THIRD_PLACE` is adjacent to FINAL: same `y`, `x == finalX + LEAF_PITCH_X` after normalization.
-10. Every node `x >= 0` (normalized) and every `y >= bandOffsetY`; pure + immutable; honors the
-    `bandOffsetY` arg (calling with a different offset shifts all y by the delta).
+**`computeBracketLayout` (vertical)** (`bracket-layout.test.ts`) 6. Positions every bracket node (32 including THIRD_PLACE). 7. KO `y` increases monotonically with stage depth (R32 minimal/top → FINAL maximal/bottom). 8. Each parent's `x` equals the midpoint of its two **structural** children's `x` (±ε), where
+children are resolved via `slot.source.kind==='winnerOf'` → `source.matchId` (the H2 ordering).
+THIRD_PLACE excluded (no winner children — `[Rev:M1]`). 9. `THIRD_PLACE` is adjacent to FINAL: same `y`, `x == finalX + LEAF_PITCH_X` after normalization. 10. Every node `x >= 0` (normalized) and every `y >= bandOffsetY`; pure + immutable; honors the
+`bandOffsetY` arg (calling with a different offset shifts all y by the delta).
 
-**`buildRoadmapGraph` (continuous)** (`build-graph.test.ts`, replaces the file wholesale)
-11. Exactly one `match` node per `GROUP_STAGE` match (72) + one per bracket node (32) + one `group`
-    node per group (12); no duplicate ids.
-12. Exactly one `group` table node per group, at its lane start (x=0).
-13. Group band occupies the top y-range; every KO node `y >= groupBandHeight + SECTION_GAP`.
-14. **Handle contract (H1 Option (b)):** every advance + feeder edge has `sourceHandle:'b'` /
-    `targetHandle:'t'`; no edge uses `sl/sr/tl/tr`.
-15. Feeder edges connect each group to exactly the R32 matches it seeds (count derived from
-    `R32_SEEDING`, same derivation as the old `full` view test).
-16. `MatchNodeData.group`/`matchday` populated from the domain match for group cards; `null` for KO
-    nodes (incl. the bracket-node-without-match fallback).
-17. Purity: equal output across calls; no mutation of a deep-frozen tournament.
+**`buildRoadmapGraph` (continuous)** (`build-graph.test.ts`, replaces the file wholesale) 11. Exactly one `match` node per `GROUP_STAGE` match (72) + one per bracket node (32) + one `group`
+node per group (12); no duplicate ids. 12. Exactly one `group` table node per group, at its lane start (x=0). 13. Group band occupies the top y-range; every KO node `y >= groupBandHeight + SECTION_GAP`. 14. **Handle contract (H1 Option (b)):** every advance + feeder edge has `sourceHandle:'b'` /
+`targetHandle:'t'`; no edge uses `sl/sr/tl/tr`. 15. Feeder edges connect each group to exactly the R32 matches it seeds (count derived from
+`R32_SEEDING`, same derivation as the old `full` view test). 16. `MatchNodeData.group`/`matchday` populated from the domain match for group cards; `null` for KO
+nodes (incl. the bracket-node-without-match fallback). 17. Purity: equal output across calls; no mutation of a deep-frozen tournament.
 
 ### E2E (Playwright smoke) — `e2e/per-match-orientation.spec.ts`
+
 18. Load `/` → `.react-flow__node` visible → **ctrl+wheel** zoom (reuse the `ctrlWheel` helper
     pattern from `e2e/wheel-zoom.spec.ts:51-67` — the canvas uses `panOnScroll`, so plain wheel pans;
     only ctrl+wheel zooms — `[Rev:M4]`) → a group-stage match node (a `.react-flow__node`
@@ -251,6 +257,7 @@ hardcoded) + one Playwright smoke. **No DOM component test and no new test-runne
     rendered top/bottom-handle + group-label assertions live (real browser, not jsdom).
 
 ### Coverage
+
 **≥80%** on the changed `src/features/roadmap/layout/**` + `src/features/roadmap/build-graph.ts`
 modules (the existing `coverage.include` scope). `npm run test` green.
 
@@ -286,6 +293,7 @@ modules (the existing `coverage.include` scope). `npm run test` green.
   regenerated (`test:e2e:update`). Flag, don't auto-bless.
 
 ### Open questions (non-blocking — sensible defaults chosen)
+
 - Exact pitch constant values are tuning, not contract — tests assert ordering/monotonic/midpoint
   **relations**, not absolutes. Defaults in Data Model.
 - Keep `?focus=` URL persistence (cheap, shareable, mirrors old `?view=`), default `'all'`.
@@ -314,5 +322,4 @@ modules (the existing `coverage.include` scope). `npm run test` green.
 10. Playwright smoke passes: after load and a **ctrl+wheel** zoom, a group-stage match node and a
     Final node (`[data-final="true"]`) are both reachable in the DOM.
 11. `npm run test` passes (rewritten layout + build-graph unit tests, node env, no new deps) with
-    **≥80% coverage on the changed `layout/**` + `build-graph.ts` modules** (the existing
-    `coverage.include` scope).
+    **≥80% coverage on the changed `layout/**`+`build-graph.ts`modules** (the existing`coverage.include` scope).

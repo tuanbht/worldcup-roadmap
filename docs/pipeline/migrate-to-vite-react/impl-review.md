@@ -13,16 +13,17 @@ verified every acceptance criterion against the running code, not just claims.
 
 ## Observed gate results
 
-| Gate | Command | Result |
-|---|---|---|
-| Typecheck | `npm run typecheck` (`tsc --noEmit`) | **PASS** (clean, no errors) |
-| Tests | `npm run test:coverage` | **PASS** — 9 files, 70 tests, 0 failures |
-| Coverage | v8 | **92.81% stmts / 87.86% branch** overall; new code: `server/routes/worldcup.ts` **100%**, `useTournamentQuery.ts` **100%** — exceeds 80% target |
-| Build | `npm run build` (`vite build`) | **PASS** — static SPA in `dist/`, built in ~0.6s |
-| Runtime (API) | `vite-node server/index.ts` + `curl` | **PASS** — `GET /api/worldcup` → 200, identical envelope + `Cache-Control` |
-| E2E | `npx playwright test` | **NOT RUN** — Playwright browsers unavailable in this environment (documented gap; specs + config updated) |
+| Gate          | Command                              | Result                                                                                                                                          |
+| ------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck     | `npm run typecheck` (`tsc --noEmit`) | **PASS** (clean, no errors)                                                                                                                     |
+| Tests         | `npm run test:coverage`              | **PASS** — 9 files, 70 tests, 0 failures                                                                                                        |
+| Coverage      | v8                                   | **92.81% stmts / 87.86% branch** overall; new code: `server/routes/worldcup.ts` **100%**, `useTournamentQuery.ts` **100%** — exceeds 80% target |
+| Build         | `npm run build` (`vite build`)       | **PASS** — static SPA in `dist/`, built in ~0.6s                                                                                                |
+| Runtime (API) | `vite-node server/index.ts` + `curl` | **PASS** — `GET /api/worldcup` → 200, identical envelope + `Cache-Control`                                                                      |
+| E2E           | `npx playwright test`                | **NOT RUN** — Playwright browsers unavailable in this environment (documented gap; specs + config updated)                                      |
 
 ### Bundle (vs. landing budget < 150 kB JS gz)
+
 - Initial `index` JS: 226.87 kB raw / **71.04 kB gz** — under budget.
 - React Flow lazy-split into a separate chunk (212 kB raw / 69.48 kB gz) behind `React.lazy` — kept out of initial load as required.
 - CSS: `index` 41.64 kB / 7.92 kB gz + lazy `RoadmapCanvas` 15.87 kB / 2.67 kB gz.
@@ -62,15 +63,19 @@ verified every acceptance criterion against the running code, not just claims.
 ## Findings
 
 ### CRITICAL
+
 None.
 
 ### HIGH
+
 None.
 
 ### MEDIUM
+
 None.
 
 ### LOW
+
 - **L1 — `useTournamentQuery.ts:21` skips client-side re-validation (documented choice).** The fetcher
   checks only the `success` discriminant and trusts `json.data` as `Tournament` without re-running
   `parseTournament`. This is an explicit, reasonable bundle-budget tradeoff (the server already validated

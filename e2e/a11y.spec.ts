@@ -46,10 +46,10 @@ test.describe('accessibility', () => {
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
     await settle(page);
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa'])
-      .analyze();
-    const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'serious' || v.impact === 'critical',
+    );
     expect(blocking, JSON.stringify(blocking.map((v) => v.id))).toEqual([]);
   });
 
@@ -65,7 +65,9 @@ test.describe('accessibility', () => {
     await expect(card).toHaveAttribute('aria-label', /.+/);
   });
 
-  test('reduced motion pauses the live edge animation (existing globals.css guard)', async ({ page }) => {
+  test('reduced motion pauses the live edge animation (existing globals.css guard)', async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/?view=bracket');
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });

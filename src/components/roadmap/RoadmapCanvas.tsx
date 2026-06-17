@@ -40,10 +40,10 @@ function Legend({ provider }: { provider: string | null }) {
     ['Upcoming', 'bg-dim'],
   ];
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-edge bg-surf-1/80 px-3 py-2.5 text-[0.72rem] backdrop-blur">
+    <div className="border-edge bg-surf-1/80 flex flex-col gap-2 rounded-xl border px-3 py-2.5 text-[0.72rem] backdrop-blur">
       <div className="flex items-center gap-3">
         {dots.map(([label, dot]) => (
-          <span key={label} className="flex items-center gap-1.5 text-muted">
+          <span key={label} className="text-muted flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${dot}`} />
             {label}
           </span>
@@ -91,8 +91,19 @@ function CanvasInner() {
         panOnScroll
         proOptions={{ hideAttribution: false }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="rgba(148,163,184,0.10)" />
-        <MiniMap pannable zoomable nodeColor={nodeColor} maskColor="rgba(6,9,16,0.72)" bgColor="#0a0e14" />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={28}
+          size={1}
+          color="rgba(148,163,184,0.10)"
+        />
+        <MiniMap
+          pannable
+          zoomable
+          nodeColor={nodeColor}
+          maskColor="rgba(6,9,16,0.72)"
+          bgColor="#0a0e14"
+        />
         <Controls showInteractive={false} />
         <StageToggle view={view} onChange={setView} />
         <Panel position="top-right">
@@ -100,11 +111,15 @@ function CanvasInner() {
         </Panel>
       </ReactFlow>
 
-      <MatchDetailPanel tournament={tournament} matchId={selected} onClose={() => setSelected(null)} />
+      <MatchDetailPanel
+        tournament={tournament}
+        matchId={selected}
+        onClose={() => setSelected(null)}
+      />
 
       {loading && !tournament && (
-        <div className="absolute inset-0 grid place-items-center bg-bg/60 backdrop-blur-sm">
-          <span className="animate-pulse font-display text-sm uppercase tracking-[0.2em] text-muted">
+        <div className="bg-bg/60 absolute inset-0 grid place-items-center backdrop-blur-sm">
+          <span className="font-display text-muted animate-pulse text-sm tracking-[0.2em] uppercase">
             Loading the roadmap…
           </span>
         </div>

@@ -5,13 +5,24 @@ import type { RawMatch } from './schema';
 const finishedKo: RawMatch = {
   IdMatch: '400251',
   StageName: [{ Locale: 'en-GB', Description: 'Round of 16' }],
-  Home: { IdTeam: '43946', IdCountry: 'FRA', TeamName: [{ Locale: 'en-GB', Description: 'France' }] },
-  Away: { IdTeam: '43911', IdCountry: 'BRA', TeamName: [{ Locale: 'en-GB', Description: 'Brazil' }] },
+  Home: {
+    IdTeam: '43946',
+    IdCountry: 'FRA',
+    TeamName: [{ Locale: 'en-GB', Description: 'France' }],
+  },
+  Away: {
+    IdTeam: '43911',
+    IdCountry: 'BRA',
+    TeamName: [{ Locale: 'en-GB', Description: 'Brazil' }],
+  },
   HomeTeamScore: 2,
   AwayTeamScore: 1,
   Date: '2026-07-04T16:00:00Z',
   MatchStatus: 0,
-  Stadium: { Name: [{ Locale: 'en-GB', Description: 'SoFi Stadium' }], CityName: [{ Locale: 'en-GB', Description: 'Los Angeles' }] },
+  Stadium: {
+    Name: [{ Locale: 'en-GB', Description: 'SoFi Stadium' }],
+    CityName: [{ Locale: 'en-GB', Description: 'Los Angeles' }],
+  },
 };
 
 const liveGroup: RawMatch = {
@@ -46,7 +57,15 @@ describe('mapFifaMatches', () => {
     expect(m.stage).toBe('ROUND_OF_16');
     expect(m.status).toBe('finished');
     expect(m.score.winner).toBe('home');
-    expect(m.home).toEqual({ kind: 'team', team: { id: 'fifa-43946', name: 'France', code: 'FRA', flagUrl: expect.stringContaining('FRA') } });
+    expect(m.home).toEqual({
+      kind: 'team',
+      team: {
+        id: 'fifa-43946',
+        name: 'France',
+        code: 'FRA',
+        flagUrl: expect.stringContaining('FRA'),
+      },
+    });
     expect(m.venue.city).toBe('Los Angeles');
   });
 

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { X } from 'lucide-react';
 import type { Match, TeamRef, Tournament } from '@/domain/types';
 import { refLabel } from '@/domain/types';
 import { STAGE_LABELS } from '@/domain/bracket/stage-order';
@@ -19,20 +20,33 @@ function resolveDetail(tournament: Tournament, matchId: string): Detail | null {
   }
   for (const round of tournament.bracket.rounds) {
     const node = round.nodes.find((n) => n.matchId === matchId);
-    if (node) return { roundLabel: round.label, home: node.home.team, away: node.away.team, match: null };
+    if (node)
+      return { roundLabel: round.label, home: node.home.team, away: node.away.team, match: null };
   }
   return null;
 }
 
-function TeamSide({ team, goals, pens }: { team: TeamRef; goals: number | null; pens: number | null }) {
+function TeamSide({
+  team,
+  goals,
+  pens,
+}: {
+  team: TeamRef;
+  goals: number | null;
+  pens: number | null;
+}) {
   const resolved = team.kind === 'team';
   return (
     <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-      <Flag code={resolved ? team.team.code : null} url={resolved ? team.team.flagUrl : null} size={34} />
-      <span className="text-[0.82rem] font-semibold text-ink">{refLabel(team)}</span>
-      <span className="font-display text-[2rem] font-extrabold tabular-nums text-ink">
+      <Flag
+        code={resolved ? team.team.code : null}
+        url={resolved ? team.team.flagUrl : null}
+        size={34}
+      />
+      <span className="text-ink text-[0.82rem] font-semibold">{refLabel(team)}</span>
+      <span className="font-display text-ink text-[2rem] font-extrabold tabular-nums">
         {goals ?? '–'}
-        {pens != null && <small className="text-[0.9rem] text-muted"> ({pens})</small>}
+        {pens != null && <small className="text-muted text-[0.9rem]"> ({pens})</small>}
       </span>
     </div>
   );
@@ -46,9 +60,9 @@ interface MatchDetailPanelProps {
 
 function MetaRow({ term, children }: { term: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-edge pb-3">
-      <dt className="text-[0.72rem] uppercase tracking-[0.08em] text-dim">{term}</dt>
-      <dd className="m-0 text-right text-[0.82rem] text-ink">{children}</dd>
+    <div className="border-edge flex justify-between gap-4 border-b pb-3">
+      <dt className="text-dim text-[0.72rem] tracking-[0.08em] uppercase">{term}</dt>
+      <dd className="text-ink m-0 text-right text-[0.82rem]">{children}</dd>
     </div>
   );
 }
@@ -74,36 +88,46 @@ export function MatchDetailPanel({ tournament, matchId, onClose }: MatchDetailPa
       // inside a hidden region (WCAG 4.1.2 / axe aria-hidden-focus).
       inert={!open}
       className={[
-        'absolute right-0 top-0 z-10 flex h-full w-[min(360px,92vw)] flex-col gap-4 p-6',
-        'border-l border-edge bg-glass shadow-[var(--elevation-panel)] backdrop-blur-[18px]',
+        'absolute top-0 right-0 z-10 flex h-full w-[min(360px,92vw)] flex-col gap-4 p-6',
+        'border-edge bg-glass border-l shadow-[var(--elevation-panel)] backdrop-blur-[18px]',
         'transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
-        'max-[640px]:bottom-0 max-[640px]:top-auto max-[640px]:h-auto max-[640px]:max-h-[70%]',
-        'max-[640px]:w-full max-[640px]:border-l-0 max-[640px]:border-t',
-        open ? 'translate-x-0 max-[640px]:translate-y-0' : 'pointer-events-none translate-x-full max-[640px]:translate-y-full',
+        'max-[640px]:top-auto max-[640px]:bottom-0 max-[640px]:h-auto max-[640px]:max-h-[70%]',
+        'max-[640px]:w-full max-[640px]:border-t max-[640px]:border-l-0',
+        open
+          ? 'translate-x-0 max-[640px]:translate-y-0'
+          : 'pointer-events-none translate-x-full max-[640px]:translate-y-full',
       ].join(' ')}
     >
       <header className="flex items-center justify-between">
-        <span className="font-display text-[0.72rem] uppercase tracking-[0.08em] text-accent">
+        <span className="font-display text-accent text-[0.72rem] tracking-[0.08em] uppercase">
           {detail?.roundLabel ?? 'Match'}
         </span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close match details"
-          className="h-8 w-8 rounded-full border border-edge bg-surf-2 text-[0.8rem] text-muted transition-colors hover:border-edge-strong hover:text-ink"
+          className="border-edge bg-surf-2 text-muted hover:border-edge-strong hover:text-ink flex h-8 w-8 items-center justify-center rounded-full border transition-colors"
         >
-          ✕
+          <X aria-hidden size={16} />
         </button>
       </header>
 
       {detail ? (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[20px] border border-edge bg-surf-1 px-4 py-6">
-            <TeamSide team={detail.home} goals={match?.score.home ?? null} pens={match?.score.penaltyHome ?? null} />
-            <span className="text-[0.72rem] uppercase tracking-[0.08em] text-dim">
+          <div className="border-edge bg-surf-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[20px] border px-4 py-6">
+            <TeamSide
+              team={detail.home}
+              goals={match?.score.home ?? null}
+              pens={match?.score.penaltyHome ?? null}
+            />
+            <span className="text-dim text-[0.72rem] tracking-[0.08em] uppercase">
               {match && match.status !== 'scheduled' ? '' : 'vs'}
             </span>
-            <TeamSide team={detail.away} goals={match?.score.away ?? null} pens={match?.score.penaltyAway ?? null} />
+            <TeamSide
+              team={detail.away}
+              goals={match?.score.away ?? null}
+              pens={match?.score.penaltyAway ?? null}
+            />
           </div>
 
           <dl className="m-0 flex flex-col gap-3">
@@ -116,13 +140,17 @@ export function MatchDetailPanel({ tournament, matchId, onClose }: MatchDetailPa
             </MetaRow>
             <MetaRow term="Kick-off">{formatDateTime(match?.kickoff ?? null)}</MetaRow>
             {match?.venue.name && (
-              <MetaRow term="Venue">{[match.venue.name, match.venue.city].filter(Boolean).join(', ')}</MetaRow>
+              <MetaRow term="Venue">
+                {[match.venue.name, match.venue.city].filter(Boolean).join(', ')}
+              </MetaRow>
             )}
-            {match?.score.resolution === 'penalties' && <MetaRow term="Decided">After penalties</MetaRow>}
+            {match?.score.resolution === 'penalties' && (
+              <MetaRow term="Decided">After penalties</MetaRow>
+            )}
           </dl>
         </div>
       ) : (
-        open && <p className="text-[0.82rem] text-muted">Fixture to be confirmed.</p>
+        open && <p className="text-muted text-[0.82rem]">Fixture to be confirmed.</p>
       )}
     </aside>
   );

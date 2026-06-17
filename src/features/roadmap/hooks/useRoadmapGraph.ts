@@ -7,5 +7,8 @@ const EMPTY: RoadmapGraph = { nodes: [], edges: [] };
 
 /** Memoized React Flow graph; recomputes only when the data or view changes. */
 export function useRoadmapGraph(tournament: Tournament | null, view: RoadmapView): RoadmapGraph {
-  return useMemo(() => (tournament ? buildRoadmapGraph(tournament, view) : EMPTY), [tournament, view]);
+  return useMemo(
+    () => (tournament ? buildRoadmapGraph(tournament, view) : EMPTY),
+    [tournament, view],
+  );
 }

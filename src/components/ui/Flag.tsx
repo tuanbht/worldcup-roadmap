@@ -21,7 +21,7 @@ export function Flag({ code, url, size = 22 }: FlagProps) {
       <span
         aria-hidden="true"
         style={style}
-        className={`inline-flex shrink-0 items-center justify-center rounded-[3px] bg-surf-3 text-[8px] font-bold text-muted ${SHADOW}`}
+        className={`bg-surf-3 text-muted inline-flex shrink-0 items-center justify-center rounded-[3px] text-[8px] font-bold ${SHADOW}`}
       >
         {code ?? '··'}
       </span>
@@ -38,7 +38,7 @@ export function Flag({ code, url, size = 22 }: FlagProps) {
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
-      className={`inline-block shrink-0 rounded-[3px] bg-surf-3 object-cover ${SHADOW}`}
+      className={`bg-surf-3 inline-block shrink-0 rounded-[3px] object-cover ${SHADOW}`}
     />
   );
 }

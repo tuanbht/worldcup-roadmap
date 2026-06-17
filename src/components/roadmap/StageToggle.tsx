@@ -16,7 +16,12 @@ interface StageToggleProps {
 export function StageToggle({ view, onChange }: StageToggleProps) {
   return (
     <Panel position="top-left" className="stage-toggle">
-      <SegmentedControl options={OPTIONS} value={view} onChange={onChange} ariaLabel="Select roadmap view" />
+      <SegmentedControl
+        options={OPTIONS}
+        value={view}
+        onChange={onChange}
+        ariaLabel="Select roadmap view"
+      />
     </Panel>
   );
 }

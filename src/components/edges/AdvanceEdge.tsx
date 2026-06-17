@@ -25,7 +25,12 @@ function AdvanceEdgeImpl({
   const state = data?.state ?? 'undecided';
 
   return (
-    <BaseEdge id={id} path={path} markerEnd={markerEnd} className={`advance-edge advance-edge--${state}`} />
+    <BaseEdge
+      id={id}
+      path={path}
+      markerEnd={markerEnd}
+      className={`advance-edge advance-edge--${state}`}
+    />
   );
 }
 

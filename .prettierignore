@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+test-results
+.next
+.omc
+.playwright-mcp
+package-lock.json
+*.snap
+e2e/**/*-snapshots
+*.png

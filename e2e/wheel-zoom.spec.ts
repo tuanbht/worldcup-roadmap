@@ -100,7 +100,12 @@ test.describe('wheel zoom', () => {
   test('a plain wheel (no ctrl) does not zoom under panOnScroll', async ({ page }) => {
     const before = await readScale(page);
     await page.mouse.move(400, 400);
-    await page.dispatchEvent(VIEWPORT, 'wheel', { deltaY: -120, clientX: 400, clientY: 400, bubbles: true });
+    await page.dispatchEvent(VIEWPORT, 'wheel', {
+      deltaY: -120,
+      clientX: 400,
+      clientY: 400,
+      bubbles: true,
+    });
     const after = await waitForStableScale(page);
     expect(Math.abs(after - before)).toBeLessThan(0.05);
   });

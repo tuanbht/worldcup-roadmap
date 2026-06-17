@@ -31,9 +31,11 @@ export function TeamRow({ team, goals, penalty, isWinner, dim, showScore }: Team
         {refLabel(team)}
       </span>
       {showScore && (
-        <span className={`font-display text-[1.05rem] tabular-nums ${dim ? 'text-dim' : 'text-ink'}`}>
+        <span
+          className={`font-display text-[1.05rem] tabular-nums ${dim ? 'text-dim' : 'text-ink'}`}
+        >
           {goals ?? '–'}
-          {penalty != null && <span className="text-[0.72rem] text-muted"> ({penalty})</span>}
+          {penalty != null && <span className="text-muted text-[0.72rem]"> ({penalty})</span>}
         </span>
       )}
     </div>

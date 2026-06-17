@@ -16,7 +16,7 @@ actual code:
   `slot.source.kind` (`bracket.ts` confirms `SlotSource` is a discriminated union with no bare
   `matchId`), enumerates children in `[home, away]` = `slot*2`/`slot*2+1` order (matches
   `build-bracket.ts:94-97`), and explains why that makes `d3.tree`'s parent-x coincide with the
-  *structural* midpoint. This reasoning is sound: a 16→8→4→2→1 bracket is a balanced binary tree,
+  _structural_ midpoint. This reasoning is sound: a 16→8→4→2→1 bracket is a balanced binary tree,
   where Reingold-Tilford with uniform `nodeSize` places each parent exactly at its two children's
   midpoint.
 - **M1–M4, L1–L3:** all folded in (THIRD_PLACE placed after x-normalization and excluded from the
@@ -38,9 +38,11 @@ none block. **Approved.**
 ## Findings
 
 ### CRITICAL
+
 _None._
 
 ### HIGH
+
 _None._
 
 ### MEDIUM
@@ -49,7 +51,7 @@ _None._
 `matchData(node: BracketNode, match)` derives `matchId`, `stage`, `roundLabel`, `isFinal`,
 `isThirdPlace` from a `BracketNode`. Group-stage matches have **no** bracket node, yet the plan emits
 one `match` node per group match (Scope; Acceptance #1). The plan's `matchData()` section (plan
-lines 143–148) only adds `group`/`matchday` to the two existing *bracket-keyed* branches and never
+lines 143–148) only adds `group`/`matchday` to the two existing _bracket-keyed_ branches and never
 specifies how a bare `Match` becomes `MatchNodeData`. Fix in the plan: add a `groupMatchData(match)`
 helper (or refactor `matchData` to source stage/label/flags from the `Match` when no node is given),
 with `roundLabel = STAGE_LABELS['GROUP_STAGE']` and `isFinal/isThirdPlace = false`. Acceptance test
@@ -65,7 +67,7 @@ fit/overview zoom where both still render, or drive `setCenter`/focus to each in
 the place that explicitly asserts the top/bottom handle sides + the "Group · MD" label — since that
 is the only coverage of the handle/label rename (the components are outside `coverage.include`).
 
-**M3. Feeder edges leave the group *table* node, not the last group match — confirm the visual
+**M3. Feeder edges leave the group _table_ node, not the last group match — confirm the visual
 "flow."** The plan keeps feeders `group-{name}` (table) → R32, which satisfies the requirement
 literally. But with 72 new group-match cards trailing rightward from each table, the band only
 "flows into" the KO if the table-anchored feeder reads correctly alongside the lane of match cards.
@@ -88,7 +90,7 @@ detail-tier (hidden at overview/titles) or title-tier identity (always shown). A
 label likely wants to stay visible; pick intentionally rather than by copy-paste.
 
 **L3. Confirm THIRD_PLACE's `finalX + LEAF_PITCH_X` offset doesn't visually clash with the SF
-column.** Pure tuning; the tests assert the *relation* (`x == finalX + LEAF_PITCH_X`), so layout and
+column.** Pure tuning; the tests assert the _relation_ (`x == finalX + LEAF_PITCH_X`), so layout and
 test stay self-consistent regardless — just eyeball it in the visual pass.
 
 ---

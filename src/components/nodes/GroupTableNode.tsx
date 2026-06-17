@@ -14,14 +14,14 @@ function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
   return (
     <section
       aria-label={`Group ${group.name} standings`}
-      className="w-[296px] overflow-hidden rounded-[14px] border border-edge bg-gradient-to-b from-surf-2 to-surf-1 shadow-[var(--elevation-card)] transition-[transform,border-color,box-shadow] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-edge-strong hover:shadow-[var(--elevation-hover)] [contain:layout_paint]"
+      className="border-edge from-surf-2 to-surf-1 hover:border-edge-strong w-[296px] overflow-hidden rounded-[14px] border bg-gradient-to-b shadow-[var(--elevation-card)] transition-[transform,border-color,box-shadow] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] [contain:layout_paint] hover:-translate-y-0.5 hover:shadow-[var(--elevation-hover)]"
     >
       <Handle id="sr" type="source" position={Position.Right} className={HANDLE} />
-      <header className="flex items-center gap-2 px-3 pb-2 pt-3">
-        <span className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-lg bg-accent font-display text-[0.85rem] font-extrabold text-deep">
+      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <span className="bg-accent font-display text-deep inline-flex h-[26px] w-[26px] items-center justify-center rounded-lg text-[0.85rem] font-extrabold">
           {group.name}
         </span>
-        <h3 className="text-[0.95rem] text-ink">Group {group.name}</h3>
+        <h3 className="text-ink text-[0.95rem]">Group {group.name}</h3>
       </header>
       {/* table-fixed + fixed numeric-column widths so a long team name (e.g. "Bosnia and
           Herzegovina") truncates instead of pushing the P / GD / Pts columns past the
@@ -34,11 +34,19 @@ function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
           <col className="w-11" />
         </colgroup>
         <thead>
-          <tr className="[&>th]:border-t [&>th]:border-edge [&>th]:py-1 [&>th]:text-[0.72rem] [&>th]:font-semibold [&>th]:uppercase [&>th]:tracking-[0.08em] [&>th]:text-dim">
-            <th scope="col" className="px-3 text-left">Team</th>
-            <th scope="col" className="px-1 text-center">P</th>
-            <th scope="col" className="px-1 text-center">GD</th>
-            <th scope="col" className="px-2 text-center">Pts</th>
+          <tr className="[&>th]:border-edge [&>th]:text-dim [&>th]:border-t [&>th]:py-1 [&>th]:text-[0.72rem] [&>th]:font-semibold [&>th]:tracking-[0.08em] [&>th]:uppercase">
+            <th scope="col" className="px-3 text-left">
+              Team
+            </th>
+            <th scope="col" className="px-1 text-center">
+              P
+            </th>
+            <th scope="col" className="px-1 text-center">
+              GD
+            </th>
+            <th scope="col" className="px-2 text-center">
+              Pts
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/[0.06]">
@@ -48,14 +56,18 @@ function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
               className={`tabular-nums [&>td]:py-[5px] ${row.qualified ? 'bg-accent/15' : ''}`}
             >
               <td className="px-3 text-left">
-                <span className="flex items-center gap-2 font-medium text-ink">
+                <span className="text-ink flex items-center gap-2 font-medium">
                   <Flag code={row.team.code} url={row.team.flagUrl} size={18} />
                   <span className="min-w-0 truncate">{row.team.name}</span>
                 </span>
               </td>
-              <td data-lod-detail className="px-1 text-center text-muted">{row.played}</td>
-              <td data-lod-detail className="px-1 text-center text-muted">{gd(row.goalDifference)}</td>
-              <td className="px-2 text-center font-bold text-ink">{row.points}</td>
+              <td data-lod-detail className="text-muted px-1 text-center">
+                {row.played}
+              </td>
+              <td data-lod-detail className="text-muted px-1 text-center">
+                {gd(row.goalDifference)}
+              </td>
+              <td className="text-ink px-2 text-center font-bold">{row.points}</td>
             </tr>
           ))}
         </tbody>

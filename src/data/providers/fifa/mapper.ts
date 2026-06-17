@@ -7,7 +7,8 @@ type Localized = ReadonlyArray<{ Locale: string; Description: string }> | undefi
 
 function pickLocale(values: Localized): string | null {
   if (!values || values.length === 0) return null;
-  const en = values.find((v) => v.Locale === 'en-GB') ?? values.find((v) => v.Locale.startsWith('en'));
+  const en =
+    values.find((v) => v.Locale === 'en-GB') ?? values.find((v) => v.Locale.startsWith('en'));
   return (en ?? values[0]).Description;
 }
 
@@ -50,7 +51,12 @@ function mapTeam(raw: RawMatch['Home'], placeholder: string | null | undefined):
   });
 }
 
-function computeWinner(home: number | null, away: number | null, ph: number | null, pa: number | null): Outcome | null {
+function computeWinner(
+  home: number | null,
+  away: number | null,
+  ph: number | null,
+  pa: number | null,
+): Outcome | null {
   if (home == null || away == null) return null;
   if (home > away) return 'home';
   if (away > home) return 'away';

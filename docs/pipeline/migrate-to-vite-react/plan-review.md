@@ -37,27 +37,29 @@ deviation flag, none of which block.
 
 ## Verification performed (rev #2 claims re-checked against code)
 
-| Claim | Verified | Evidence |
-|---|---|---|
-| Only `src/app/**`, `next.config.ts`, `next-env.d.ts`, `next/dynamic`, `next/font`, one `Flag.tsx` pragma, one `env.ts` import are Next-coupled | YES | `grep next/` → `RoadmapCanvas.lazy.tsx`, `Flag.tsx` (pragma), `layout.tsx`. `process.env` only in `env.ts`. |
-| 15 `'use client'` files, list correct | YES | Exactly 15; matches the plan's enumeration. |
-| `useTournament` consumed only by `RoadmapCanvas.tsx` (+ itself) | YES | No test imports it; deletion is safe. |
-| `RoadmapCanvas` destructures `{ data, loading }`, Legend reads `tournament?.meta.provider` | YES | Lines 64, 101 — M4 return shape is required and correct. |
-| `getCachedTournament(repo)` accepts an injectable repo; `resetTournamentCache()` exists | YES | Error-path test (throwing repo) is feasible; `resetTournamentCache()` between cases is genuinely required because stale-on-error would otherwise mask the throw. |
-| `env.ts` parses at import; `auto` → `FifaRepository` (network) | YES | H2 confirmed real. |
-| `globals.css` `@theme` tokens + `[data-lod]` rules + reduced-motion guards present; `--font-display` already falls back to `'Archivo'` literal | YES | The move must be verbatim; the added `--font-*` vars are belt-and-suspenders (see L-A). |
-| `@vitejs/plugin-react` already a devDep; `vite`+`vite-node` resolvable; `vite` not yet a top-level dep | YES | Plan correctly adds `vite` as a dep. |
-| `postcss.config.mjs` is `@tailwindcss/postcss`-only; Vite reads it | YES | Confirmed. |
-| `next.config.ts` `remotePatterns` is the only allow-list; `@next/bundle-analyzer` only used by `analyze` | YES | Plan removes both correctly (M2 documented). |
-| `playwright.config.ts` already `baseURL: 3217` (single Next `start` server) | YES | Plan rewrites `webServer` to a two-entry array (preview SPA + `vite-node` API). |
-| `public/` does not exist; `src/app/icon.png` + `src/app/assets/favicon.ico` exist | YES | Plan creates `public/`, byte-copies the PNG, evaluates the `.ico`. |
+| Claim                                                                                                                                          | Verified | Evidence                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only `src/app/**`, `next.config.ts`, `next-env.d.ts`, `next/dynamic`, `next/font`, one `Flag.tsx` pragma, one `env.ts` import are Next-coupled | YES      | `grep next/` → `RoadmapCanvas.lazy.tsx`, `Flag.tsx` (pragma), `layout.tsx`. `process.env` only in `env.ts`.                                                      |
+| 15 `'use client'` files, list correct                                                                                                          | YES      | Exactly 15; matches the plan's enumeration.                                                                                                                      |
+| `useTournament` consumed only by `RoadmapCanvas.tsx` (+ itself)                                                                                | YES      | No test imports it; deletion is safe.                                                                                                                            |
+| `RoadmapCanvas` destructures `{ data, loading }`, Legend reads `tournament?.meta.provider`                                                     | YES      | Lines 64, 101 — M4 return shape is required and correct.                                                                                                         |
+| `getCachedTournament(repo)` accepts an injectable repo; `resetTournamentCache()` exists                                                        | YES      | Error-path test (throwing repo) is feasible; `resetTournamentCache()` between cases is genuinely required because stale-on-error would otherwise mask the throw. |
+| `env.ts` parses at import; `auto` → `FifaRepository` (network)                                                                                 | YES      | H2 confirmed real.                                                                                                                                               |
+| `globals.css` `@theme` tokens + `[data-lod]` rules + reduced-motion guards present; `--font-display` already falls back to `'Archivo'` literal | YES      | The move must be verbatim; the added `--font-*` vars are belt-and-suspenders (see L-A).                                                                          |
+| `@vitejs/plugin-react` already a devDep; `vite`+`vite-node` resolvable; `vite` not yet a top-level dep                                         | YES      | Plan correctly adds `vite` as a dep.                                                                                                                             |
+| `postcss.config.mjs` is `@tailwindcss/postcss`-only; Vite reads it                                                                             | YES      | Confirmed.                                                                                                                                                       |
+| `next.config.ts` `remotePatterns` is the only allow-list; `@next/bundle-analyzer` only used by `analyze`                                       | YES      | Plan removes both correctly (M2 documented).                                                                                                                     |
+| `playwright.config.ts` already `baseURL: 3217` (single Next `start` server)                                                                    | YES      | Plan rewrites `webServer` to a two-entry array (preview SPA + `vite-node` API).                                                                                  |
+| `public/` does not exist; `src/app/icon.png` + `src/app/assets/favicon.ico` exist                                                              | YES      | Plan creates `public/`, byte-copies the PNG, evaluates the `.ico`.                                                                                               |
 
 ## Findings
 
 ### CRITICAL
+
 None.
 
 ### HIGH
+
 None.
 
 ### MEDIUM
@@ -67,7 +69,7 @@ conscious deviation and keep `tsx` installed as the documented fallback.**
 The requirement's Dependencies list literally says add `tsx (run the API in dev)`. The plan instead
 runs the API with `vite-node` and proposes removing `tsx`. I agree `vite-node` is the better choice
 (it reuses the single Vite alias source of truth; bare `tsx` would crash on the 24 `@/` imports). The
-plan does justify this. The remaining gap is operational: the plan proposes *removing* `tsx`, which
+plan does justify this. The remaining gap is operational: the plan proposes _removing_ `tsx`, which
 deletes the documented fallback (`tsx` + `tsconfig-paths/register`) from `node_modules` exactly when
 it might be needed. Fix: keep `tsx` in `devDependencies` (it costs nothing) so the fallback is already
 installed, and make sure the plan's deviation log states plainly that this overrides a literal
@@ -104,15 +106,15 @@ a real regression.
 
 ## Checklist verdict
 
-| Area | Assessment |
-|---|---|
-| Completeness | Every requirement clause covered: hard cutover, preserved domain/data/features/components incl. LOD, dev+preview proxy, Hono API reusing `selectRepository()`/`getCachedTournament()` with the same envelope, TanStack Query replacing polling, font/image swaps, favicon byte-copy, scripts, vitest/playwright rewiring, doc reconciliation. |
-| Feasibility | Code-verified; the three structural traps are real and correctly mitigated. |
-| Architecture | Clean two-process split; one alias source of truth; call-site shape preserved so `RoadmapCanvas` blast radius is one import + one destructure. |
-| Reuse | Reuses `selectRepository`/`getCachedTournament`/`ok`/`fail`/`toApiError` verbatim; TanStack Query, Hono, `@fontsource`, `concurrently`, transitive `vite-node`. No reinvention. |
-| Test strategy | RED/GREEN clear; two new areas well-scoped (route incl. error path; Query hook); existing tests unchanged; ≥80% on new/changed code; error path correctly requires `resetTournamentCache()`. |
-| Non-functionals | No secrets; `env.ts` zod-validates and fails fast; no `console.log` in request path; CORS-safe (FIFA fetch stays server-side); a11y/semantic HTML preserved; M2 future-CSP note recorded. |
-| Risks | Named with mitigations; residuals are deferred e2e execution (environment limit, documented) plus M-A/M-B. |
+| Area            | Assessment                                                                                                                                                                                                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness    | Every requirement clause covered: hard cutover, preserved domain/data/features/components incl. LOD, dev+preview proxy, Hono API reusing `selectRepository()`/`getCachedTournament()` with the same envelope, TanStack Query replacing polling, font/image swaps, favicon byte-copy, scripts, vitest/playwright rewiring, doc reconciliation. |
+| Feasibility     | Code-verified; the three structural traps are real and correctly mitigated.                                                                                                                                                                                                                                                                   |
+| Architecture    | Clean two-process split; one alias source of truth; call-site shape preserved so `RoadmapCanvas` blast radius is one import + one destructure.                                                                                                                                                                                                |
+| Reuse           | Reuses `selectRepository`/`getCachedTournament`/`ok`/`fail`/`toApiError` verbatim; TanStack Query, Hono, `@fontsource`, `concurrently`, transitive `vite-node`. No reinvention.                                                                                                                                                               |
+| Test strategy   | RED/GREEN clear; two new areas well-scoped (route incl. error path; Query hook); existing tests unchanged; ≥80% on new/changed code; error path correctly requires `resetTournamentCache()`.                                                                                                                                                  |
+| Non-functionals | No secrets; `env.ts` zod-validates and fails fast; no `console.log` in request path; CORS-safe (FIFA fetch stays server-side); a11y/semantic HTML preserved; M2 future-CSP note recorded.                                                                                                                                                     |
+| Risks           | Named with mitigations; residuals are deferred e2e execution (environment limit, documented) plus M-A/M-B.                                                                                                                                                                                                                                    |
 
 ## Verdict
 

@@ -24,15 +24,15 @@ requirement
 
 ## The agents
 
-| # | Agent | Role | Model | Gate |
-|---|-------|------|-------|------|
-| 1 | `req-planner` | Requirement → concrete, file-level plan | opus | — |
-| 2 | `req-plan-reviewer` | Critique the plan; block on CRITICAL/HIGH | opus | ✅ |
-| 3 | `req-test-writer` | Write failing tests (RED) from acceptance criteria | opus | — |
-| 4 | `req-test-refactorer` | Raise test quality; keep them RED | opus | — |
-| 5 | `req-implementer` | Implement to GREEN; run test/typecheck/lint/build | opus | — |
-| 6 | `req-impl-reviewer` | Code review; block on CRITICAL/HIGH | opus | ✅ |
-| 7 | `req-final-reviewer` | Holistic, strategic close-out review | opus | — |
+| #   | Agent                 | Role                                               | Model | Gate |
+| --- | --------------------- | -------------------------------------------------- | ----- | ---- |
+| 1   | `req-planner`         | Requirement → concrete, file-level plan            | opus  | —    |
+| 2   | `req-plan-reviewer`   | Critique the plan; block on CRITICAL/HIGH          | opus  | ✅   |
+| 3   | `req-test-writer`     | Write failing tests (RED) from acceptance criteria | opus  | —    |
+| 4   | `req-test-refactorer` | Raise test quality; keep them RED                  | opus  | —    |
+| 5   | `req-implementer`     | Implement to GREEN; run test/typecheck/lint/build  | opus  | —    |
+| 6   | `req-impl-reviewer`   | Code review; block on CRITICAL/HIGH                | opus  | ✅   |
+| 7   | `req-final-reviewer`  | Holistic, strategic close-out review               | opus  | —    |
 
 The agents live in `.claude/agents/req-*.md`. They are deliberately small, single-purpose, and least-privilege (only the reviewers that must verify get `Bash`; review-only agents get no `Edit`).
 
@@ -51,7 +51,11 @@ The orchestrator (defined in `.claude/commands/implement-requirement.md`) drives
 **Fully automated (background):** run the workflow in `.claude/workflows/implement-requirement.js`. It expects:
 
 ```js
-args = { requirement: "<text>", slug: "<kebab-slug>", runDir: "<abs path to docs/pipeline/<slug>>" }
+args = {
+  requirement: '<text>',
+  slug: '<kebab-slug>',
+  runDir: '<abs path to docs/pipeline/<slug>>',
+};
 ```
 
 It returns a structured summary (iteration counts, gate outcomes, final review).

@@ -50,7 +50,10 @@ async function settle(page: Page): Promise<void> {
 
 test.describe('responsive layout', () => {
   test.beforeEach(({}, testInfo) => {
-    test.skip(testInfo.project.name === 'mobile', 'self-driven viewport; mobile project pins its own viewport');
+    test.skip(
+      testInfo.project.name === 'mobile',
+      'self-driven viewport; mobile project pins its own viewport',
+    );
   });
 
   for (const bp of BREAKPOINTS) {
@@ -64,9 +67,10 @@ test.describe('responsive layout', () => {
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
       }));
-      expect(scrollWidth, `document must not overflow horizontally at ${bp.label}px`).toBeLessThanOrEqual(
-        clientWidth + 1,
-      );
+      expect(
+        scrollWidth,
+        `document must not overflow horizontally at ${bp.label}px`,
+      ).toBeLessThanOrEqual(clientWidth + 1);
     });
 
     test(`visual snapshot at ${bp.label}px`, async ({ page }) => {

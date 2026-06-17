@@ -31,7 +31,7 @@ export function StatusPill({ status, minute, kickoff }: StatusPillProps) {
       {live && (
         <span
           aria-hidden="true"
-          className="h-[7px] w-[7px] rounded-full bg-live animate-livepulse [will-change:transform,opacity]"
+          className="bg-live animate-livepulse h-[7px] w-[7px] rounded-full [will-change:transform,opacity]"
         />
       )}
       {live && <span className="sr-only">Live</span>}

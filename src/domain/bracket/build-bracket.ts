@@ -9,12 +9,7 @@ import type {
 } from '../types';
 import { isResolved, placeholderRef } from '../types';
 import { R32_SEEDING } from './seeding';
-import {
-  KNOCKOUT_STAGES,
-  STAGE_LABELS,
-  STAGE_MATCH_COUNT,
-  STAGE_TAG,
-} from './stage-order';
+import { KNOCKOUT_STAGES, STAGE_LABELS, STAGE_MATCH_COUNT, STAGE_TAG } from './stage-order';
 
 function sortKoMatches(a: Match, b: Match): number {
   const byTime = a.kickoff.localeCompare(b.kickoff);

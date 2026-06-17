@@ -23,8 +23,7 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 1.8;
 
 /** A zoom strictly inside a hysteresis gap: above EXIT, below ENTER. */
-const midGap = (band: 'titles' | 'detail'): number =>
-  (LOD_ENTER[band] + LOD_EXIT[band]) / 2;
+const midGap = (band: 'titles' | 'detail'): number => (LOD_ENTER[band] + LOD_EXIT[band]) / 2;
 
 /** A vanishingly small step used to probe just-below / just-above a threshold. */
 const EPS = 1e-3;

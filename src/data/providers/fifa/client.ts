@@ -36,7 +36,8 @@ export async function fetchFifaMatches(): Promise<RawMatch[]> {
 
     const res = await fetch(url, { headers: HEADERS, cache: 'no-store' });
     if (res.status === 429) throw new RateLimitError();
-    if (!res.ok) throw new RepositoryError('UPSTREAM_HTTP', `FIFA API responded ${res.status}`, 502);
+    if (!res.ok)
+      throw new RepositoryError('UPSTREAM_HTTP', `FIFA API responded ${res.status}`, 502);
 
     let parsed;
     try {

@@ -7,14 +7,14 @@ this reviewer; results are observed, not inherited from prior stages.
 
 ## Observed final-state gates (re-run by this reviewer)
 
-| Gate | Command | Result |
-|---|---|---|
-| Typecheck | `npm run typecheck` | **PASS** (exit 0) |
-| Unit | `npm run test` | **PASS** — 7 files, **52 tests** (32 new: build-graph 18, lod 14) |
-| Coverage | `npm run test:coverage` | **PASS** — `build-graph.ts` **98.43%**, `lod.ts` **100%**, all-files **85.79%** (≥80%) |
-| Build | `npm run build` | **PASS** (exit 0) — `/` First Load JS **104 kB** |
-| E2E | `npm run test:e2e -- --project=chromium` | **PASS** — **17/17** in 10.4s |
-| Lint | `npm run lint` | **BLOCKED (pre-existing)** — `next lint` prompts for ESLint setup; no `.eslintrc*`/`eslint.config.*` in repo |
+| Gate      | Command                                  | Result                                                                                                       |
+| --------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Typecheck | `npm run typecheck`                      | **PASS** (exit 0)                                                                                            |
+| Unit      | `npm run test`                           | **PASS** — 7 files, **52 tests** (32 new: build-graph 18, lod 14)                                            |
+| Coverage  | `npm run test:coverage`                  | **PASS** — `build-graph.ts` **98.43%**, `lod.ts` **100%**, all-files **85.79%** (≥80%)                       |
+| Build     | `npm run build`                          | **PASS** (exit 0) — `/` First Load JS **104 kB**                                                             |
+| E2E       | `npm run test:e2e -- --project=chromium` | **PASS** — **17/17** in 10.4s                                                                                |
+| Lint      | `npm run lint`                           | **BLOCKED (pre-existing)** — `next lint` prompts for ESLint setup; no `.eslintrc*`/`eslint.config.*` in repo |
 
 This matches the stage-6 impl-review exactly; nothing regressed between stages.
 
@@ -28,7 +28,7 @@ instead of Dagre. Judged against the **plan's acceptance criteria** (the authori
 delivery is complete:
 
 - **Smooth, cursor-centered, clamped wheel zoom** — pre-existing (d3-zoom under React Flow),
-  now *proven* by `wheel-zoom.spec.ts`: scale rises and clamps at `maxZoom=1.8`, falls and
+  now _proven_ by `wheel-zoom.spec.ts`: scale rises and clamps at `maxZoom=1.8`, falls and
   clamps at `minZoom=0.2`, and a plain (non-ctrl) wheel does not zoom under `panOnScroll`. All 3
   pass. This is the requirement's one hard ask and it is now under regression test.
 - **Semantic-zoom LOD (the one real feature gap)** — delivered as designed: a pure
@@ -42,7 +42,7 @@ delivery is complete:
   (`parseTournament(buildMockTournament('2026-06-17T00:00:00Z'))`), never hardcoded — verified:
   the suite reads `tournament.groups.length` and `bracket.rounds.flatMap(r => r.nodes)`.
 - **e2e extension** — wheel-zoom, visual/responsive at 320/768/1024/1440 (with `scrollWidth <=
-  clientWidth` overflow guard), and a11y (axe smoke + keyboard focus + reduced-motion). All green.
+clientWidth` overflow guard), and a11y (axe smoke + keyboard focus + reduced-motion). All green.
 - **Bundle budget (<300 kb gz)** — analyzer + axe added; `next.config.ts` analyzer gated on
   `ANALYZE=true` and lazy-loaded. Independently measured: `/` shell First Load JS = 104 kB;
   React Flow sits in the lazy `ssr:false` chunks (~54.5 kB gz combined). Realistic page total
@@ -52,7 +52,7 @@ delivery is complete:
 **Honest gaps / partials:**
 
 - **Lint is unenforceable** (see §4). Not introduced by this change, but it means the lint gate
-  in the plan's AC #14 is *not actually green* — it's *unrunnable*. Stated plainly: one of the
+  in the plan's AC #14 is _not actually green_ — it's _unrunnable_. Stated plainly: one of the
   four named verify commands cannot pass in this repo's current configuration.
 - **Coverage micro-gap:** `build-graph.ts` lines 58–59 (the `decided` branch of `edgeState`) are
   uncovered as a direct unit; the e2e/edge-state assertions exercise the live/decided/undecided
@@ -73,7 +73,7 @@ delivery is complete:
   the textbook pattern. Reasonable for a tiny pure mapping; flagged as LOW debt below.
 - **Characterization tests over true TDD for `build-graph.ts`.** Because the builder already
   shipped and works, its tests are GREEN-on-arrival by design (correct per the brief). The trade
-  is that the tests lock in *current* behavior rather than having driven it; they're a safety net,
+  is that the tests lock in _current_ behavior rather than having driven it; they're a safety net,
   not a design record. Acceptable and intended.
 - **Keeping the existing `panOnScroll` model.** Means wheel zoom requires ctrl/pinch, diverging
   from the requirement's "scroll wheel zooms by default" wording. Pre-existing canvas behavior,
@@ -81,7 +81,7 @@ delivery is complete:
 
 ## 3. Architecture & fit
 
-Strong fit. The change is almost entirely *additive at the seams*: two new pure/near-pure files
+Strong fit. The change is almost entirely _additive at the seams_: two new pure/near-pure files
 (`lod.ts`, `useZoomLevel.ts`), two new test files, three new e2e specs, and **surgical** one-line
 attribute/config edits to six existing files. No existing component was rewritten; the reuse
 inventory was honored. The new code reuses the exact `graph-model.ts` types, the single
@@ -102,7 +102,7 @@ CSS stays in the single `globals.css` source using live `@theme` tokens. No fric
   `@axe-core/playwright` devDep landed. Harmless under `skipLibCheck`; remove to avoid drift.
 - **LOW: LOD thresholds are unverified by eye.** Bands (`detail`≈0.85, `titles`≈0.45) were chosen
   by reasoning, and the plan itself flags tuning "during visual regression." The visual snapshots
-  are baselined but their *aesthetic* correctness (does detail fade at a pleasing zoom?) is a human
+  are baselined but their _aesthetic_ correctness (does detail fade at a pleasing zoom?) is a human
   judgment not captured by an assertion.
 - **Security/perf posture (system level):** No new untrusted boundary — LOD operates on a numeric
   zoom from React Flow's own store. No secrets, no `dangerouslySetInnerHTML`, no new network path
@@ -112,7 +112,7 @@ CSS stays in the single `globals.css` source using live `@theme` tokens. No fric
 ## 5. Test & quality posture
 
 - **Strong where it matters most.** The pure builder — the real engine of the feature — went from
-  *untested and excluded from coverage* to **98.43%** with 18 behavior-named tests covering all
+  _untested and excluded from coverage_ to **98.43%** with 18 behavior-named tests covering all
   three views, advance-edge derivation, handle routing, edge-state, feed edges, and immutability/
   purity (deep-frozen input). `lod.ts` is **100%** including both hysteresis directions. This is a
   genuine quality uplift, not box-ticking.
@@ -121,7 +121,7 @@ CSS stays in the single `globals.css` source using live `@theme` tokens. No fric
   source reference) plus a plain-wheel control test, and polls the transform to a stable read
   instead of arbitrary timeouts; the visual specs self-drive viewports and `test.skip` the mobile
   project to avoid double-run.
-- **Thin spots:** the LOD *visual fade* is asserted only indirectly (axe + overflow + screenshots),
+- **Thin spots:** the LOD _visual fade_ is asserted only indirectly (axe + overflow + screenshots),
   not by a dedicated "detail opacity goes to 0 at overview zoom" assertion — the band logic is unit-
   tested but the CSS wiring's runtime effect leans on the baselined screenshots. The one uncovered
   `decided` branch (build-graph 58–59) is exercised only indirectly.
@@ -132,20 +132,16 @@ CSS stays in the single `globals.css` source using live `@theme` tokens. No fric
 ## 6. Follow-ups (prioritized)
 
 **Must-do (before this is "done done" at the project level):**
+
 1. **Add an ESLint config** (`eslint.config.*` with `eslint-config-next`, already a devDep) so
    `npm run lint` is non-interactive and enforceable. This is the only gate not green; it's a
    project-health blocker even though it predates this change.
 
-**Nice-to-have:**
-2. Add one direct unit covering the `decided` `edgeState` branch (build-graph 58–59) to close the
-   coverage micro-gap and make the intent explicit.
-3. Add a focused e2e/visual assertion that `[data-lod-detail]` computed `opacity` is `0` at an
-   overview zoom and `1` at detail zoom, so the LOD wiring (not just the band math) is regression-
-   guarded directly.
-4. Move the `prevRef` write in `useZoomLevel` into a `useEffect` for idiomatic cleanliness.
-5. Remove the now-redundant `e2e/types/axe-core-playwright.d.ts` shim.
-6. Eyeball and, if needed, tune the LOD thresholds during a real interactive pass (the plan
-   anticipated this as a non-gating tuning step).
+**Nice-to-have:** 2. Add one direct unit covering the `decided` `edgeState` branch (build-graph 58–59) to close the
+coverage micro-gap and make the intent explicit. 3. Add a focused e2e/visual assertion that `[data-lod-detail]` computed `opacity` is `0` at an
+overview zoom and `1` at detail zoom, so the LOD wiring (not just the band math) is regression-
+guarded directly. 4. Move the `prevRef` write in `useZoomLevel` into a `useEffect` for idiomatic cleanliness. 5. Remove the now-redundant `e2e/types/axe-core-playwright.d.ts` shim. 6. Eyeball and, if needed, tune the LOD thresholds during a real interactive pass (the plan
+anticipated this as a non-gating tuning step).
 
 ## Verdict
 

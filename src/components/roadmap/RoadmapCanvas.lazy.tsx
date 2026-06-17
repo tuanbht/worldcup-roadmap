@@ -11,7 +11,7 @@ const RoadmapCanvas = lazy(() => import('./RoadmapCanvas'));
 function Preparing() {
   return (
     <div className="pitch-grid grid h-full w-full place-items-center">
-      <span className="animate-pulse font-display text-sm uppercase tracking-[0.2em] text-muted">
+      <span className="font-display text-muted animate-pulse text-sm tracking-[0.2em] uppercase">
         Preparing the bracket…
       </span>
     </div>

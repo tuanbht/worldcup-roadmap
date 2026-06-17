@@ -75,7 +75,7 @@ No CRITICAL or HIGH issues. The notes below are MEDIUM/LOW and are advisory, not
 
 - **L1 — "Works offline with no env" depends on FIFA failing, not on mock being the default.** Acceptance
   criterion #1 says no-env runs offline via the mock provider. In reality `WC_PROVIDER` defaults to `'auto'`,
-  which `selectRepository()` resolves to `new FifaRepository(new MockRepository())` — FIFA *with* mock
+  which `selectRepository()` resolves to `new FifaRepository(new MockRepository())` — FIFA _with_ mock
   fallback. It only serves mock data offline because the FIFA call fails and falls back. The e2e harness
   pins `WC_PROVIDER=mock` (deterministic — correct). Minor wording nuance; the behavior is fine.
 

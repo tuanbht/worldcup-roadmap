@@ -59,7 +59,10 @@ function edgeState(child: Match | undefined, parent: Match | undefined): Advance
 }
 
 /** Source/target handle ids so edges always flow toward the centre Final. */
-function handlesFor(childX: number, parentX: number): { sourceHandle: string; targetHandle: string } {
+function handlesFor(
+  childX: number,
+  parentX: number,
+): { sourceHandle: string; targetHandle: string } {
   return childX <= parentX
     ? { sourceHandle: 'sr', targetHandle: 'tl' }
     : { sourceHandle: 'sl', targetHandle: 'tr' };
@@ -137,11 +140,21 @@ export function buildRoadmapGraph(tournament: Tournament, view: RoadmapView): Ro
     const r32 = tournament.bracket.rounds.find((r) => r.stage === 'ROUND_OF_32');
     tournament.groups.forEach((group, i) => {
       const id = `group-${group.name}`;
-      nodes.push({ id, type: 'group', position: positions[i], data: { group }, width: GROUP_W, height: GROUP_H });
+      nodes.push({
+        id,
+        type: 'group',
+        position: positions[i],
+        data: { group },
+        width: GROUP_W,
+        height: GROUP_H,
+      });
       r32?.nodes.forEach((kn, slot) => {
         const pair = R32_SEEDING[slot];
-        const feeds = pair.home === `1${group.name}` || pair.home === `2${group.name}` ||
-          pair.away === `1${group.name}` || pair.away === `2${group.name}`;
+        const feeds =
+          pair.home === `1${group.name}` ||
+          pair.home === `2${group.name}` ||
+          pair.away === `1${group.name}` ||
+          pair.away === `2${group.name}`;
         if (feeds) {
           edges.push({
             id: `feed-${id}-${kn.matchId}`,

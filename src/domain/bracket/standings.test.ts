@@ -8,7 +8,14 @@ function team(id: string): Team {
 }
 
 function score(home: number, away: number): Score {
-  return { home, away, penaltyHome: null, penaltyAway: null, resolution: 'regular', winner: home > away ? 'home' : home < away ? 'away' : 'draw' };
+  return {
+    home,
+    away,
+    penaltyHome: null,
+    penaltyAway: null,
+    resolution: 'regular',
+    winner: home > away ? 'home' : home < away ? 'away' : 'draw',
+  };
 }
 
 function gm(id: string, home: Team, away: Team, s: Score, kickoff: string): Match {
@@ -50,7 +57,10 @@ describe('computeGroups', () => {
   });
 
   it('only counts finished matches but still lists every team', () => {
-    const scheduled: Match = { ...gm('m5', a, d, score(0, 0), '2026-06-20T12:00:00Z'), status: 'scheduled' };
+    const scheduled: Match = {
+      ...gm('m5', a, d, score(0, 0), '2026-06-20T12:00:00Z'),
+      status: 'scheduled',
+    };
     const [group] = computeGroups([scheduled]);
     expect(group.table).toHaveLength(2);
     expect(group.table.every((r) => r.played === 0)).toBe(true);

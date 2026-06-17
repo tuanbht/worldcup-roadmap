@@ -1,15 +1,7 @@
 import { computeGroups } from '@/domain/bracket/standings';
 import { buildBracket } from '@/domain/bracket/build-bracket';
 import { R32_SEEDING } from '@/domain/bracket/seeding';
-import type {
-  Group,
-  Match,
-  MatchStatus,
-  Score,
-  Stage,
-  Team,
-  Tournament,
-} from '@/domain/types';
+import type { Group, Match, MatchStatus, Score, Stage, Team, Tournament } from '@/domain/types';
 import { teamRef } from '@/domain/types';
 import { fifaFlagUrl } from '@/data/flag-url';
 import { MOCK_NATIONS } from './teams';
@@ -51,12 +43,7 @@ function drawGoals(attack: number, defence: number, rng: () => number): number {
   return k - 1;
 }
 
-function decide(
-  home: Seeded,
-  away: Seeded,
-  rng: () => number,
-  knockout: boolean,
-): Score {
+function decide(home: Seeded, away: Seeded, rng: () => number, knockout: boolean): Score {
   const hg = drawGoals(home.strength, away.strength, rng);
   const ag = drawGoals(away.strength, home.strength, rng);
 
@@ -71,7 +58,14 @@ function decide(
     };
   }
   if (!knockout) {
-    return { home: hg, away: ag, penaltyHome: null, penaltyAway: null, resolution: 'regular', winner: 'draw' };
+    return {
+      home: hg,
+      away: ag,
+      penaltyHome: null,
+      penaltyAway: null,
+      resolution: 'regular',
+      winner: 'draw',
+    };
   }
   // Knockout: settle level games on penalties.
   const homeFavoured = home.strength + rng() * 12 >= away.strength + rng() * 12;
@@ -214,9 +208,18 @@ export function buildMockTournament(fetchedAt: string): Tournament {
   };
 
   // --- Knockout: R32→SF finished, third-place scheduled, Final live. ---
-  let round: Seeded[] = R32_SEEDING.flatMap((pair) => [resolveLabel(pair.home), resolveLabel(pair.away)]);
+  let round: Seeded[] = R32_SEEDING.flatMap((pair) => [
+    resolveLabel(pair.home),
+    resolveLabel(pair.away),
+  ]);
 
-  const koSchedule: { stage: Stage; month0: number; baseDay: number; perDay: number; baseHour: number }[] = [
+  const koSchedule: {
+    stage: Stage;
+    month0: number;
+    baseDay: number;
+    perDay: number;
+    baseHour: number;
+  }[] = [
     { stage: 'ROUND_OF_32', month0: 5, baseDay: 28, perDay: 4, baseHour: 12 },
     { stage: 'ROUND_OF_16', month0: 6, baseDay: 4, perDay: 4, baseHour: 13 },
     { stage: 'QUARTER_FINALS', month0: 6, baseDay: 9, perDay: 2, baseHour: 14 },
@@ -226,7 +229,14 @@ export function buildMockTournament(fetchedAt: string): Tournament {
   let semifinalists: { home: Seeded; away: Seeded; score: Score }[] = [];
 
   for (const cfg of koSchedule) {
-    const tag = cfg.stage === 'ROUND_OF_32' ? 'r32' : cfg.stage === 'ROUND_OF_16' ? 'r16' : cfg.stage === 'QUARTER_FINALS' ? 'qf' : 'sf';
+    const tag =
+      cfg.stage === 'ROUND_OF_32'
+        ? 'r32'
+        : cfg.stage === 'ROUND_OF_16'
+          ? 'r16'
+          : cfg.stage === 'QUARTER_FINALS'
+            ? 'qf'
+            : 'sf';
     const next: Seeded[] = [];
     const played: { home: Seeded; away: Seeded; score: Score }[] = [];
     for (let slot = 0; slot < round.length / 2; slot++) {
@@ -243,7 +253,11 @@ export function buildMockTournament(fetchedAt: string): Tournament {
           home,
           away,
           score,
-          kickoff: iso(cfg.month0, cfg.baseDay + Math.floor(slot / cfg.perDay), cfg.baseHour + (slot % cfg.perDay) * 3),
+          kickoff: iso(
+            cfg.month0,
+            cfg.baseDay + Math.floor(slot / cfg.perDay),
+            cfg.baseHour + (slot % cfg.perDay) * 3,
+          ),
           status: 'finished',
         }),
       );
@@ -267,7 +281,14 @@ export function buildMockTournament(fetchedAt: string): Tournament {
       matchday: null,
       home: tpHome,
       away: tpAway,
-      score: { home: null, away: null, penaltyHome: null, penaltyAway: null, resolution: null, winner: null },
+      score: {
+        home: null,
+        away: null,
+        penaltyHome: null,
+        penaltyAway: null,
+        resolution: null,
+        winner: null,
+      },
       kickoff: iso(6, 18, 15),
       status: 'scheduled',
       venue: 'Hard Rock Stadium, Miami',
@@ -282,7 +303,14 @@ export function buildMockTournament(fetchedAt: string): Tournament {
       matchday: null,
       home: finalHome,
       away: finalAway,
-      score: { home: 1, away: 0, penaltyHome: null, penaltyAway: null, resolution: null, winner: null },
+      score: {
+        home: 1,
+        away: 0,
+        penaltyHome: null,
+        penaltyAway: null,
+        resolution: null,
+        winner: null,
+      },
       kickoff: iso(6, 19, 16),
       status: 'live',
       minute: 67,

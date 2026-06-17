@@ -29,24 +29,24 @@ so there's nothing to configure. To use live FIFA data, see **Data providers** b
 
 ## Scripts
 
-| Script | What it does |
-| --- | --- |
-| `npm run dev` | Next dev server |
-| `npm run build` / `npm start` | Production build / serve |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest unit tests (domain, layout, mapper) |
-| `npm run test:coverage` | Unit tests with coverage |
-| `npm run test:e2e` | Playwright E2E (run `npx playwright install` once first) |
+| Script                        | What it does                                             |
+| ----------------------------- | -------------------------------------------------------- |
+| `npm run dev`                 | Next dev server                                          |
+| `npm run build` / `npm start` | Production build / serve                                 |
+| `npm run typecheck`           | `tsc --noEmit`                                           |
+| `npm test`                    | Vitest unit tests (domain, layout, mapper)               |
+| `npm run test:coverage`       | Unit tests with coverage                                 |
+| `npm run test:e2e`            | Playwright E2E (run `npx playwright install` once first) |
 
 ## Data providers
 
 Configured via `WC_PROVIDER` (see `.env.example`):
 
-| Value | Behaviour |
-| --- | --- |
-| `auto` (default) | FIFA API, transparently falling back to the mock on any failure |
-| `fifa` | Strictly the official FIFA API (`idCompetition=17`, `idSeason=285023`) |
-| `mock` | The bundled offline fixture — deterministic, no network |
+| Value            | Behaviour                                                              |
+| ---------------- | ---------------------------------------------------------------------- |
+| `auto` (default) | FIFA API, transparently falling back to the mock on any failure        |
+| `fifa`           | Strictly the official FIFA API (`idCompetition=17`, `idSeason=285023`) |
+| `mock`           | The bundled offline fixture — deterministic, no network                |
 
 FIFA's knockout fixtures are created only as teams qualify, so the bracket topology
 (parent/child edges, placeholders) is **computed locally** and filled in as results arrive —
@@ -71,12 +71,12 @@ api.fifa.com / mock fixture
   RoadmapCanvas (@xyflow/react)  ·  MatchNode + AdvanceEdge + group tables
 ```
 
-| Layer | Location |
-| --- | --- |
-| Domain types + bracket/standings logic | `src/domain/` |
-| Providers, repository, cache, route | `src/data/`, `src/app/api/worldcup/` |
-| Layout engine + graph builder + hooks | `src/features/roadmap/` |
-| React Flow components | `src/components/` |
+| Layer                                  | Location                             |
+| -------------------------------------- | ------------------------------------ |
+| Domain types + bracket/standings logic | `src/domain/`                        |
+| Providers, repository, cache, route    | `src/data/`, `src/app/api/worldcup/` |
+| Layout engine + graph builder + hooks  | `src/features/roadmap/`              |
+| React Flow components                  | `src/components/`                    |
 
 ## Tech
 

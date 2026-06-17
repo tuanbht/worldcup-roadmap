@@ -6,14 +6,14 @@ note below.
 
 ## Observed gate results (run by the reviewer)
 
-| Gate | Command | Result |
-|---|---|---|
-| Typecheck | `npm run typecheck` | **PASS** (exit 0) |
-| Unit | `npm run test` | **PASS** — 7 files, **52 tests** (32 new: build-graph 18, lod 14) |
-| Coverage | `npm run test:coverage` | **PASS** — `build-graph.ts` **98.43%**, `lod.ts` **100%**; all-files 85.79% (≥80%) |
-| Build | `npm run build` | **PASS** (exit 0) |
-| E2E | `npm run test:e2e -- --project=chromium` | **PASS** — **17/17** (wheel-zoom clamps, axe, reduced-motion, 4 breakpoints + overflow) |
-| Lint | `npm run lint` | **BLOCKED (pre-existing)** — `next lint` prompts for ESLint setup; repo has no `.eslintrc*`/`eslint.config.*`. Not introduced by this change. |
+| Gate      | Command                                  | Result                                                                                                                                        |
+| --------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck | `npm run typecheck`                      | **PASS** (exit 0)                                                                                                                             |
+| Unit      | `npm run test`                           | **PASS** — 7 files, **52 tests** (32 new: build-graph 18, lod 14)                                                                             |
+| Coverage  | `npm run test:coverage`                  | **PASS** — `build-graph.ts` **98.43%**, `lod.ts` **100%**; all-files 85.79% (≥80%)                                                            |
+| Build     | `npm run build`                          | **PASS** (exit 0)                                                                                                                             |
+| E2E       | `npm run test:e2e -- --project=chromium` | **PASS** — **17/17** (wheel-zoom clamps, axe, reduced-motion, 4 breakpoints + overflow)                                                       |
+| Lint      | `npm run lint`                           | **BLOCKED (pre-existing)** — `next lint` prompts for ESLint setup; repo has no `.eslintrc*`/`eslint.config.*`. Not introduced by this change. |
 
 Coverage detail: `build-graph.ts` only uncovered lines are 58–59 (the `decided` branch of
 `edgeState` — a real but minor gap covered indirectly via the edge-state assertions).
@@ -46,12 +46,15 @@ Coverage detail: `build-graph.ts` only uncovered lines are 58–59 (the `decided
 ## Findings
 
 ### CRITICAL
+
 None.
 
 ### HIGH
+
 None.
 
 ### MEDIUM
+
 None.
 
 ### LOW

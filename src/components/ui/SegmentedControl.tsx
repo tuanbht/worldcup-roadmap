@@ -20,7 +20,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="flex gap-1 rounded-full border border-edge bg-surf-1/80 p-1 backdrop-blur"
+      className="border-edge bg-surf-1/80 flex gap-1 rounded-full border p-1 backdrop-blur"
     >
       {options.map((option) => {
         const active = option.value === value;

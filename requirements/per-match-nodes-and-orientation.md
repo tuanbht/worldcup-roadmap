@@ -5,6 +5,7 @@
 > all on one continuous zoomable canvas.
 
 ## Context
+
 Today the canvas shows the **group stage as aggregated standings tables** (`GroupTableNode` via
 `computeGroupGrid`) and the **knockout as a horizontal mirrored bracket** centered on the Final
 (`computeBracketLayout`: round depth → X, fan-in → Y). The requester wants the whole tournament to read as
@@ -12,6 +13,7 @@ one node graph where **1 match = 1 node**, including group matches, ordered by k
 that differs by phase.
 
 ## Resolved decisions (from the requester)
+
 1. **Group stage = one node per match**, reusing the existing `match` node type (not tables-only).
 2. **Order by date** (`Match.kickoff`).
 3. **Group / non-knockout = horizontal**, organized as **one lane per group (A–L)**; each lane's matches run
@@ -46,6 +48,7 @@ KNOCKOUT  (vertical — stages stack top→bottom)
 ```
 
 ## Coordinate model
+
 - **Group lanes (top band).** Lane index = group A..L (0..11) → `y = laneIndex * LANE_PITCH_Y`. The group's
   `GroupTableNode` sits at the lane start (`x = 0`); its matches, **sorted by `kickoff` ascending**, follow at
   `x = TABLE_W + GROUP_GAP + orderIndex * GROUP_MATCH_STEP_X`. So x strictly increases with kickoff; all
@@ -58,6 +61,7 @@ KNOCKOUT  (vertical — stages stack top→bottom)
   `top` handle. Feeder edges: group node `bottom` → seeded R32 match `top`.
 
 ## Files to change (extend existing, keep pure)
+
 - `src/features/roadmap/layout/layout-constants.ts` — add `LANE_PITCH_Y`, `GROUP_MATCH_STEP_X`,
   `STAGE_PITCH_Y`, `LEAF_PITCH_X`, `SECTION_GAP`, `TABLE_W`. Reinterpret/replace the horizontal `STEP`/`ROW_PITCH`.
 - `src/features/roadmap/layout/bracket-layout.ts` — rewrite `computeBracketLayout` to **vertical top→bottom**
@@ -83,6 +87,7 @@ KNOCKOUT  (vertical — stages stack top→bottom)
   KO in date/structural order; fitView frames the taller continuous canvas.
 
 ## Acceptance criteria (testable — for the TDD pipeline)
+
 - Every `GROUP_STAGE` match in `tournament.matches` yields exactly **one `match` node** (count == group-match
   count; for the 48-team mock that's 12 groups × 6 = **72**).
 - Within each group lane, nodes are **ordered by ascending `kickoff`** → x strictly increases with kickoff;
@@ -93,10 +98,11 @@ KNOCKOUT  (vertical — stages stack top→bottom)
 - All advance + feeder edges route **downward** (source handle below child, target handle on top of parent);
   no left/right handles remain in the vertical KO.
 - One continuous canvas: group band occupies the top `y` range; KO begins below it (`y >= groupBandHeight +
-  SECTION_GAP`); feeder edges connect each group to the R32 matches it seeds.
+SECTION_GAP`); feeder edges connect each group to the R32 matches it seeds.
 - Layout functions stay **pure and O(n)**; `buildRoadmapGraph` remains an immutable transform.
 
 ## Risks / notes
+
 - **Width**: lane-per-group with 6 matches + a table is wide; rely on the existing pan/zoom (and fitView) —
   the small-scale (<300 nodes; ~72 group + ~31 KO + 12 tables ≈ 115) keeps SVG/DOM well within budget.
 - **Handle migration**: switching KO from left/right to top/bottom handles touches `MatchNode` + `handlesFor`
@@ -106,6 +112,7 @@ KNOCKOUT  (vertical — stages stack top→bottom)
 - Reconcile with `library-first-stack-policy.md`: prefer `d3-hierarchy` for the KO tree.
 
 ## Verification
+
 `npm run test` (new layout/build-graph unit tests pass) → `npm run dev`: group stage shows lane-per-group
 match cards ordered by date with standings tables at each lane start; knockout reads top→bottom converging on
 the Final; feeder edges link groups → R32; mouse-wheel zoom + fitView frame the whole continuous canvas.
