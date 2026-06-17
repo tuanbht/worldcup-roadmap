@@ -1,134 +1,116 @@
-# Plan Review: Per-match nodes + phase-specific orientation
+# Plan Review: Per-match nodes + phase-specific orientation (Revision #2)
 
 ## Summary
 
-The plan is strong: it correctly maps the requirement's coordinate model onto the real
-codebase, names the right files, derives counts from the fixture (72 group matches is
-confirmed: 12 groups x 3 matchdays x 2 = 72), and is honest about the big risks (handle
-migration in lock-step, old tests asserting the old model, `RoadmapView` removal touching six
-callers, `d3-hierarchy` being absent). The acceptance criteria are concrete and testable, and
-the d3-hierarchy direction is consistent with the library-first policy.
+This second-revision plan is strong and clears the bar. Every prior HIGH/MEDIUM/LOW item from the
+first review (H1, H2, M1–M4, L1–L3) is addressed explicitly and the resolutions hold up against the
+actual code:
 
-However, there are two genuine gaps that block approval as written. The most important is that
-the plan's headline component test (behavior #18, MatchNode DOM assertions) is **not runnable in
-the current test setup** — Vitest runs in `environment: 'node'` with no jsdom and no Testing
-Library installed — yet the plan asserts "≥80% coverage on changed modules" and lists a DOM-level
-component test without provisioning that environment. The second is that the d3-hierarchy data
-model described in the plan does not match the actual domain types (`home.source`/`away.source`
-are `SlotSource` discriminated unions, not bare matchIds), and the plan does not address how the
-KO leaf order / midpoint-x maps onto the existing `slotIndex` ordering, which the requirement's
-"midpoint of its two children" criterion depends on. Both are cheap to fix in the plan before
-coding.
+- **H1 (no runnable env for the DOM component test):** resolved by taking Option (b) — assert the
+  handle-id contract through `buildRoadmapGraph` output, push the rendered-handle/label check into
+  the Playwright smoke, and restate ≥80% coverage against the `coverage.include`-scoped
+  `layout/**` + `build-graph.ts` modules only. Verified: `vitest.config.ts` is `environment: 'node'`,
+  `include: ['src/**/*.test.ts']` (no `.tsx`), `coverage.include` is exactly those modules, and
+  `package.json` has no Testing Library/jsdom. The plan no longer promises an unrunnable test.
+- **H2 (d3 data model + midpoint ordering):** resolved correctly. The plan now switches on
+  `slot.source.kind` (`bracket.ts` confirms `SlotSource` is a discriminated union with no bare
+  `matchId`), enumerates children in `[home, away]` = `slot*2`/`slot*2+1` order (matches
+  `build-bracket.ts:94-97`), and explains why that makes `d3.tree`'s parent-x coincide with the
+  *structural* midpoint. This reasoning is sound: a 16→8→4→2→1 bracket is a balanced binary tree,
+  where Reingold-Tilford with uniform `nodeSize` places each parent exactly at its two children's
+  midpoint.
+- **M1–M4, L1–L3:** all folded in (THIRD_PLACE placed after x-normalization and excluded from the
+  midpoint assertion; wholesale test-file replacement with the deleted-symbol/`tsc` note;
+  `computeGroupGrid` deletion confirmed safe; keyboard descoped to fit-padding only; smoke uses
+  ctrl+wheel via the existing `ctrlWheel` helper; Tailwind-on-component for the label; no schema
+  change since domain `Match` already carries the fields; `data-final` selector confirmed valid).
 
-A handful of smaller accuracy issues are noted below (MEDIUM/LOW) — they won't break the build
-but will mislead the implementer if left.
+The plan satisfies all of the requirement's acceptance criteria, uses `d3-hierarchy` per the
+library-first policy (with a justified hand-rolled fallback), migrates handles to top/bottom in
+lock-step across `MatchNode` + `handlesFor` + `GroupTableNode`, and derives all counts from the
+fixture (72 group matches = 12 × 3 × 2, confirmed in `build-mock-tournament.ts`).
+
+No CRITICAL or HIGH issues remain. A few MEDIUM/LOW refinements would save implementer churn but
+none block. **Approved.**
 
 ---
 
 ## Findings
 
 ### CRITICAL
-
 _None._
 
 ### HIGH
-
-**H1. The component test (behavior #18) has no runnable environment, but coverage depends on it.**
-`vitest.config.ts` uses `environment: 'node'` with `include: ['src/**/*.test.ts']` (note: not
-`.tsx`), and `package.json` has **no** `@testing-library/react`, `@testing-library/jest-dom`,
-`@testing-library/user-event`, or `jsdom`/`happy-dom`. The plan's test-strategy item #18 ("MatchNode
-renders 'Group A · MD1'... renders top + bottom handles; no left/right handles in DOM") cannot run
-today, and the plan's Files table does not add the deps, a jsdom environment, a `.tsx` test glob, or
-a setup file. Either:
-(a) add the Testing Library + jsdom deps, a `vitest` jsdom environment (per-file `// @vitest-environment jsdom` or a `projects`/`environmentMatchGlobs` split so the pure layout tests stay in `node`), the `.tsx` include glob, and a `jest-dom` setup file — and note this is the library-first-mapped stack (the policy already lists Testing Library as "⚠️ add"); **or**
-(b) drop the DOM component test and instead assert the handle-id contract purely through
-`buildRoadmapGraph` output (edges use `sourceHandle:'b'`/`targetHandle:'t'`) plus a Playwright DOM
-check, and restate the ≥80% coverage target against the changed *layout/build-graph* modules only
-(which is what `vitest.config.ts` `coverage.include` already scopes). Pick one explicitly; as
-written the plan promises a test that the harness cannot execute.
-
-**H2. The d3-hierarchy data model in the plan does not match the domain types, and the midpoint-x
-invariant is under-specified.** The plan says to build the hierarchy "rooted at the Final whose
-`children` are resolved from each node's `home.source`/`away.source` `matchId` (winnerOf links)".
-But in `src/domain/types/bracket.ts`, `BracketSlot.source` is a discriminated union
-(`{kind:'group'|'winnerOf'|'loserOf', ...}`) — there is no bare `matchId` on the slot; you must
-switch on `kind` and read `source.matchId` only for `winnerOf` (and stop at `kind:'group'` R32
-leaves). More importantly, the requirement's acceptance criterion is "each KO parent's x equals the
-**midpoint** of its two children's x." `d3.tree().nodeSize(...)` only yields exact parent =
-midpoint-of-two-children for a **balanced** binary tree where each node's two children are
-contiguous in leaf order. The bracket *is* balanced (16->8->4->2->1), but the **leaf order d3 lays
-out must match the existing `slotIndex` pairing** (R32 slot `2k`,`2k+1` feed R16 slot `k`), or the
-midpoint relationship will hold against d3's own x but **not** against the structural parent/child
-pairing the test asserts. The plan must state that the hierarchy children are enumerated in
-`slotIndex` order (top child = `slot*2`, bottom child = `slot*2+1`, matching `build-bracket.ts`
-lines 94-97) so d3's midpoint coincides with the structural midpoint. Without this, behavior #8 /
-acceptance #4 can fail intermittently. (The hand-rolled fallback already does this via the
-`child[2*p]`/`child[2*p+1]` averaging — the d3 version must preserve the same ordering.)
+_None._
 
 ### MEDIUM
 
-**M1. Behavior #8 asserts "parent x == midpoint of its two children (±ε)" but the THIRD_PLACE and
-Final-sibling handling can violate the x-origin normalization.** The plan places THIRD_PLACE at
-`{x: finalX + LEAF_PITCH_X, y: finalY}` *after* the tree pass, then "normalize the x origin to 0+."
-If normalization (a global x-shift) is applied to the tree nodes but THIRD_PLACE is positioned
-relative to the *post-shift* finalX, fine — but the plan describes computing THIRD_PLACE from finalX
-and *also* normalizing, with no stated order. Specify that THIRD_PLACE is placed relative to the
-**final, normalized** Final x (and is excluded from the midpoint assertion, since it has no children
-in the tree). Otherwise tests and layout can disagree by the normalization offset.
+**M1. `matchData()` has no described construction path for a group-stage match.**
+`matchData(node: BracketNode, match)` derives `matchId`, `stage`, `roundLabel`, `isFinal`,
+`isThirdPlace` from a `BracketNode`. Group-stage matches have **no** bracket node, yet the plan emits
+one `match` node per group match (Scope; Acceptance #1). The plan's `matchData()` section (plan
+lines 143–148) only adds `group`/`matchday` to the two existing *bracket-keyed* branches and never
+specifies how a bare `Match` becomes `MatchNodeData`. Fix in the plan: add a `groupMatchData(match)`
+helper (or refactor `matchData` to source stage/label/flags from the `Match` when no node is given),
+with `roundLabel = STAGE_LABELS['GROUP_STAGE']` and `isFinal/isThirdPlace = false`. Acceptance test
+#16 forces this, but it should be named so the implementer doesn't improvise the contract.
 
-**M2. `computeBracketLayout` signature change is a breaking ripple not fully traced.** The plan
-changes the signature to `computeBracketLayout(bracket, bandOffsetY)`. The existing
-`build-graph.test.ts` (lines 87, 157) calls `computeBracketLayout(tournament.bracket)` with one arg,
-and the plan's Files table marks `bracket-layout.test.ts` for rewrite but the *build-graph* call
-sites and the old `full`/`bracket`/`groups` view tests in `build-graph.test.ts` (which the plan says
-to "rewrite") must also drop the `groupGridWidth`/`computeGroupGrid` imports if those are deleted.
-The plan flags this generally ("existing tests assert the OLD model") but should explicitly state
-that `build-graph.test.ts` is **replaced wholesale** (not patched) and that any remaining import of
-a deleted `computeGroupGrid`/`groupGridWidth` will break `tsc`. Confirm whether `computeGroupGrid`
-has callers beyond build-graph + its test before deleting (grep: only those two reference it, plus
-`groupsOnlyGraph`, which is itself being removed — so deletion is safe; say so).
+**M2. The Playwright smoke must defeat `onlyRenderVisibleElements` to make both nodes "reachable in
+the DOM."** The canvas sets `onlyRenderVisibleElements` (`RoadmapCanvas.tsx:90`) and `panOnScroll`
+(`:93`). The new canvas is very wide (a lane ≈ table 296px + 6 × ~316px) and tall (group band +
+SECTION_GAP + 5 KO stages), so after a ctrl+wheel zoom-in a group match node and the Final are
+unlikely to co-occupy the viewport — and an off-screen node is **not in the DOM** here. Behavior #18
+says both are "reachable in the DOM" but doesn't say how. Specify the approach (e.g. assert at the
+fit/overview zoom where both still render, or drive `setCenter`/focus to each in turn), and make this
+the place that explicitly asserts the top/bottom handle sides + the "Group · MD" label — since that
+is the only coverage of the handle/label rename (the components are outside `coverage.include`).
 
-**M3. Plan overstates existing keyboard traversal.** The plan repeatedly says "keyboard traversal
-now spans group + KO in date/structural order." But `useBracketKeyboard.ts` does **not** implement
-any node-to-node traversal — it only binds F (fit), 0 (reset zoom), Esc (clear selection). There is
-no traversal to "extend." Either descope this to "retune fit padding for the taller canvas" (the
-only real change needed) or explicitly scope *new* traversal as added work with its own tests. As
-written it implies modifying behavior that doesn't exist.
-
-**M4. Smoke-test wording: "wheel-zoom" is `panOnScroll` + ctrl+wheel, not plain wheel.** The canvas
-sets `panOnScroll`, so a plain wheel pans; zoom requires ctrl+wheel (the existing
-`e2e/wheel-zoom.spec.ts` documents and relies on exactly this). The plan's smoke (#19/#10) says
-"wheel-zoom"; the implementer must dispatch **ctrl+wheel** (reuse the `ctrlWheel` helper pattern in
-`wheel-zoom.spec.ts`) or the zoom won't happen and the test will be flaky/meaningless. State this so
-the e2e author doesn't write a plain-wheel zoom.
+**M3. Feeder edges leave the group *table* node, not the last group match — confirm the visual
+"flow."** The plan keeps feeders `group-{name}` (table) → R32, which satisfies the requirement
+literally. But with 72 new group-match cards trailing rightward from each table, the band only
+"flows into" the KO if the table-anchored feeder reads correctly alongside the lane of match cards.
+This is a design/visual decision, not a contract break; flag it for the visual baseline review so
+the screenshots are blessed deliberately.
 
 ### LOW
 
-**L1. Tailwind is already installed; the styling note is slightly stale.** `package.json` already
-has `tailwindcss@^4.3.1` + `@tailwindcss/postcss`, and `MatchNode`/`GroupTableNode` are already
-Tailwind-classed (not the "bespoke CSS" the policy's add-list implies). The plan's `globals.css`
-edit is fine, but the group-card label/variant should be **Tailwind utilities on the component**
-(consistent with the existing nodes), with `globals.css` reserved for the `.advance-edge`/band
-affordances that already live there. Minor — just align with the existing pattern.
+**L1. Make the `?view=` → default-focus fallback sweep explicit across all four e2e specs.**
+Beyond the `view=groups` toggle assertion (`roadmap.spec.ts:23`), every `page.goto('/?view=bracket')`
+(`visual.spec.ts:59,74`, `wheel-zoom.spec.ts:71`, `a11y.spec.ts:45,57,70`, `roadmap.spec.ts:14,21`)
+becomes a no-op once the enum changes, silently resolving to default `'all'`. Harmless, but list the
+goto-URL updates so none are missed and baselines shift predictably. The plan already flags baseline
+regeneration.
 
-**L2. `MatchNodeData` is a view model, not the Zod schema.** Good that the plan adds `group`/
-`matchday` here; note (so the implementer doesn't chase it) that `parseTournament`/the
-`tournament-schema` need **no** change — the domain `Match` already carries `group`/`matchday`
-(confirmed in `src/domain/types/match.ts`), and `MatchNodeData` is populated in `matchData()` in
-`build-graph.ts`. The plan's `matchData()` reuse is correct; just spell out that `matchData` must
-now also read `match.group`/`match.matchday` (and emit `null` for the bracket-node-without-match
-fallback branch).
+**L2. "reuses the existing `data-lod-detail` hook" is a mild mischaracterization.** `data-lod-detail`
+is a plain attribute the CSS keys on (`globals.css:109–116`), faded via the `[data-lod]` band on the
+`.pitch-grid` wrapper — there is no hook. Decide deliberately whether the "Group A · MD1" label is
+detail-tier (hidden at overview/titles) or title-tier identity (always shown). A group-identifying
+label likely wants to stay visible; pick intentionally rather than by copy-paste.
 
-**L3. `data-final="true"` selector is already present** (`MatchNode` renders `data-final={isFinal}`),
-so the smoke selector `[data-final="true"]` is valid as-is — good. The existing `e2e/roadmap.spec.ts`
-already uses it (line 27). No action; noted to confirm the smoke is feasible.
+**L3. Confirm THIRD_PLACE's `finalX + LEAF_PITCH_X` offset doesn't visually clash with the SF
+column.** Pure tuning; the tests assert the *relation* (`x == finalX + LEAF_PITCH_X`), so layout and
+test stay self-consistent regardless — just eyeball it in the visual pass.
+
+---
+
+## Checklist verdict
+
+- **Completeness:** All requirement acceptance criteria covered. One construction detail
+  (group-match → `MatchNodeData`) unstated (M1).
+- **Feasibility:** Every cited symbol/line verified against the live code; all accurate. Approach realistic.
+- **Architecture:** Pure layout helpers, single immutable `buildRoadmapGraph`, lock-step handle
+  migration, focus-enum replaces layout-swap. No needless coupling or scope creep.
+- **Reuse:** Adopts `d3-hierarchy` per library-first; domain logic stays hand-rolled per Non-goals;
+  fallback justified.
+- **Test strategy:** RED/GREEN-able, fixture-derived counts, ≥80% on scoped modules. Component-render
+  coverage rests on the smoke — tighten it (M2).
+- **Non-functionals:** No security surface (pure transform, no user input/secrets). Perf budget met
+  (~116 nodes < 300). A11y/visual deferred to e2e baselines.
+- **Risks:** Real risks (handle detach, signature ripple, enum removal across 6 files, baseline
+  regen, width/height growth, d3 install/SSR) named with mitigations.
 
 ---
 
 ## Verdict
 
-VERDICT: CHANGES_REQUESTED
-
-H1 (no runnable env for the promised component test, while claiming ≥80% coverage) and H2
-(d3-hierarchy data model mismatch + under-specified midpoint-x ordering) must be resolved in the
-plan before implementation. The MEDIUM items should be folded in to avoid wasted implementer churn.
+VERDICT: APPROVED
