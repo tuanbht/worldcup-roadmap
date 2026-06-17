@@ -1,5 +1,3 @@
-'use client';
-
 import { Panel } from '@xyflow/react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { RoadmapView } from '@/features/roadmap/graph-model';

@@ -1,5 +1,3 @@
-'use client';
-
 import { useCallback, useState } from 'react';
 import {
   Background,
@@ -15,7 +13,7 @@ import '@xyflow/react/dist/style.css';
 import { nodeTypes } from '@/components/nodes/node-types';
 import { edgeTypes } from '@/components/edges/edge-types';
 import { MatchDetailPanel } from '@/components/panel/MatchDetailPanel';
-import { useTournament } from '@/features/roadmap/hooks/useTournament';
+import { useTournamentQuery } from '@/features/roadmap/hooks/useTournamentQuery';
 import { useStageView } from '@/features/roadmap/hooks/useStageView';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
 import { useFitOnChange } from '@/features/roadmap/hooks/useFitOnChange';
@@ -61,7 +59,7 @@ function Legend({ provider }: { provider: string | null }) {
 }
 
 function CanvasInner() {
-  const { data: tournament, loading } = useTournament();
+  const { data: tournament, loading } = useTournamentQuery();
   const { view, setView } = useStageView();
   const { nodes, edges } = useRoadmapGraph(tournament, view);
   const { lod } = useZoomLevel();

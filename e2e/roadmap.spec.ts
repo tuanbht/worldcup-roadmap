@@ -3,9 +3,10 @@ import { expect, test } from '@playwright/test';
 test.describe('World Cup roadmap', () => {
   test('API returns a normalized tournament', async ({ request }) => {
     const res = await request.get('/api/worldcup');
-    expect(res.ok()).toBeTruthy();
+    expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+    expect(body.error).toBeNull();
     expect(body.data.matches).toHaveLength(104);
     expect(body.data.groups).toHaveLength(12);
   });

@@ -39,9 +39,9 @@ Resolved with the requester:
 | Number / locale formatting | native **Intl** | ✅ native | No dep needed. |
 | Unit / component testing | **Vitest** + **@testing-library/react** (+ `jest-dom`, `user-event`) | ⚠️ partial | Vitest configured; add Testing Library. |
 | E2E testing | **Playwright** (`@playwright/test`) | ➕ add | Mandated by project testing rules. |
-| Lint / format | **ESLint** (`eslint-config-next`) + **Prettier** | ⚠️ partial | ESLint present; add Prettier (+ tailwind plugin). |
-| Fonts | **next/font** | ✅ in repo | Keep (`Archivo`/`Inter`, `display: swap`). |
-| Images / flags | **next/image** | ✅ configured | `remotePatterns` already locked to FIFA hosts. |
+| Lint / format | **Prettier** (+ tailwind plugin) | ⚠️ partial | `eslint-config-next` removed with Next; no ESLint config remains. Add Prettier. |
+| Fonts | **@fontsource/archivo** + **@fontsource/inter** | ✅ in repo | Was `next/font`; now self-hosted via `@fontsource` (`font-display: swap`). |
+| Images / flags | plain `<img loading="lazy" width height>` | ✅ in repo | Was `next/image`; the `next.config.ts` `remotePatterns` FIFA-host allow-list is dropped with Next. `Flag.tsx` loads flags directly with a monogram `onError` fallback. A future CSP must allow `https://api.fifa.com` + `https://digitalhub.fifa.com` in `img-src`. |
 
 Legend: ✅ already in place · ⚠️ partially present · ➕ to add.
 

@@ -1,5 +1,3 @@
-'use client';
-
 import { useMemo } from 'react';
 import type { Tournament } from '@/domain/types';
 import { buildRoadmapGraph } from '../build-graph';

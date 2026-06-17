@@ -54,6 +54,12 @@
 
 @layer base {
   :root {
+    /* Self-hosted @fontsource families (next/font previously injected these
+       vars). The @theme `--font-display`/`--font-ui` reference them, so they
+       must resolve to the loaded 'Archivo'/'Inter' families. */
+    --font-archivo: 'Archivo';
+    --font-inter: 'Inter';
+
     --node-w: 260px;
     --node-h: 96px;
     --elevation-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);

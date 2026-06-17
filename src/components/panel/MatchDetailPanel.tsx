@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect } from 'react';
 import type { Match, TeamRef, Tournament } from '@/domain/types';
 import { refLabel } from '@/domain/types';

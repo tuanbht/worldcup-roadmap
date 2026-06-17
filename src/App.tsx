@@ -1,6 +1,6 @@
 import RoadmapCanvasLazy from '@/components/roadmap/RoadmapCanvas.lazy';
 
-export default function Home() {
+export default function App() {
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
       <header className="relative z-10 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-b border-edge px-6 py-5 sm:px-10">

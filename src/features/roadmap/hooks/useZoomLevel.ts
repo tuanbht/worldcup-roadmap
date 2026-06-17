@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Reads the live React Flow zoom and derives the current LOD band.
  *

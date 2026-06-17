@@ -1,5 +1,3 @@
-'use client';
-
 import { memo } from 'react';
 import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react';
 import type { RoadmapEdge } from '@/features/roadmap/graph-model';

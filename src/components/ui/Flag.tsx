@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 
 interface FlagProps {
@@ -31,7 +29,6 @@ export function Flag({ code, url, size = 22 }: FlagProps) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt=""

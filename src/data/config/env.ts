@@ -1,9 +1,8 @@
-import 'server-only';
 import { z } from 'zod';
 
 /**
- * Server-only, zod-validated configuration. `import 'server-only'` makes any
- * accidental client import a build error, so secrets never reach the bundle.
+ * Zod-validated configuration, read from the Node process env (now plain Node,
+ * not a Next server runtime). Validates and fails fast on bad config.
  */
 const EnvSchema = z.object({
   WC_PROVIDER: z.enum(['auto', 'fifa', 'mock']).default('auto'),
