@@ -1,0 +1,44 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# testing
+/coverage
+/test-results
+/playwright-report
+/.playwright
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files (keep .env.example committed)
+.env
+.env.local
+.env*.local
+
+# editor / tooling
+.omc
+.vscode
+.idea
+
+# browser automation artifacts (Playwright MCP session output)
+.playwright-mcp/
+/*.png
+
+# typescript incremental build info
+*.tsbuildinfo
