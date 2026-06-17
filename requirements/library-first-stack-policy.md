@@ -14,14 +14,15 @@ Resolved with the requester:
   the deterministic simulator). See _Non-goals_.
 - **Strictness = strong default, justify exceptions.** Reach for the canonical library first; custom code
   is allowed when a library is genuinely overkill, but the deviation must be justified in review.
-- **Bundler = Next.js 15 is kept.** The example "bundle → Vite" is reconciled as: **Next's bundler
-  (Turbopack) builds the app; Vite powers Vitest only.** We do **not** migrate to a Vite SPA.
+- ~~**Bundler = Next.js 15 is kept.**~~ **SUPERSEDED by [migrate-to-vite-react.md](./migrate-to-vite-react.md):**
+  the app migrates to a **Vite + React SPA + a thin Hono API**; Next.js is removed. (The original decision kept
+  Next/Turbopack; the owner has since chosen plain React. TanStack Query stays — it now calls the Hono API.)
 
 ## Canonical stack map (single source of truth)
 
 | Concern | Library (pick) | Status | Notes |
 |---|---|---|---|
-| Framework / routing / bundler | **Next.js 15** (App Router) | ✅ in repo | Turbopack builds the app. Server Components/route handlers for initial load. |
+| Framework / routing / bundler | **Vite + React SPA + Hono API** (was Next.js 15) | ⚠️ migrating | Superseded by `migrate-to-vite-react.md`; Vite builds the SPA, Hono serves `/api/worldcup`. |
 | Language | **TypeScript 5** | ✅ in repo | — |
 | Styling | **Tailwind CSS v4** | ➕ add | Replace bespoke CSS. Keep the oklch design tokens via Tailwind v4 `@theme` (tokens stay, expressed through Tailwind). Add `prettier-plugin-tailwindcss` for class order. |
 | Accessible UI primitives | **shadcn/ui** (Radix) | ➕ add (optional) | For dialogs/tabs/tooltip etc. Most popular, accessible-by-default. |
