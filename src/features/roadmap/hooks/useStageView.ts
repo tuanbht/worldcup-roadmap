@@ -1,28 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { RoadmapView } from '../graph-model';
+import type { RoadmapFocus } from '../graph-model';
 
-const VALID: readonly RoadmapView[] = ['groups', 'bracket', 'full'];
-const DEFAULT_VIEW: RoadmapView = 'bracket';
+const VALID: readonly RoadmapFocus[] = ['all', 'groups', 'knockout'];
+const DEFAULT_FOCUS: RoadmapFocus = 'all';
 
-function readView(): RoadmapView {
-  if (typeof window === 'undefined') return DEFAULT_VIEW;
-  const param = new URLSearchParams(window.location.search).get('view');
-  return VALID.includes(param as RoadmapView) ? (param as RoadmapView) : DEFAULT_VIEW;
+function readFocus(): RoadmapFocus {
+  if (typeof window === 'undefined') return DEFAULT_FOCUS;
+  const param = new URLSearchParams(window.location.search).get('focus');
+  return VALID.includes(param as RoadmapFocus) ? (param as RoadmapFocus) : DEFAULT_FOCUS;
 }
 
-/** Active roadmap view, persisted to the `?view=` URL param for shareable links. */
-export function useStageView(): { view: RoadmapView; setView: (view: RoadmapView) => void } {
-  const [view, setViewState] = useState<RoadmapView>(DEFAULT_VIEW);
+/**
+ * Camera focus for the continuous canvas, persisted to the `?focus=` URL param
+ * for shareable links. The graph shape never changes — focus only drives where
+ * the viewport is framed (group band, knockout, or the whole roadmap).
+ */
+export function useStageView(): { focus: RoadmapFocus; setFocus: (focus: RoadmapFocus) => void } {
+  const [focus, setFocusState] = useState<RoadmapFocus>(DEFAULT_FOCUS);
 
-  // Hydrate from the URL after mount (avoids SSR/CSR mismatch).
-  useEffect(() => setViewState(readView()), []);
+  // Hydrate from the URL after mount (client-only SPA, no SSR mismatch).
+  useEffect(() => setFocusState(readFocus()), []);
 
-  const setView = useCallback((next: RoadmapView) => {
-    setViewState(next);
+  const setFocus = useCallback((next: RoadmapFocus) => {
+    setFocusState(next);
     const url = new URL(window.location.href);
-    url.searchParams.set('view', next);
+    url.searchParams.set('focus', next);
     window.history.replaceState(null, '', url);
   }, []);
 
-  return { view, setView };
+  return { focus, setFocus };
 }

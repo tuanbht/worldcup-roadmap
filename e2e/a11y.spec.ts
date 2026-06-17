@@ -42,7 +42,7 @@ test.describe('accessibility', () => {
       return;
     }
 
-    await page.goto('/?view=bracket');
+    await page.goto('/');
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
     await settle(page);
 
@@ -54,7 +54,7 @@ test.describe('accessibility', () => {
   });
 
   test('a match node is keyboard-focusable with an accessible name', async ({ page }) => {
-    await page.goto('/?view=bracket');
+    await page.goto('/');
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
     await settle(page);
 
@@ -69,7 +69,7 @@ test.describe('accessibility', () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/?view=bracket');
+    await page.goto('/');
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
     await settle(page);
 

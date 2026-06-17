@@ -1,67 +1,66 @@
-import type { Bracket } from '@/domain/types';
-import { NODE_H, ROW_PITCH, STEP, type XY } from './layout-constants';
-
-const DEPTH: Record<string, number> = {
-  ROUND_OF_32: 0,
-  ROUND_OF_16: 1,
-  QUARTER_FINALS: 2,
-  SEMI_FINALS: 3,
-  FINAL: 4,
-};
-const CENTER_DEPTH = 4;
+import { hierarchy, tree } from 'd3-hierarchy';
+import type { Bracket, BracketNode } from '@/domain/types';
+import { LEAF_PITCH_X, STAGE_PITCH_Y, type XY } from './layout-constants';
 
 /**
- * Mirrored-bracket coordinates keyed by matchId.
+ * Vertical top->bottom knockout coordinates keyed by `matchId`, computed with
+ * `d3-hierarchy`'s `d3.tree` (library-first per the stack policy).
  *
- * Both halves converge on the centred Final. X is the round depth (left half
- * advances rightward, right half mirrors). Y of every non-leaf match is the
- * midpoint of its two children, computed bottom-up from evenly-pitched Round of
- * 32 leaves — the classic bracket fan-in. Pure; O(n).
+ *  - root = the FINAL node; a node's children are the bracket nodes its two
+ *    `winnerOf` feeders reference, enumerated in `[home, away]` (== structural
+ *    `slot*2 / slot*2+1`) order so `d3.tree`'s parent.x lands on the structural
+ *    midpoint the spec asserts;
+ *  - stage depth -> Y, flipped so R32 leaves (deepest) sit at the top and the
+ *    FINAL (depth 0) at the bottom, one `STAGE_PITCH_Y` apart;
+ *  - x normalized to start at 0; `THIRD_PLACE` (not in the winner tree) is placed
+ *    beside the normalized Final.
+ *
+ * All nodes offset below the group band by `bandOffsetY`. Pure; O(n).
  */
-export function computeBracketLayout(bracket: Bracket): Map<string, XY> {
-  const pos = new Map<string, XY>();
-  const yBySideDepth = new Map<string, number[]>();
-
-  const ensureY = (side: 'L' | 'R', depth: number, count: number): number[] => {
-    const key = `${side}-${depth}`;
-    const existing = yBySideDepth.get(key);
-    if (existing) return existing;
-    const arr =
-      depth === 0
-        ? Array.from({ length: count }, (_, p) => p * ROW_PITCH)
-        : (() => {
-            const child = yBySideDepth.get(`${side}-${depth - 1}`)!;
-            return Array.from({ length: count }, (_, p) => (child[2 * p] + child[2 * p + 1]) / 2);
-          })();
-    yBySideDepth.set(key, arr);
-    return arr;
-  };
-
+export function computeBracketLayout(bracket: Bracket, bandOffsetY: number): Map<string, XY> {
+  const nodeByMatchId = new Map<string, BracketNode>();
+  let finalNode: BracketNode | undefined;
+  let thirdNode: BracketNode | undefined;
   for (const round of bracket.rounds) {
-    const depth = DEPTH[round.stage];
-    if (depth === undefined || round.stage === 'FINAL') continue;
+    for (const node of round.nodes) {
+      nodeByMatchId.set(node.matchId, node);
+      if (node.stage === 'FINAL') finalNode = node;
+      if (node.stage === 'THIRD_PLACE') thirdNode = node;
+    }
+  }
+  if (!finalNode) throw new Error('bracket invariant: FINAL round missing');
 
-    const half = round.nodes.length / 2;
-    const leftY = ensureY('L', depth, half);
-    const rightY = ensureY('R', depth, half);
+  /** Children = the two `winnerOf` feeders in [home, away] (slot) order. */
+  const childrenOf = (node: BracketNode): BracketNode[] =>
+    [node.home, node.away]
+      .map((slot) => (slot.source.kind === 'winnerOf' ? slot.source.matchId : null))
+      .filter((id): id is string => id !== null)
+      .map((id) => nodeByMatchId.get(id))
+      .filter((n): n is BracketNode => n !== undefined);
 
-    round.nodes.forEach((node, i) => {
-      const onLeft = i < half;
-      const p = onLeft ? i : i - half;
-      const x = onLeft ? depth * STEP : (2 * CENTER_DEPTH - depth) * STEP;
-      const y = (onLeft ? leftY : rightY)[p];
-      pos.set(node.matchId, { x, y });
+  const root = hierarchy<BracketNode>(finalNode, childrenOf);
+  tree<BracketNode>().nodeSize([LEAF_PITCH_X, STAGE_PITCH_Y])(root);
+
+  const maxDepth = root.height; // R32 leaves
+  const descendants = root.descendants();
+  // `d3.tree` assigns numeric x to every node after the layout pass; the typings
+  // mark it optional, so read through a 0 fallback to satisfy the compiler.
+  const xOf = (n: { x?: number }): number => n.x ?? 0;
+  const minX = Math.min(...descendants.map(xOf));
+
+  const layout = new Map<string, XY>();
+  for (const n of descendants) {
+    layout.set(n.data.matchId, {
+      x: xOf(n) - minX,
+      y: bandOffsetY + (maxDepth - n.depth) * STAGE_PITCH_Y,
     });
   }
 
-  const centerX = CENTER_DEPTH * STEP;
-  const finalY = ((yBySideDepth.get('L-3')?.[0] ?? 0) + (yBySideDepth.get('R-3')?.[0] ?? 0)) / 2;
+  // THIRD_PLACE is outside the winner tree: place it beside the normalized Final.
+  if (thirdNode) {
+    const final = layout.get(finalNode.matchId)!;
+    layout.set(thirdNode.matchId, { x: final.x + LEAF_PITCH_X, y: final.y });
+  }
 
-  const finalNode = bracket.rounds.find((r) => r.stage === 'FINAL')?.nodes[0];
-  if (finalNode) pos.set(finalNode.matchId, { x: centerX, y: finalY });
-
-  const thirdNode = bracket.rounds.find((r) => r.stage === 'THIRD_PLACE')?.nodes[0];
-  if (thirdNode) pos.set(thirdNode.matchId, { x: centerX, y: finalY + NODE_H + ROW_PITCH });
-
-  return pos;
+  return layout;
 }

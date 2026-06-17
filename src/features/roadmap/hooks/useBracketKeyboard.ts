@@ -8,7 +8,7 @@ export function useBracketKeyboard(onEscape: () => void): void {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.isContentEditable)) return;
-      if (e.key === 'f' || e.key === 'F') void fitView({ padding: 0.18, duration: 300 });
+      if (e.key === 'f' || e.key === 'F') void fitView({ padding: 0.12, duration: 300 });
       else if (e.key === '0') void zoomTo(1, { duration: 300 });
       else if (e.key === 'Escape') onEscape();
     };

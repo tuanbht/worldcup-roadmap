@@ -16,7 +16,7 @@ function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
       aria-label={`Group ${group.name} standings`}
       className="border-edge from-surf-2 to-surf-1 hover:border-edge-strong w-[296px] overflow-hidden rounded-[14px] border bg-gradient-to-b shadow-[var(--elevation-card)] transition-[transform,border-color,box-shadow] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] [contain:layout_paint] hover:-translate-y-0.5 hover:shadow-[var(--elevation-hover)]"
     >
-      <Handle id="sr" type="source" position={Position.Right} className={HANDLE} />
+      <Handle id="b" type="source" position={Position.Bottom} className={HANDLE} />
       <header className="flex items-center gap-2 px-3 pt-3 pb-2">
         <span className="bg-accent font-display text-deep inline-flex h-[26px] w-[26px] items-center justify-center rounded-lg text-[0.85rem] font-extrabold">
           {group.name}

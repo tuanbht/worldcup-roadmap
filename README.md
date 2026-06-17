@@ -1,17 +1,21 @@
 # WC Roadmap — FIFA World Cup 2026
 
-An interactive, zoomable, draggable **roadmap tree** for the FIFA World Cup 2026.
-Group tables feed a live knockout bracket; every match node shows the two teams,
-the kickoff time, and the score. Built with Next.js 15, React Flow, and Tailwind CSS.
+An interactive, zoomable, draggable **roadmap** for the FIFA World Cup 2026, on
+**one continuous canvas**: every match is a node — group matches run in horizontal
+lanes (one per group, by kickoff, standings table at each lane start) that flow
+down into a vertical knockout tree (Round of 32 at the top → Final at the bottom).
+Built with Vite, React, React Flow, and Tailwind CSS.
 
-![Views: Groups · Bracket · Full roadmap](https://img.shields.io/badge/views-groups·bracket·full-3ddc97)
+![Continuous canvas: groups + knockout](https://img.shields.io/badge/canvas-groups+knockout-3ddc97)
 
 ## Highlights
 
 - **Zoom / pan / drag** canvas powered by `@xyflow/react` (React Flow v12).
-- **Mirrored bracket tree** — Round of 32 → Final, computed with a pure layout engine
-  (no auto-layout dependency), plus the third-place play-off.
-- **Three views** via a stage toggle (synced to the `?view=` URL): Groups, Bracket, Full roadmap.
+- **Per-match nodes** for the whole tournament: horizontal group lanes feeding a
+  **vertical knockout tree** (R32 → Final), the tree laid out with `d3-hierarchy`
+  so each parent sits at the midpoint of its two children, plus the third-place play-off.
+- **Focus control** (synced to the `?focus=` URL) that moves the camera to
+  `all` / `groups` / `knockout` — it never swaps layouts; the continuous canvas is the default.
 - **Live data from the official FIFA API** (`api.fifa.com/api/v3`) behind a provider-agnostic
   adapter, with a deterministic **offline mock** so it runs with zero configuration.
 - Match **detail panel** (desktop drawer / mobile bottom sheet), minimap, controls, keyboard
@@ -66,7 +70,7 @@ api.fifa.com / mock fixture
         ▼
   GET /api/worldcup  →  { success, data: Tournament, error }
         ▼  client polls; route TTL absorbs it
-  build-graph  →  React Flow nodes/edges (per view)
+  build-graph  →  React Flow nodes/edges (one continuous canvas)
         ▼
   RoadmapCanvas (@xyflow/react)  ·  MatchNode + AdvanceEdge + group tables
 ```

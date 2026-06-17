@@ -1,16 +1,22 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { Group, MatchStatus, Score, Stage, TeamRef, Venue } from '@/domain/types';
 
-export type RoadmapView = 'groups' | 'bracket' | 'full';
+/** Camera focus for the continuous canvas — replaces the old 3-layout view. */
+export type RoadmapFocus = 'all' | 'groups' | 'knockout';
 
 /**
- * Flattened view model for a knockout match card. Uses `type` (not `interface`)
- * so it satisfies React Flow's `Record<string, unknown>` node-data constraint.
+ * Flattened view model for a match card (group OR knockout). Uses `type` (not
+ * `interface`) so it satisfies React Flow's `Record<string, unknown>` node-data
+ * constraint.
  */
 export type MatchNodeData = {
   matchId: string;
   stage: Stage;
   roundLabel: string;
+  /** Group letter "A".."L" for group-stage cards; null in the knockout. */
+  group: string | null;
+  /** Matchday 1..3 in the group stage; null otherwise. */
+  matchday: number | null;
   home: TeamRef;
   away: TeamRef;
   score: Score;

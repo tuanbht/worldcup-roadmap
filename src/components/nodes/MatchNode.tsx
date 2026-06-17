@@ -30,11 +30,13 @@ function ariaLabel(data: MatchFlowNode['data']): string {
 }
 
 function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
-  const { home, away, score, status, isFinal, isThirdPlace } = data;
+  const { home, away, score, status, isFinal, isThirdPlace, group, matchday } = data;
   const showScore = status !== 'scheduled';
   const finished = status === 'finished';
   const homeWin = score.winner === 'home';
   const awayWin = score.winner === 'away';
+  const isGroup = group !== null && matchday !== null;
+  const groupLabel = isGroup ? `Group ${group} · MD${matchday}` : data.roundLabel;
 
   return (
     <article
@@ -42,20 +44,20 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
       data-status={status}
       data-final={isFinal}
       data-third={isThirdPlace}
+      data-group={isGroup}
       data-selected={selected}
       tabIndex={0}
       aria-label={ariaLabel(data)}
     >
       <span
         aria-hidden="true"
-        className="bg-edge-strong group-data-[status=live]:bg-live group-data-[final=true]:bg-gold absolute inset-y-2.5 left-0 w-[3px] rounded-full"
+        className="bg-edge-strong group-data-[status=live]:bg-live group-data-[final=true]:bg-gold group-data-[group=true]:bg-accent absolute inset-y-2.5 left-0 w-[3px] rounded-full"
       />
-      <Handle id="tl" type="target" position={Position.Left} className={HANDLE} />
-      <Handle id="tr" type="target" position={Position.Right} className={HANDLE} />
+      <Handle id="t" type="target" position={Position.Top} className={HANDLE} />
 
       <header className="flex items-center justify-between gap-2">
         <span className="text-dim truncate text-[0.72rem] tracking-[0.08em] uppercase">
-          {data.roundLabel}
+          {groupLabel}
         </span>
         <StatusPill status={status} minute={data.minute} kickoff={data.kickoff} />
       </header>
@@ -87,8 +89,7 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
         {data.venue.name && <span className="max-w-[50%] truncate">{data.venue.name}</span>}
       </footer>
 
-      <Handle id="sl" type="source" position={Position.Left} className={HANDLE} />
-      <Handle id="sr" type="source" position={Position.Right} className={HANDLE} />
+      <Handle id="b" type="source" position={Position.Bottom} className={HANDLE} />
     </article>
   );
 }

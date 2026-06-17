@@ -68,7 +68,7 @@ async function ctrlWheel(page: Page, deltaY: number, repeat: number): Promise<vo
 
 test.describe('wheel zoom', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/?view=bracket');
+    await page.goto('/');
     await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
     await waitForStableScale(page);
   });

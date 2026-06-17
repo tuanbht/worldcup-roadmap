@@ -17,6 +17,7 @@ import { useTournamentQuery } from '@/features/roadmap/hooks/useTournamentQuery'
 import { useStageView } from '@/features/roadmap/hooks/useStageView';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
 import { useFitOnChange } from '@/features/roadmap/hooks/useFitOnChange';
+import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
 import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
@@ -60,12 +61,13 @@ function Legend({ provider }: { provider: string | null }) {
 
 function CanvasInner() {
   const { data: tournament, loading } = useTournamentQuery();
-  const { view, setView } = useStageView();
-  const { nodes, edges } = useRoadmapGraph(tournament, view);
+  const { focus, setFocus } = useStageView();
+  const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
   const [selected, setSelected] = useState<string | null>(null);
 
-  useFitOnChange(`${view}:${nodes.length}`);
+  useFitOnChange(nodes.length);
+  useFocusCamera(focus, nodes);
   useBracketKeyboard(useCallback(() => setSelected(null), []));
 
   const onNodeClick = useCallback<NodeMouseHandler<RoadmapNode>>((_, node) => {
@@ -80,12 +82,11 @@ function CanvasInner() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.12 }}
         minZoom={0.2}
         maxZoom={1.8}
         nodesConnectable={false}
         edgesFocusable={false}
-        onlyRenderVisibleElements
         onNodeClick={onNodeClick}
         onPaneClick={() => setSelected(null)}
         panOnScroll
@@ -105,7 +106,7 @@ function CanvasInner() {
           bgColor="#0a0e14"
         />
         <Controls showInteractive={false} />
-        <StageToggle view={view} onChange={setView} />
+        <StageToggle focus={focus} onChange={setFocus} />
         <Panel position="top-right">
           <Legend provider={tournament?.meta.provider ?? null} />
         </Panel>
