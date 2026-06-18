@@ -68,7 +68,7 @@ describe('mapFifaMatchDetail (real captured payloads)', () => {
       expect(montes!.playerName).toContain(FACTS.home.secondYellowRed.name);
     });
 
-    it('maps both away red cards (SITHOLE 49\', ZWANE 84\') to the away side', () => {
+    it("maps both away red cards (SITHOLE 49', ZWANE 84') to the away side", () => {
       const reds = buildDetail().events.filter((e) => e.kind === 'red');
       for (const expected of FACTS.away.reds) {
         const red = reds.find((e) => e.minute === expected.minute);
@@ -90,7 +90,7 @@ describe('mapFifaMatchDetail (real captured payloads)', () => {
       expect(gutierrezOff!.relatedName).toContain(FACTS.home.sub.onName);
     });
 
-    it('maps the single VAR event (82\', no team) into the timeline', () => {
+    it("maps the single VAR event (82', no team) into the timeline", () => {
       const varEvents = buildDetail().events.filter((e) => e.kind === 'var');
       expect(varEvents).toHaveLength(1);
       expect(varEvents[0]!.minute).toBe(FACTS.varMinute);
@@ -209,7 +209,9 @@ describe('mapFifaMatchDetail (real captured payloads)', () => {
     });
 
     it('flags the captain red (second yellow, Card 2) from the per-team bookings', () => {
-      const montes = buildDetail().home.starters.find((p) => p.id === FACTS.home.secondYellowRed.id);
+      const montes = buildDetail().home.starters.find(
+        (p) => p.id === FACTS.home.secondYellowRed.id,
+      );
       expect(montes?.red).toBe(true);
     });
 

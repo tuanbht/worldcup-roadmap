@@ -90,6 +90,7 @@ export function buildDetail() {
 
 /** Count how many raw timeline events carry a given English `TypeLocalized` label. */
 export function rawLabelCount(label: string): number {
-  const events = (timelineFixture as { Event: { TypeLocalized?: { Description: string }[] }[] }).Event;
+  const events = (timelineFixture as { Event: { TypeLocalized?: { Description: string }[] }[] })
+    .Event;
   return events.filter((e) => e.TypeLocalized?.[0]?.Description === label).length;
 }

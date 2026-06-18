@@ -19,13 +19,16 @@ import { useStageView } from '@/features/roadmap/hooks/useStageView';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
 import { useFitOnChange } from '@/features/roadmap/hooks/useFitOnChange';
 import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
+import { useFocusMatch } from '@/features/roadmap/hooks/useFocusMatch';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
 import { useInteractionMode } from '@/features/roadmap/hooks/useInteractionMode';
 import { interactionFlowProps } from '@/features/roadmap/interaction-mode';
+import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
 import { InteractionModeToggle } from './InteractionModeToggle';
+import { FocusMatchButton } from './FocusMatchButton';
 
 const STATUS_COLOR: Record<string, string> = {
   live: '#ff4d5e',
@@ -90,6 +93,20 @@ function CanvasInner() {
     [tournament, openGroup],
   );
 
+  // Resolve the "current" match (live if any, else nearest upcoming) at render
+  // time from a fresh `Date.now()`. TanStack Query refetches every 45s, so a
+  // re-render re-evaluates the target; null disables the button (all ended).
+  const focusTarget = useMemo(() => {
+    const matches = tournament?.matches ?? [];
+    const id = pickFocusMatchId(matches, Date.now());
+    const isLive = id !== null && matches.some((m) => m.id === id && m.status === 'live');
+    return { id, isLive };
+  }, [tournament]);
+
+  const { focusMatch } = useFocusMatch({ onFocused: setSelected });
+
+  const onFocusCurrentMatch = useCallback((matchId: string) => focusMatch(matchId), [focusMatch]);
+
   const closeStandings = useCallback(() => {
     setOpenGroup((current) => {
       if (current) {
@@ -145,6 +162,11 @@ function CanvasInner() {
         <Controls showInteractive={false} />
         <StageToggle focus={focus} onChange={setFocus} />
         <InteractionModeToggle mode={mode} onChange={setMode} />
+        <FocusMatchButton
+          targetMatchId={focusTarget.id}
+          isLive={focusTarget.isLive}
+          onActivate={onFocusCurrentMatch}
+        />
         <Panel position="top-right">
           <Legend provider={tournament?.meta.provider ?? null} />
         </Panel>
