@@ -1,5 +1,10 @@
 # Requirement: Per-match nodes + phase-specific orientation
 
+> **⚠️ Orientation SUPERSEDED by [timeline-grid-layout.md](./timeline-grid-layout.md).** The "1 node per match"
+> decision is kept; the horizontal-lanes / vertical-bracket positioning below is replaced by a date-rail ×
+> group-columns grid + center-converging knockout funnel on one daily timeline. Read this only for the retained
+> per-match-node rationale.
+
 > **For planners, implementers, reviewers.** Changes the roadmap layout: every match (group stage
 > included) becomes its own node, ordered by date, with group laid out horizontally and knockout vertically,
 > all on one continuous zoomable canvas.
