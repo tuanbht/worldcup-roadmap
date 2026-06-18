@@ -21,8 +21,11 @@ import { useFitOnChange } from '@/features/roadmap/hooks/useFitOnChange';
 import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
+import { useInteractionMode } from '@/features/roadmap/hooks/useInteractionMode';
+import { interactionFlowProps } from '@/features/roadmap/interaction-mode';
 import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
+import { InteractionModeToggle } from './InteractionModeToggle';
 
 const STATUS_COLOR: Record<string, string> = {
   live: '#ff4d5e',
@@ -64,6 +67,7 @@ function Legend({ provider }: { provider: string | null }) {
 function CanvasInner() {
   const { data: tournament, loading } = useTournamentQuery();
   const { focus, setFocus } = useStageView();
+  const { mode, setMode } = useInteractionMode();
   const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
   const [selected, setSelected] = useState<string | null>(null);
@@ -101,6 +105,8 @@ function CanvasInner() {
   useFocusCamera(focus, displayNodes);
   useBracketKeyboard(useCallback(() => setSelected(null), []));
 
+  const flowInteraction = useMemo(() => interactionFlowProps(mode), [mode]);
+
   const onNodeClick = useCallback<NodeMouseHandler<RoadmapNode>>((_, node) => {
     if (node.type === 'match') setSelected(node.id);
   }, []);
@@ -120,8 +126,8 @@ function CanvasInner() {
         edgesFocusable={false}
         onNodeClick={onNodeClick}
         onPaneClick={() => setSelected(null)}
-        panOnScroll
         proOptions={{ hideAttribution: false }}
+        {...flowInteraction}
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -138,6 +144,7 @@ function CanvasInner() {
         />
         <Controls showInteractive={false} />
         <StageToggle focus={focus} onChange={setFocus} />
+        <InteractionModeToggle mode={mode} onChange={setMode} />
         <Panel position="top-right">
           <Legend provider={tournament?.meta.provider ?? null} />
         </Panel>

@@ -1,7 +1,15 @@
 # Requirements: Zoomable, family-tree-style roadmap graph (React)
 
 > **For implementer agents.** This is the approved spec. Build a React app that renders a roadmap /
-> dependency graph in a family-tree visual style, pannable and zoomable with the mouse wheel.
+> dependency graph, pannable and zoomable, with **default wheel-zoom and a toggle to scroll-pan**.
+>
+> **Visual model superseded (2026-06-18):** the "family-tree / bracket" arrangement below is
+> historical. The authoritative visual model is now the **timeline-grid** layout in
+> [`docs/pipeline/timeline-grid-layout/plan.md`](../docs/pipeline/timeline-grid-layout/plan.md)
+> (shared day rail + fixed group columns + center-converging knockout funnel). The hard
+> requirements that still apply (smooth zoom/pan, `fitView` on load, minimap/controls,
+> semantic-zoom LOD, a11y, budgets) carry over unchanged — only the node arrangement changed.
+> See `canvas-interaction-model.md` §2.
 
 ## Context
 
@@ -17,7 +25,10 @@ family tree (hierarchical, branching, top-down) that the user can **pan and zoom
   `src/main.tsx`. Live tournament data is fetched/cached/polled with **TanStack Query**
   (`@tanstack/react-query`), not a hand-rolled fetch loop.
 - **Scale:** small, **< ~300 nodes** → SVG/DOM rendering is fine. No Canvas/WebGL/viewport-culling needed.
-- **Hard requirement:** **smooth mouse-wheel zoom** (cursor-centered, clamped).
+- **Hard requirement:** **smooth default wheel-zoom** (cursor-centered, clamped), **with a persisted
+  toggle to a scroll-pan mode** (⌘/Ctrl+scroll and pinch zoom in that mode). The default honors the
+  original "scroll mouse to zoom" request; the toggle adds a trackpad-first alternative. Both modes,
+  the toggle, and its persistence are specified in `canvas-interaction-model.md` §1 (RESOLVED).
 
 ## Decision (locked)
 
@@ -129,9 +140,15 @@ default template.
 </ReactFlow>
 ```
 
-- Default mode = **scroll wheel zooms, drag pans** — matches the request.
-- Optional Figma-style alternative: `panOnScroll + zoomActivationKeyCode="Meta"` (two-finger scroll pans, ⌘/Ctrl+scroll
-  zooms). Default mode is simpler and is what "scroll mouse to zoom" describes.
+- **Default mode (`'zoom'`)** = **scroll wheel zooms, drag pans** — matches the original "scroll mouse
+  to zoom" request. React Flow defaults (`zoomOnScroll` + `panOnDrag`, `panOnScroll` OFF).
+- **Toggle to `'pan'` mode** = `panOnScroll` (two-finger / plain scroll pans) with
+  `zoomActivationKeyCode: ['Meta','Control']` + `zoomOnPinch` (⌘/Ctrl+scroll and pinch zoom). A persisted,
+  keyboard/ARIA-accessible `SegmentedControl` in a React Flow `<Panel>` switches modes (stored in
+  `localStorage`, default `'zoom'`), with a hint of the active affordance. The mode → React Flow prop
+  mapping lives in `src/features/roadmap/interaction-mode.ts`; the toggle in
+  `src/components/roadmap/InteractionModeToggle.tsx`; both are wired in `RoadmapCanvas.tsx`. See
+  `canvas-interaction-model.md` §1 (RESOLVED) for the full decision.
 - Wrap in `<ReactFlowProvider>`; call `fitView()` once after layout so the whole tree is framed on load.
 
 ### 5. Semantic zoom (recommended)
