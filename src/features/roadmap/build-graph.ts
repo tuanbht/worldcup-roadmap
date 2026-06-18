@@ -101,10 +101,27 @@ function edgeState(status: Match['status']): AdvanceEdgeState {
   return 'undecided';
 }
 
-function feederEdge(groupName: string, r32MatchId: string): RoadmapEdge {
+/**
+ * A group's "exit" match — its latest-kickoff game, which sits at the bottom of
+ * the group's column (closest to the knockout). Feeder edges originate here so
+ * each line is a short "final group match -> R32" connector instead of a
+ * full-canvas diagonal that starts at the group-header far up top.
+ */
+function groupExitMatchId(matches: readonly Match[], groupName: string): string | null {
+  let exit: Match | null = null;
+  for (const m of matches) {
+    if (m.stage !== 'GROUP_STAGE' || m.group !== groupName) continue;
+    if (exit === null || m.kickoff > exit.kickoff || (m.kickoff === exit.kickoff && m.id > exit.id)) {
+      exit = m;
+    }
+  }
+  return exit?.id ?? null;
+}
+
+function feederEdge(groupName: string, sourceMatchId: string, r32MatchId: string): RoadmapEdge {
   return {
     id: `feed-${groupName}-${r32MatchId}`,
-    source: `group-header-${groupName}`,
+    source: sourceMatchId,
     target: r32MatchId,
     type: 'advance',
     data: { state: 'undecided' },
@@ -129,10 +146,12 @@ function feederEdges(tournament: Tournament): RoadmapEdge[] {
   if (!r32) return [];
   const edges: RoadmapEdge[] = [];
   for (const group of tournament.groups) {
+    const sourceId = groupExitMatchId(tournament.matches, group.name);
+    if (!sourceId) continue;
     r32.nodes.forEach((node, slot) => {
       const pair = R32_SEEDING[slot];
       if (seedFeedsGroup(pair.home, group.name) || seedFeedsGroup(pair.away, group.name)) {
-        edges.push(feederEdge(group.name, node.matchId));
+        edges.push(feederEdge(group.name, sourceId, node.matchId));
       }
     });
   }

@@ -114,15 +114,28 @@ describe('buildRoadmapGraph — downward handle contract [Acceptance #10]', () =
 });
 
 describe('buildRoadmapGraph — edges [Acceptance #9]', () => {
-  it('feeds each group-header into exactly the R32 matches it seeds, resolvable endpoints', () => {
+  it("feeds each group's exit match into exactly the R32 matches it seeds, resolvable endpoints", () => {
     const g = graph();
     const nodeIds = new Set(g.nodes.map((n) => n.id));
+    const matchById = new Map(tournament.matches.map((m) => [m.id, m]));
     const feedEdges = g.edges.filter((e) => e.id.startsWith('feed-'));
     const expected = expectedFeederCount(tournament);
     expect(expected).toBeGreaterThan(0);
     expect(feedEdges).toHaveLength(expected);
     for (const edge of feedEdges) {
-      expect(edge.source).toMatch(/^group-header-/); // source is the column guide
+      const groupName = edge.id.match(/^feed-([A-Z])-/)?.[1];
+      // Source is the group's exit match (its latest-kickoff game at the bottom of
+      // the column), not the top column guide — so the line is a short
+      // "group match -> R32" connector rather than a full-canvas diagonal.
+      expect(matchById.get(edge.source)?.stage).toBe('GROUP_STAGE');
+      expect(matchById.get(edge.source)?.group).toBe(groupName);
+      const exit = tournament.matches
+        .filter((m) => m.stage === 'GROUP_STAGE' && m.group === groupName)
+        .sort((a, b) =>
+          a.kickoff === b.kickoff ? a.id.localeCompare(b.id) : a.kickoff.localeCompare(b.kickoff),
+        )
+        .at(-1);
+      expect(edge.source).toBe(exit?.id);
       expect(nodeIds.has(edge.source)).toBe(true);
       expect(nodeIds.has(edge.target)).toBe(true);
       // Feeders may seed ONLY R32 matches, never a later-round KO node.
