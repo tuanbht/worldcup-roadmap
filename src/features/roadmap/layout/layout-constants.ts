@@ -10,7 +10,7 @@
  * (monotonic / midpoint / strictly-increasing), never these absolutes.
  */
 export const NODE_W = 260;
-export const NODE_H = 96;
+export const NODE_H = 108;
 
 export const GROUP_W = 296;
 export const GROUP_H = 208;

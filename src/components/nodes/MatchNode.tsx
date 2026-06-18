@@ -7,7 +7,7 @@ import { StatusPill } from './StatusPill';
 import { TeamRow } from './TeamRow';
 
 const CARD = [
-  'group relative flex h-[96px] w-[260px] flex-col rounded-[14px] border px-3 py-2',
+  'group relative flex h-[108px] w-[260px] flex-col rounded-[14px] border px-3 py-2',
   'border-edge bg-gradient-to-b from-surf-2 to-surf-1 shadow-[var(--elevation-card)]',
   '[contain:layout_paint] transition-[transform,border-color,box-shadow] duration-150',
   'ease-[cubic-bezier(0.16,1,0.3,1)]',

@@ -61,7 +61,7 @@
     --font-inter: 'Inter';
 
     --node-w: 260px;
-    --node-h: 96px;
+    --node-h: 108px;
     --elevation-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
     --elevation-hover: 0 2px 4px rgb(0 0 0 / 0.45), 0 16px 40px rgb(0 0 0 / 0.45);
     --elevation-panel: 0 24px 64px rgb(0 0 0 / 0.55);
@@ -108,7 +108,7 @@
   /* ---- Semantic zoom (LOD) ----
      Detail visibility is driven by the `lod` band on the `.pitch-grid` wrapper
      via `data-lod`, faded with a compositor-only opacity transition. Node
-     geometry never changes (260x96 / 296x208) so React Flow handles/edges stay
+     geometry never changes (260x108 / 296x208) so React Flow handles/edges stay
      aligned. The transition is disabled under prefers-reduced-motion below. */
   [data-lod] [data-lod-detail] {
     opacity: 1;
