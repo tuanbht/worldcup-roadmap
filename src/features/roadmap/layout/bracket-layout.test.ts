@@ -1,164 +1,179 @@
 import { describe, expect, it } from 'vitest';
-import { computeBracketLayout } from './bracket-layout';
-import { LEAF_PITCH_X, STAGE_PITCH_Y, type XY } from './layout-constants';
-import { allBracketNodes, deepFreeze, loadBracket } from '../__test-support__/roadmap-fixtures';
-import type { BracketNode, BracketSlot } from '@/domain/types';
+import { computeKnockoutFunnelLayout } from './bracket-layout';
+import { computeDayIndex } from './day-axis';
+import { CX, centerline, HEADER_H, DAY_ROW_PITCH, LEAF_X_PITCH, type XY } from './layout-constants';
+import {
+  allBracketNodes,
+  deepFreeze,
+  fixtureDayKey,
+  koMatchById,
+  loadTournament,
+  winnerChildren,
+} from '../__test-support__/roadmap-fixtures';
+import type { BracketNode } from '@/domain/types';
 
 /**
- * Spec for the NEW vertical, top->bottom knockout layout (Acceptance #4).
+ * Spec for the NEW center-converging knockout funnel (`computeKnockoutFunnelLayout`):
+ * every KO node's `y` is its REAL day-row on the shared axis, `x` is a fan-in
+ * centered on the grid centerline `CX`, each parent `x` = midpoint of its two
+ * winner-children, the Final lands at center-bottom and THIRD_PLACE sits x-adjacent.
+ * Requirement "Coordinate model > Knockout zone X"; plan Test Strategy 11-16 /
+ * Acceptance #7, #8.
  *
- * Rewritten from the old mirrored/horizontal characterization. Stage depth -> Y
- * (R32 minimal/top, FINAL maximal/bottom); each parent X = midpoint of its two
- * STRUCTURAL children (resolved via `source.kind==='winnerOf'` in slotIndex
- * order). THIRD_PLACE sits beside the Final and is excluded from the midpoint
- * assertion. All nodes offset below the group band by `bandOffsetY`.
- *
- * RED until the d3-hierarchy vertical layout is implemented.
+ * RED until `computeKnockoutFunnelLayout` exists. Loads the FULL tournament so
+ * the real KO kickoffs (not synthetic) drive the day-rows.
  */
 
-const BAND_OFFSET = 1234; // arbitrary, distinct from any pitch constant
-
-const bracket = loadBracket();
+const tournament = loadTournament();
+const bracket = tournament.bracket;
 const allNodes = allBracketNodes(bracket);
 const totalNodes = allNodes.length; // 32 (incl. THIRD_PLACE)
+const koMatch = koMatchById(tournament);
 
-const STAGE_DEPTH: Record<string, number> = {
-  ROUND_OF_32: 0,
-  ROUND_OF_16: 1,
-  QUARTER_FINALS: 2,
-  SEMI_FINALS: 3,
-  FINAL: 4,
-};
-/** Stages, deepest (top of the bracket) to shallowest (the Final), by depth. */
-const stagesByDepth = Object.keys(STAGE_DEPTH).sort((a, b) => STAGE_DEPTH[a] - STAGE_DEPTH[b]);
+// Built lazily inside each test (via `layout()`), so an unimplemented
+// `computeDayIndex`/`computeKnockoutFunnelLayout` fails each assertion
+// individually instead of collapsing the whole file at import.
+function dayIndex(): ReadonlyMap<string, number> {
+  return computeDayIndex(tournament.matches);
+}
 
 const nodeByMatchId = new Map(allNodes.map((n) => [n.matchId, n]));
 const finalNode = bracket.rounds.find((r) => r.stage === 'FINAL')!.nodes[0];
 const thirdNode = bracket.rounds.find((r) => r.stage === 'THIRD_PLACE')!.nodes[0];
 
-/** A bracket layout is required to position every node it is given. */
-function pos(layout: Map<string, XY>, matchId: string): XY {
-  const p = layout.get(matchId);
+/** Internal (winner-tree) nodes the midpoint rule applies to — fixture-derived. */
+const internalNodes = allNodes.filter(
+  (n) => n.stage !== 'THIRD_PLACE' && winnerChildren(n, nodeByMatchId).length === 2,
+);
+
+const KO_STAGES = ['ROUND_OF_32', 'ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'] as const;
+
+function layout(): ReadonlyMap<string, XY> {
+  return computeKnockoutFunnelLayout(tournament, dayIndex(), CX);
+}
+
+function pos(map: ReadonlyMap<string, XY>, matchId: string): XY {
+  const p = map.get(matchId);
   expect(p, `expected a position for ${matchId}`).toBeDefined();
   return p!;
 }
 
-/** Children of a node = its two `winnerOf` feeders in [home, away] (slot) order. */
-function winnerChildren(node: BracketNode): BracketNode[] {
-  const matchIdOf = (slot: BracketSlot): string | null =>
-    slot.source.kind === 'winnerOf' ? slot.source.matchId : null;
-  return [node.home, node.away]
-    .map(matchIdOf)
-    .filter((id): id is string => id !== null)
-    .map((id) => nodeByMatchId.get(id))
-    .filter((n): n is BracketNode => n !== undefined);
+/** Expected real day-row y for a KO node, looked up via its match kickoff. */
+function rowY(matchId: string): number {
+  const m = koMatch.get(matchId)!;
+  return HEADER_H + dayIndex().get(fixtureDayKey(m.kickoff))! * DAY_ROW_PITCH;
 }
 
-/** Internal (winner-tree) nodes the midpoint rule applies to — fixture-derived. */
-const internalNodes = allNodes.filter(
-  (n) => n.stage !== 'THIRD_PLACE' && winnerChildren(n).length === 2,
-);
-
-/** One representative y per stage (a stage shares one y row); excludes THIRD_PLACE. */
-function yByStage(layout: Map<string, XY>): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const round of bracket.rounds) {
-    if (round.stage === 'THIRD_PLACE') continue;
-    map.set(round.stage, pos(layout, round.nodes[0].matchId).y);
-  }
-  return map;
+/** Min/max x spread of a stage's nodes (the round's leaf-span). */
+function spanOfStage(map: ReadonlyMap<string, XY>, stage: string): number {
+  const round = bracket.rounds.find((r) => r.stage === stage)!;
+  const xs = round.nodes.map((n) => pos(map, n.matchId).x);
+  return Math.max(...xs) - Math.min(...xs);
 }
 
-describe('computeBracketLayout (vertical) — coverage & depth', () => {
+describe('computeKnockoutFunnelLayout — coverage', () => {
   it('positions every bracket node (32 incl. THIRD_PLACE)', () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    expect(layout.size).toBe(totalNodes);
-    for (const n of allNodes) expect(layout.has(n.matchId)).toBe(true);
+    const map = layout();
+    expect(map.size).toBe(totalNodes);
+    for (const n of allNodes) expect(map.has(n.matchId)).toBe(true);
+  });
+});
+
+describe('computeKnockoutFunnelLayout — real day-row y [Acceptance #7/#8]', () => {
+  it('sets every KO node y to its REAL day-row on the shared axis', () => {
+    const map = layout();
+    for (const n of allNodes) {
+      expect(pos(map, n.matchId).y).toBe(rowY(n.matchId));
+    }
   });
 
-  it('increases y monotonically with stage depth (R32 top -> FINAL bottom)', () => {
-    const ys = yByStage(computeBracketLayout(bracket, BAND_OFFSET));
-    const rowYs = stagesByDepth.map((s) => ys.get(s)!);
-    for (let i = 1; i < rowYs.length; i += 1) {
-      expect(rowYs[i]).toBeGreaterThan(rowYs[i - 1]);
-    }
-    expect(Math.min(...rowYs)).toBe(ys.get('ROUND_OF_32'));
-    expect(Math.max(...rowYs)).toBe(ys.get('FINAL'));
+  it('gives the Final the max y among KO nodes (center-bottom)', () => {
+    const map = layout();
+    const finalY = pos(map, finalNode.matchId).y;
+    const maxY = Math.max(...allNodes.map((n) => pos(map, n.matchId).y));
+    expect(finalY).toBe(maxY);
   });
 
-  it('keeps each stage on a single shared y row, one STAGE_PITCH_Y apart', () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    for (const round of bracket.rounds) {
-      if (round.stage === 'THIRD_PLACE') continue;
-      const ys = round.nodes.map((n) => pos(layout, n.matchId).y);
-      expect(new Set(ys).size).toBe(1);
-    }
-    const ys = yByStage(layout);
-    for (let i = 1; i < stagesByDepth.length; i += 1) {
-      expect(ys.get(stagesByDepth[i])! - ys.get(stagesByDepth[i - 1])!).toBe(STAGE_PITCH_Y);
+  it('keeps every advance pair flowing downward: parent.y > child.y', () => {
+    const map = layout();
+    for (const parent of internalNodes) {
+      for (const child of winnerChildren(parent, nodeByMatchId)) {
+        expect(pos(map, parent.matchId).y).toBeGreaterThan(pos(map, child.matchId).y);
+      }
     }
   });
 });
 
-describe('computeBracketLayout (vertical) — midpoint fan-in', () => {
-  it('spreads the R32 leaves across distinct, strictly increasing x', () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    const r32 = bracket.rounds.find((r) => r.stage === 'ROUND_OF_32')!;
-    const leafXs = r32.nodes.map((n) => pos(layout, n.matchId).x);
-    expect(new Set(leafXs).size).toBe(leafXs.length); // distinct, so midpoints are meaningful
-    const ascending = [...leafXs].sort((a, b) => a - b);
-    expect(leafXs).toEqual(ascending); // structural slot order == left->right
-  });
-
+describe('computeKnockoutFunnelLayout — midpoint fan-in [Acceptance #7]', () => {
   it("sets each internal parent x to the midpoint of its two children's x", () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    // Fixture-derived: R16(8) + QF(4) + SF(2) + FINAL(1) = 15 winner-tree parents.
-    expect(internalNodes.length).toBe(15);
+    const map = layout();
+    expect(internalNodes.length).toBe(15); // R16(8)+QF(4)+SF(2)+FINAL(1), fixture-derived
     for (const node of internalNodes) {
-      const [a, b] = winnerChildren(node);
-      const mid = (pos(layout, a.matchId).x + pos(layout, b.matchId).x) / 2;
-      expect(pos(layout, node.matchId).x).toBeCloseTo(mid, 6);
+      const [a, b] = winnerChildren(node, nodeByMatchId);
+      const mid = (pos(map, a.matchId).x + pos(map, b.matchId).x) / 2;
+      expect(pos(map, node.matchId).x).toBeCloseTo(mid, 6);
     }
+  });
+
+  it('spreads the R32 leaves over distinct x with LEAF_X_PITCH spacing', () => {
+    const map = layout();
+    const r32 = bracket.rounds.find((r) => r.stage === 'ROUND_OF_32')!;
+    const leafXs = r32.nodes.map((n) => pos(map, n.matchId).x);
+    expect(new Set(leafXs).size).toBe(leafXs.length); // distinct
+    const ascending = [...leafXs].sort((a, b) => a - b);
+    for (let i = 1; i < ascending.length; i += 1) {
+      expect(ascending[i] - ascending[i - 1]).toBeCloseTo(LEAF_X_PITCH, 6);
+    }
+  });
+
+  it('centers the funnel on the exported CX: Final x ≈ CX, and centerline(12) === CX', () => {
+    const map = layout();
+    expect(centerline(12)).toBe(CX); // single source of truth [Rev2:M1]
+    expect(pos(map, finalNode.matchId).x).toBeCloseTo(CX, 6);
+    // R32 leaves are symmetric about CX -> their mean is CX too.
+    const r32 = bracket.rounds.find((r) => r.stage === 'ROUND_OF_32')!;
+    const xs = r32.nodes.map((n) => pos(map, n.matchId).x);
+    const mean = xs.reduce((s, x) => s + x, 0) / xs.length;
+    expect(mean).toBeCloseTo(CX, 6);
+  });
+
+  it('narrows monotonically per round: span(R32) > R16 > QF > SF >= FINAL [Rev2:M2]', () => {
+    const map = layout();
+    const spans = KO_STAGES.map((s) => spanOfStage(map, s));
+    // R32 is the widest round (the fan-in's mouth) -> a positive span.
+    expect(spans[0]).toBeGreaterThan(0);
+    // Each successive round's x-spread is strictly narrower than the round above
+    // it, so "the funnel reads" is a test, not prose. Names the failing pair.
+    for (let i = 1; i < spans.length - 1; i += 1) {
+      expect(spans[i], `${KO_STAGES[i]} span must be < ${KO_STAGES[i - 1]}`).toBeLessThan(
+        spans[i - 1],
+      );
+    }
+    // FINAL is a single node -> span 0 -> SF span >= FINAL span.
+    expect(spans[KO_STAGES.length - 2]).toBeGreaterThanOrEqual(spans[KO_STAGES.length - 1]);
+    expect(spans[KO_STAGES.length - 1]).toBe(0); // FINAL: one node, zero spread.
   });
 });
 
-describe('computeBracketLayout (vertical) — third place & normalization', () => {
-  it('places THIRD_PLACE beside the Final: same y, one LEAF_PITCH_X to the right', () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    const finalXY = pos(layout, finalNode.matchId);
-    const thirdXY = pos(layout, thirdNode.matchId);
-    expect(thirdXY.y).toBe(finalXY.y);
-    expect(thirdXY.x).toBeCloseTo(finalXY.x + LEAF_PITCH_X, 6);
-  });
-
-  it('normalizes x>=0 and keeps every y at or below bandOffsetY', () => {
-    const layout = computeBracketLayout(bracket, BAND_OFFSET);
-    for (const n of allNodes) {
-      const p = pos(layout, n.matchId);
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.y).toBeGreaterThanOrEqual(BAND_OFFSET);
-    }
-    // the shallowest node actually sits exactly on the band offset row (no slack above).
-    const minY = Math.min(...allNodes.map((n) => pos(layout, n.matchId).y));
-    expect(minY).toBe(BAND_OFFSET);
-  });
-
-  it('honors bandOffsetY: a different offset shifts every y by exactly the delta, x unchanged', () => {
-    const delta = 500;
-    const a = computeBracketLayout(bracket, BAND_OFFSET);
-    const b = computeBracketLayout(bracket, BAND_OFFSET + delta);
-    for (const n of allNodes) {
-      expect(pos(b, n.matchId).y - pos(a, n.matchId).y).toBe(delta);
-      expect(pos(b, n.matchId).x).toBe(pos(a, n.matchId).x);
-    }
+describe('computeKnockoutFunnelLayout — THIRD_PLACE [Q1]', () => {
+  it('sits x-adjacent to the Final (x = Final.x + LEAF_X_PITCH) at its OWN real day-row', () => {
+    const map = layout();
+    const finalXY = pos(map, finalNode.matchId);
+    const thirdXY = pos(map, thirdNode.matchId);
+    expect(thirdXY.x).toBeCloseTo(finalXY.x + LEAF_X_PITCH, 6);
+    // Real kickoff Jul 18 vs Final Jul 19 -> THIRD_PLACE sits on its OWN, earlier
+    // day-row (x-adjacent to the Final, NOT forced onto the Final's row).
+    expect(thirdXY.y).toBe(rowY(thirdNode.matchId));
+    expect(thirdXY.y).toBeLessThan(finalXY.y);
   });
 });
 
-describe('computeBracketLayout (vertical) — purity', () => {
-  it('produces structurally-equal output across calls and does not mutate a frozen bracket', () => {
-    const frozen = deepFreeze(loadBracket());
-    const a = computeBracketLayout(frozen, BAND_OFFSET);
-    const b = computeBracketLayout(frozen, BAND_OFFSET);
+describe('computeKnockoutFunnelLayout — purity', () => {
+  it('produces structurally-equal output across calls and tolerates a frozen tournament', () => {
+    const frozen = deepFreeze(loadTournament());
+    const frozenIndex = computeDayIndex(frozen.matches);
+    const a = computeKnockoutFunnelLayout(frozen, frozenIndex, CX);
+    const b = computeKnockoutFunnelLayout(frozen, frozenIndex, CX);
     expect([...a.entries()].sort()).toEqual([...b.entries()].sort());
   });
 });

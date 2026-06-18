@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -13,6 +13,7 @@ import '@xyflow/react/dist/style.css';
 import { nodeTypes } from '@/components/nodes/node-types';
 import { edgeTypes } from '@/components/edges/edge-types';
 import { MatchDetailPanel } from '@/components/panel/MatchDetailPanel';
+import { StandingsOverlay } from '@/components/roadmap/StandingsOverlay';
 import { useTournamentQuery } from '@/features/roadmap/hooks/useTournamentQuery';
 import { useStageView } from '@/features/roadmap/hooks/useStageView';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
@@ -31,6 +32,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 function nodeColor(node: RoadmapNode): string {
   if (node.type === 'match') return STATUS_COLOR[(node.data as MatchNodeData).status] ?? '#5c6779';
+  if (node.type === 'group-header') return '#3b82f6';
   return '#2a3547';
 }
 
@@ -65,9 +67,38 @@ function CanvasInner() {
   const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
   const [selected, setSelected] = useState<string | null>(null);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+
+  // Inject the standings-overlay opener into each group-header's node data
+  // without mutating the memoized graph (immutable display copy).
+  const displayNodes = useMemo<RoadmapNode[]>(
+    () =>
+      nodes.map((node) =>
+        node.type === 'group-header'
+          ? { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } }
+          : node,
+      ),
+    [nodes],
+  );
+
+  const openGroupData = useMemo(
+    () => tournament?.groups.find((g) => g.name === openGroup) ?? null,
+    [tournament, openGroup],
+  );
+
+  const closeStandings = useCallback(() => {
+    setOpenGroup((current) => {
+      if (current) {
+        document
+          .querySelector<HTMLButtonElement>(`[aria-label="Open Group ${current} standings"]`)
+          ?.focus();
+      }
+      return null;
+    });
+  }, []);
 
   useFitOnChange(nodes.length);
-  useFocusCamera(focus, nodes);
+  useFocusCamera(focus, displayNodes);
   useBracketKeyboard(useCallback(() => setSelected(null), []));
 
   const onNodeClick = useCallback<NodeMouseHandler<RoadmapNode>>((_, node) => {
@@ -77,7 +108,7 @@ function CanvasInner() {
   return (
     <div className="pitch-grid relative h-full w-full" data-lod={lod}>
       <ReactFlow<RoadmapNode, RoadmapEdge>
-        nodes={nodes}
+        nodes={displayNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -117,6 +148,8 @@ function CanvasInner() {
         matchId={selected}
         onClose={() => setSelected(null)}
       />
+
+      <StandingsOverlay group={openGroupData} onClose={closeStandings} />
 
       {loading && !tournament && (
         <div className="bg-bg/60 absolute inset-0 grid place-items-center backdrop-blur-sm">

@@ -1,22 +1,22 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { GroupFlowNode } from '@/features/roadmap/graph-model';
+import type { GroupTableProps } from '@/features/roadmap/graph-model';
 import { Flag } from '@/components/ui/Flag';
-
-const HANDLE = '!h-1.5 !w-1.5 !border-0 !bg-edge-strong !opacity-0';
 
 function gd(value: number): string {
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
-  const { group } = data;
+/**
+ * Standings table for one group. Now a plain panel rendered inside the on-demand
+ * `StandingsOverlay` (no React Flow handles / NodeProps shell) — it is no longer
+ * a positioned graph node.
+ */
+function GroupTableNodeImpl({ group }: GroupTableProps) {
   return (
     <section
       aria-label={`Group ${group.name} standings`}
-      className="border-edge from-surf-2 to-surf-1 hover:border-edge-strong w-[296px] overflow-hidden rounded-[14px] border bg-gradient-to-b shadow-[var(--elevation-card)] transition-[transform,border-color,box-shadow] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] [contain:layout_paint] hover:-translate-y-0.5 hover:shadow-[var(--elevation-hover)]"
+      className="border-edge from-surf-2 to-surf-1 w-[296px] overflow-hidden rounded-[14px] border bg-gradient-to-b shadow-[var(--elevation-card)] [contain:layout_paint]"
     >
-      <Handle id="b" type="source" position={Position.Bottom} className={HANDLE} />
       <header className="flex items-center gap-2 px-3 pt-3 pb-2">
         <span className="bg-accent font-display text-deep inline-flex h-[26px] w-[26px] items-center justify-center rounded-lg text-[0.85rem] font-extrabold">
           {group.name}
@@ -77,3 +77,4 @@ function GroupTableNodeImpl({ data }: NodeProps<GroupFlowNode>) {
 }
 
 export const GroupTableNode = memo(GroupTableNodeImpl);
+export type { GroupTableProps };

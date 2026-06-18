@@ -1,65 +1,89 @@
 import { hierarchy, tree } from 'd3-hierarchy';
-import type { Bracket, BracketNode } from '@/domain/types';
-import { LEAF_PITCH_X, STAGE_PITCH_Y, type XY } from './layout-constants';
+import type { BracketNode, Match, Tournament } from '@/domain/types';
+import { dayKey } from './day-axis';
+import { DAY_ROW_PITCH, HEADER_H, LEAF_X_PITCH, type XY } from './layout-constants';
+
+/** All edges flow downward, so a parent always sits below both its children. */
+function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string): number {
+  return HEADER_H + (dayIndex.get(dayKey(kickoff)) ?? 0) * DAY_ROW_PITCH;
+}
+
+/** Children = the two `winnerOf` feeders in [home, away] (slot) order. */
+function winnerChildrenOf(node: BracketNode, byMatchId: Map<string, BracketNode>): BracketNode[] {
+  return [node.home, node.away]
+    .map((slot) => (slot.source.kind === 'winnerOf' ? slot.source.matchId : null))
+    .filter((id): id is string => id !== null)
+    .map((id) => byMatchId.get(id))
+    .filter((n): n is BracketNode => n !== undefined);
+}
 
 /**
- * Vertical top->bottom knockout coordinates keyed by `matchId`, computed with
- * `d3-hierarchy`'s `d3.tree` (library-first per the stack policy).
+ * Center-converging knockout funnel keyed by `matchId`.
  *
- *  - root = the FINAL node; a node's children are the bracket nodes its two
- *    `winnerOf` feeders reference, enumerated in `[home, away]` (== structural
- *    `slot*2 / slot*2+1`) order so `d3.tree`'s parent.x lands on the structural
- *    midpoint the spec asserts;
- *  - stage depth -> Y, flipped so R32 leaves (deepest) sit at the top and the
- *    FINAL (depth 0) at the bottom, one `STAGE_PITCH_Y` apart;
- *  - x normalized to start at 0; `THIRD_PLACE` (not in the winner tree) is placed
- *    beside the normalized Final.
+ *  - X: a d3-hierarchy fan-in rooted at the FINAL (children = its `winnerOf`
+ *    feeders in slot order), so each parent's x is the midpoint of its two
+ *    children. The R32 leaves are spaced `LEAF_X_PITCH` apart, then re-centered so
+ *    they are symmetric about `cx` (mean = cx) and the Final lands at `cx`.
+ *  - Y: every node's REAL day-row on the shared axis, looked up via its kickoff in
+ *    `tournament.matches`. Because a parent is played after both feeders,
+ *    `parent.y > child.y`, so edges always flow downward.
+ *  - THIRD_PLACE (outside the winner tree) sits x-adjacent to the Final
+ *    (`x = Final.x + LEAF_X_PITCH`) at its own real day-row.
  *
- * All nodes offset below the group band by `bandOffsetY`. Pure; O(n).
+ * Pure; O(n).
  */
-export function computeBracketLayout(bracket: Bracket, bandOffsetY: number): Map<string, XY> {
-  const nodeByMatchId = new Map<string, BracketNode>();
+export function computeKnockoutFunnelLayout(
+  tournament: Tournament,
+  dayIndex: ReadonlyMap<string, number>,
+  cx: number,
+): ReadonlyMap<string, XY> {
+  const byMatchId = new Map<string, BracketNode>();
   let finalNode: BracketNode | undefined;
   let thirdNode: BracketNode | undefined;
-  for (const round of bracket.rounds) {
+  for (const round of tournament.bracket.rounds) {
     for (const node of round.nodes) {
-      nodeByMatchId.set(node.matchId, node);
+      byMatchId.set(node.matchId, node);
       if (node.stage === 'FINAL') finalNode = node;
       if (node.stage === 'THIRD_PLACE') thirdNode = node;
     }
   }
   if (!finalNode) throw new Error('bracket invariant: FINAL round missing');
 
-  /** Children = the two `winnerOf` feeders in [home, away] (slot) order. */
-  const childrenOf = (node: BracketNode): BracketNode[] =>
-    [node.home, node.away]
-      .map((slot) => (slot.source.kind === 'winnerOf' ? slot.source.matchId : null))
-      .filter((id): id is string => id !== null)
-      .map((id) => nodeByMatchId.get(id))
-      .filter((n): n is BracketNode => n !== undefined);
+  const koKickoff = new Map<string, string>(
+    tournament.matches.filter((m) => m.stage !== 'GROUP_STAGE').map((m) => [m.id, m.kickoff]),
+  );
 
-  const root = hierarchy<BracketNode>(finalNode, childrenOf);
-  tree<BracketNode>().nodeSize([LEAF_PITCH_X, STAGE_PITCH_Y])(root);
+  const root = hierarchy<BracketNode>(finalNode, (n) => winnerChildrenOf(n, byMatchId));
+  // nodeSize x = LEAF_X_PITCH gives the leaves that spacing; y unused (Y is the
+  // real day-row), so any positive value works. A flat separation of 1 keeps ALL
+  // leaves evenly LEAF_X_PITCH apart (d3's default doubles the gap across cousins).
+  tree<BracketNode>()
+    .nodeSize([LEAF_X_PITCH, 1])
+    .separation(() => 1)(root);
 
-  const maxDepth = root.height; // R32 leaves
   const descendants = root.descendants();
-  // `d3.tree` assigns numeric x to every node after the layout pass; the typings
-  // mark it optional, so read through a 0 fallback to satisfy the compiler.
   const xOf = (n: { x?: number }): number => n.x ?? 0;
-  const minX = Math.min(...descendants.map(xOf));
+  const leaves = root.leaves();
+  const leafMean = leaves.reduce((sum, n) => sum + xOf(n), 0) / leaves.length;
+  // Shift so the leaf mean (== the balanced tree's root x) sits on cx.
+  const shift = cx - leafMean;
 
   const layout = new Map<string, XY>();
   for (const n of descendants) {
+    const kickoff = koKickoff.get(n.data.matchId);
     layout.set(n.data.matchId, {
-      x: xOf(n) - minX,
-      y: bandOffsetY + (maxDepth - n.depth) * STAGE_PITCH_Y,
+      x: xOf(n) + shift,
+      y: kickoff ? rowY(dayIndex, kickoff) : HEADER_H,
     });
   }
 
-  // THIRD_PLACE is outside the winner tree: place it beside the normalized Final.
   if (thirdNode) {
     const final = layout.get(finalNode.matchId)!;
-    layout.set(thirdNode.matchId, { x: final.x + LEAF_PITCH_X, y: final.y });
+    const kickoff = koKickoff.get(thirdNode.matchId);
+    layout.set(thirdNode.matchId, {
+      x: final.x + LEAF_X_PITCH,
+      y: kickoff ? rowY(dayIndex, kickoff) : final.y,
+    });
   }
 
   return layout;

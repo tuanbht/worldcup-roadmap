@@ -1,41 +1,41 @@
 /**
- * Geometry shared by the layout engine and the node CSS. `NODE_W`/`NODE_H`
- * mirror the --node-w / --node-h design tokens in global.css.
- *
- * Two coordinate families live here:
- *  - the horizontal GROUP BAND (one lane per group, matches by kickoff), and
- *  - the vertical KNOCKOUT (stages stacked top->bottom, fan-in along x).
+ * Geometry for the timeline-grid layout (date rail + group columns + knockout
+ * funnel). `NODE_W`/`NODE_H` mirror the --node-w / --node-h design tokens in
+ * global.css.
  *
  * Values are tuning, not contract: the layout specs assert RELATIONS
- * (monotonic / midpoint / strictly-increasing), never these absolutes.
+ * (chronological rows / fixed columns / midpoint fan-in / no-overlap), never
+ * these absolutes. `GROUP_COL_PITCH > 2*NODE_W + gap` and `SLOT >= NODE_W + gap`
+ * so a column fits two side-by-side cards without overlapping its neighbour.
  */
 export const NODE_W = 260;
 export const NODE_H = 108;
 
-export const GROUP_W = 296;
-export const GROUP_H = 208;
+/** Vertical pixels between adjacent day-rows on the shared axis. */
+export const DAY_ROW_PITCH = NODE_H + 92;
+/** Horizontal pixels between adjacent group columns (room for 2 sub-slots). */
+export const GROUP_COL_PITCH = 2 * NODE_W + 96;
+/** Sub-slot offset inside a column: paired matches sit at x ± SLOT/2. */
+export const SLOT = NODE_W + 40;
+/** R32 leaf spacing for the centered knockout fan-in. */
+export const LEAF_X_PITCH = NODE_W + 36;
+/** Left date-rail width; group column 0 starts at x = RAIL_W. */
+export const RAIL_W = 120;
+/** Top group-header band height; day-row 0 starts at y = HEADER_H. */
+export const HEADER_H = 96;
+/** Horizontal inset of a day-marker inside the rail (x = RAIL_W - DAY_MARKER_INSET). */
+export const DAY_MARKER_INSET = 16;
 
-// --- Horizontal group band ---------------------------------------------------
-/** Table width consumed before the first match in a lane. */
-export const TABLE_W = GROUP_W;
-/** Gap between the standings table and the lane's first match. */
-export const GROUP_GAP = 56;
-/** Horizontal step between consecutive matches within a lane. */
-export const GROUP_MATCH_STEP_X = NODE_W + 56;
-/** Vertical distance between group lanes (>= GROUP_H so lanes never overlap). */
-export const LANE_PITCH_Y = GROUP_H + 40;
+/**
+ * The grid centerline the knockout funnel converges on — column 6 of the 12-col
+ * grid. `CX` and `centerline(12)` are the SAME value (asserted in a spec), so
+ * there is one source of truth, not two sketches. [Rev2:M1]
+ */
+export const CX = RAIL_W + 6 * GROUP_COL_PITCH;
 
-// --- Vertical knockout -------------------------------------------------------
-/** Vertical distance between knockout stages (R32 -> R16 -> ... -> FINAL). */
-export const STAGE_PITCH_Y = NODE_H + 110;
-/** Horizontal spacing of the R32 leaves (drives every midpoint above them). */
-export const LEAF_PITCH_X = NODE_W + 36;
-/** Gap between the bottom of the group band and the top of the knockout band. */
-export const SECTION_GAP = 240;
-
-/** Total vertical extent of the group band: one lane per group. */
-export function groupBandHeight(groupCount: number): number {
-  return groupCount * LANE_PITCH_Y;
+/** Centerline for an arbitrary group count; `centerline(12) === CX`. */
+export function centerline(groupCount = 12): number {
+  return RAIL_W + (groupCount / 2) * GROUP_COL_PITCH;
 }
 
 export interface XY {

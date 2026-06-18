@@ -28,13 +28,41 @@ export type MatchNodeData = {
   isThirdPlace: boolean;
 };
 
-export type GroupNodeData = {
+/**
+ * Props for the standings table — now an on-demand overlay panel, NOT a
+ * positioned graph node. Kept as a plain type so `GroupTableNode`/`StandingsOverlay`
+ * still type-check.
+ */
+export type GroupTableProps = {
   group: Group;
 };
 
+/** Left date-rail guide: one per distinct match-day. No edge endpoint. */
+export type DayMarkerNodeData = {
+  dayKey: string;
+  dayLabel: string;
+  dayIndex: number;
+};
+
+/**
+ * Top column guide: one per group A..L. Originates feeder edges (bottom source
+ * handle) and opens the standings overlay when clicked.
+ */
+export type GroupHeaderNodeData = {
+  group: string;
+  /** Open the standings overlay for this group (wired by the canvas). */
+  onOpenStandings?: (group: string) => void;
+};
+
 export type MatchFlowNode = Node<MatchNodeData, 'match'>;
-export type GroupFlowNode = Node<GroupNodeData, 'group'>;
-export type RoadmapNode = MatchFlowNode | GroupFlowNode;
+export type DayMarkerFlowNode = Node<DayMarkerNodeData, 'day-marker'>;
+export type GroupHeaderFlowNode = Node<GroupHeaderNodeData, 'group-header'>;
+/**
+ * Timeline-grid graph nodes: one `match` card per match, a `day-marker` per
+ * distinct day on the left rail, and a `group-header` per column. The positioned
+ * `group` table node is gone — standings moved to an on-demand overlay.
+ */
+export type RoadmapNode = MatchFlowNode | DayMarkerFlowNode | GroupHeaderFlowNode;
 
 export type AdvanceEdgeState = 'decided' | 'undecided' | 'live';
 export type AdvanceEdgeData = { state: AdvanceEdgeState };

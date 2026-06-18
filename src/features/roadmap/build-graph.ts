@@ -1,12 +1,23 @@
-import type { BracketNode, Group, Match, Tournament } from '@/domain/types';
+import type { BracketNode, Match, Tournament } from '@/domain/types';
 import { EMPTY_SCORE } from '@/domain/types';
 import { STAGE_LABELS } from '@/domain/bracket/stage-order';
 import { R32_SEEDING } from '@/domain/bracket/seeding';
-import { computeGroupMatchLanes } from './layout/group-layout';
-import { computeBracketLayout } from './layout/bracket-layout';
-import { SECTION_GAP, groupBandHeight, type XY } from './layout/layout-constants';
+import { formatDate } from '@/lib/datetime';
+import { computeGroupGridLayout } from './layout/group-layout';
+import { computeKnockoutFunnelLayout } from './layout/bracket-layout';
+import { computeDayIndex, dayKey, orderedDays } from './layout/day-axis';
+import {
+  CX,
+  DAY_MARKER_INSET,
+  DAY_ROW_PITCH,
+  HEADER_H,
+  RAIL_W,
+  type XY,
+} from './layout/layout-constants';
 import type {
   AdvanceEdgeState,
+  DayMarkerFlowNode,
+  GroupHeaderFlowNode,
   MatchFlowNode,
   MatchNodeData,
   RoadmapEdge,
@@ -61,6 +72,24 @@ function matchNode(data: MatchNodeData, position: XY): MatchFlowNode {
   return { id: data.matchId, type: 'match', position, data };
 }
 
+function dayMarkerNode(day: string, index: number, label: string): DayMarkerFlowNode {
+  return {
+    id: `day-marker-${day}`,
+    type: 'day-marker',
+    position: { x: RAIL_W - DAY_MARKER_INSET, y: HEADER_H + index * DAY_ROW_PITCH },
+    data: { dayKey: day, dayLabel: label, dayIndex: index },
+  };
+}
+
+function groupHeaderNode(name: string, position: XY): GroupHeaderFlowNode {
+  return {
+    id: `group-header-${name}`,
+    type: 'group-header',
+    position,
+    data: { group: name },
+  };
+}
+
 /** "1A" / "2A" both feed group A's R32 slots. */
 function seedFeedsGroup(label: string, group: string): boolean {
   return label === `1${group}` || label === `2${group}`;
@@ -72,81 +101,10 @@ function edgeState(status: Match['status']): AdvanceEdgeState {
   return 'undecided';
 }
 
-/**
- * Immutable transform: `Tournament` -> one continuous React Flow graph.
- *  - one `match` node per GROUP_STAGE match (horizontal lanes, by kickoff),
- *  - one `group` table node per group at its lane start (x=0),
- *  - one `match` node per knockout bracket node (vertical, top->bottom),
- *  - feeder edges (group -> seeded R32) + advance edges (child -> parent),
- *    all flowing downward with `sourceHandle:'b'` / `targetHandle:'t'`.
- *
- * Composes three pure passes into one coordinate space; never mutates the input.
- */
-export function buildRoadmapGraph(tournament: Tournament): RoadmapGraph {
-  const lanes = computeGroupMatchLanes(tournament);
-  const bandOffsetY = groupBandHeight(tournament.groups.length) + SECTION_GAP;
-  const bracketLayout = computeBracketLayout(tournament.bracket, bandOffsetY);
-  const statusById = new Map(tournament.matches.map((m) => [m.id, m.status]));
-
-  const nodes: RoadmapNode[] = [];
-  const edges: RoadmapEdge[] = [];
-
-  // --- Group band: standings tables + per-match cards. -----------------------
-  for (const group of tournament.groups) {
-    const position = lanes.table.get(group.name) ?? { x: 0, y: 0 };
-    nodes.push(groupTableNode(group, position));
-  }
-  for (const match of tournament.matches) {
-    if (match.stage !== 'GROUP_STAGE') continue;
-    const position = lanes.matches.get(match.id);
-    if (!position) continue;
-    nodes.push(matchNode(groupMatchData(match), position));
-  }
-
-  // --- Knockout: one card per bracket node. ----------------------------------
-  for (const round of tournament.bracket.rounds) {
-    for (const node of round.nodes) {
-      const position = bracketLayout.get(node.matchId) ?? { x: 0, y: bandOffsetY };
-      nodes.push(matchNode(knockoutMatchData(node), position));
-    }
-  }
-
-  // --- Feeder edges: each group -> the R32 matches it seeds. ------------------
-  const r32 = tournament.bracket.rounds.find((r) => r.stage === 'ROUND_OF_32');
-  if (r32) {
-    for (const group of tournament.groups) {
-      r32.nodes.forEach((node, slot) => {
-        const pair = R32_SEEDING[slot];
-        if (seedFeedsGroup(pair.home, group.name) || seedFeedsGroup(pair.away, group.name)) {
-          edges.push(feederEdge(group.name, node.matchId));
-        }
-      });
-    }
-  }
-
-  // --- Advance edges: each non-group bracket slot -> its parent. -------------
-  for (const round of tournament.bracket.rounds) {
-    for (const parent of round.nodes) {
-      for (const slot of [parent.home, parent.away]) {
-        if (slot.source.kind === 'group') continue;
-        const childId = slot.source.matchId;
-        const status = statusById.get(childId) ?? 'scheduled';
-        edges.push(advanceEdge(childId, parent.matchId, edgeState(status)));
-      }
-    }
-  }
-
-  return { nodes, edges };
-}
-
-function groupTableNode(group: Group, position: XY): RoadmapNode {
-  return { id: `group-${group.name}`, type: 'group', position, data: { group } };
-}
-
 function feederEdge(groupName: string, r32MatchId: string): RoadmapEdge {
   return {
     id: `feed-${groupName}-${r32MatchId}`,
-    source: `group-${groupName}`,
+    source: `group-header-${groupName}`,
     target: r32MatchId,
     type: 'advance',
     data: { state: 'undecided' },
@@ -163,4 +121,88 @@ function advanceEdge(source: string, target: string, state: AdvanceEdgeState): R
     data: { state },
     ...HANDLES,
   };
+}
+
+/** One feeder edge per (group, seeded-R32-slot) pair, sourced from its header. */
+function feederEdges(tournament: Tournament): RoadmapEdge[] {
+  const r32 = tournament.bracket.rounds.find((r) => r.stage === 'ROUND_OF_32');
+  if (!r32) return [];
+  const edges: RoadmapEdge[] = [];
+  for (const group of tournament.groups) {
+    r32.nodes.forEach((node, slot) => {
+      const pair = R32_SEEDING[slot];
+      if (seedFeedsGroup(pair.home, group.name) || seedFeedsGroup(pair.away, group.name)) {
+        edges.push(feederEdge(group.name, node.matchId));
+      }
+    });
+  }
+  return edges;
+}
+
+/** One downward advance edge per non-group bracket slot (child -> parent). */
+function advanceEdges(tournament: Tournament): RoadmapEdge[] {
+  const statusById = new Map(tournament.matches.map((m) => [m.id, m.status]));
+  const edges: RoadmapEdge[] = [];
+  for (const round of tournament.bracket.rounds) {
+    for (const parent of round.nodes) {
+      for (const slot of [parent.home, parent.away]) {
+        if (slot.source.kind === 'group') continue;
+        const childId = slot.source.matchId;
+        const status = statusById.get(childId) ?? 'scheduled';
+        edges.push(advanceEdge(childId, parent.matchId, edgeState(status)));
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Immutable transform: `Tournament` -> one timeline-grid React Flow graph.
+ *  - one `match` node per match (group grid column×day + centered knockout funnel),
+ *  - one `day-marker` rail guide per distinct match-day,
+ *  - one `group-header` column guide per group A..L,
+ *  - feeder edges (group-header -> seeded R32) + downward advance edges,
+ *    all flowing downward with `sourceHandle:'b'` / `targetHandle:'t'`.
+ *
+ * Composes the pure day-axis + group + knockout passes; never mutates the input.
+ */
+export function buildRoadmapGraph(tournament: Tournament): RoadmapGraph {
+  const dayIndex = computeDayIndex(tournament.matches);
+  const groupGrid = computeGroupGridLayout(tournament, dayIndex);
+  const knockout = computeKnockoutFunnelLayout(tournament, dayIndex, CX);
+
+  const nodes: RoadmapNode[] = [];
+
+  // --- Guide nodes: left date rail + top group-header columns. ----------------
+  const isoByDay = new Map<string, string>();
+  for (const match of tournament.matches) {
+    const key = dayKey(match.kickoff);
+    if (!isoByDay.has(key)) isoByDay.set(key, match.kickoff);
+  }
+  orderedDays(tournament.matches).forEach((day, index) => {
+    nodes.push(dayMarkerNode(day, index, formatDate(isoByDay.get(day) ?? null)));
+  });
+  for (const [name, position] of groupGrid.headers) {
+    nodes.push(groupHeaderNode(name, position));
+  }
+
+  // --- Group cards: one per GROUP_STAGE match at its column×day cell. ---------
+  for (const match of tournament.matches) {
+    if (match.stage !== 'GROUP_STAGE') continue;
+    const position = groupGrid.matches.get(match.id);
+    if (!position) continue;
+    nodes.push(matchNode(groupMatchData(match), position));
+  }
+
+  // --- Knockout cards: one per bracket node in the centered funnel. ----------
+  for (const round of tournament.bracket.rounds) {
+    for (const node of round.nodes) {
+      const position = knockout.get(node.matchId) ?? { x: CX, y: HEADER_H };
+      nodes.push(matchNode(knockoutMatchData(node), position));
+    }
+  }
+
+  const edges: RoadmapEdge[] = [...feederEdges(tournament), ...advanceEdges(tournament)];
+
+  return { nodes, edges };
 }
