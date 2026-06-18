@@ -49,7 +49,9 @@ describe('deriveGroupMatchdays', () => {
   });
 
   it('preserves a provider-supplied matchday (only fills nulls)', () => {
-    const matches = [mkMatch({ id: 'b1', group: 'B', matchday: 2, kickoff: '2026-06-13T00:00:00Z' })];
+    const matches = [
+      mkMatch({ id: 'b1', group: 'B', matchday: 2, kickoff: '2026-06-13T00:00:00Z' }),
+    ];
     expect(deriveGroupMatchdays(matches)[0].matchday).toBe(2);
   });
 
@@ -64,12 +66,20 @@ describe('deriveGroupMatchdays', () => {
   });
 
   it('leaves knockout and groupless matches untouched', () => {
-    const ko = mkMatch({ id: 'final', group: null, matchday: null, kickoff: '2026-07-19T00:00:00Z', stage: 'FINAL' });
+    const ko = mkMatch({
+      id: 'final',
+      group: null,
+      matchday: null,
+      kickoff: '2026-07-19T00:00:00Z',
+      stage: 'FINAL',
+    });
     expect(deriveGroupMatchdays([ko])[0].matchday).toBeNull();
   });
 
   it('does not mutate the input and is referentially stable when nothing to fill', () => {
-    const settled = [mkMatch({ id: 'c1', group: 'C', matchday: 1, kickoff: '2026-06-13T00:00:00Z' })];
+    const settled = [
+      mkMatch({ id: 'c1', group: 'C', matchday: 1, kickoff: '2026-06-13T00:00:00Z' }),
+    ];
     expect(deriveGroupMatchdays(settled)).toBe(settled);
 
     const input = groupAMatches();
