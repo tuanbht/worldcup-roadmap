@@ -20,30 +20,34 @@ const CARD = [
 
 const HANDLE = '!h-1.5 !w-1.5 !border-0 !bg-edge-strong !opacity-0';
 
+/**
+ * Header label: a group card reads "Group A · MD1" (or just "Group A" when the
+ * provider omitted the matchday); a knockout card uses the round name.
+ */
+function displayLabel(data: MatchFlowNode['data']): string {
+  const { group, matchday, roundLabel } = data;
+  if (group === null) return roundLabel;
+  return matchday !== null ? `Group ${group} · MD${matchday}` : `Group ${group}`;
+}
+
 function ariaLabel(data: MatchFlowNode['data']): string {
-  const { home, away, score, status, roundLabel } = data;
+  const { home, away, score, status } = data;
+  const label = displayLabel(data);
   if (status === 'scheduled') {
-    return `${roundLabel}: ${refLabel(home)} versus ${refLabel(away)}, ${formatDateTime(data.kickoff)}`;
+    return `${label}: ${refLabel(home)} versus ${refLabel(away)}, ${formatDateTime(data.kickoff)}`;
   }
   const tail = status === 'live' ? 'in play' : 'full time';
-  return `${roundLabel}: ${refLabel(home)} ${score.home ?? 0}, ${refLabel(away)} ${score.away ?? 0}, ${tail}`;
+  return `${label}: ${refLabel(home)} ${score.home ?? 0}, ${refLabel(away)} ${score.away ?? 0}, ${tail}`;
 }
 
 function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
-  const { home, away, score, status, isFinal, isThirdPlace, group, matchday } = data;
+  const { home, away, score, status, isFinal, isThirdPlace, group } = data;
   const showScore = status !== 'scheduled';
   const finished = status === 'finished';
   const homeWin = score.winner === 'home';
   const awayWin = score.winner === 'away';
-  // A group match is labelled by its group whenever the group is known; the
-  // matchday is appended only when available (FIFA omits MatchDay for WC-2026,
-  // so it can be null even though GroupName is present).
   const isGroup = group !== null;
-  const groupLabel = !isGroup
-    ? data.roundLabel
-    : matchday !== null
-      ? `Group ${group} · MD${matchday}`
-      : `Group ${group}`;
+  const groupLabel = displayLabel(data);
 
   return (
     <article

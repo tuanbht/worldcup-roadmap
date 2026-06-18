@@ -1,5 +1,6 @@
 import { buildBracket } from './bracket/build-bracket';
 import { computeGroups } from './bracket/standings';
+import { deriveGroupMatchdays } from './derive-matchdays';
 import type { Match, ProviderName, Team, Tournament } from './types';
 
 interface AssembleInput {
@@ -16,8 +17,12 @@ interface AssembleInput {
  * single source of truth; the rest are views over it.
  */
 export function assembleTournament(input: AssembleInput): Tournament {
+  // Fill any group-stage matchdays the provider omitted (FIFA supplies the group
+  // but not MatchDay) before deriving the views, so cards read "Group A · MD1".
+  const matches = deriveGroupMatchdays(input.matches);
+
   const teams = new Map<string, Team>();
-  for (const match of input.matches) {
+  for (const match of matches) {
     for (const ref of [match.home, match.away]) {
       if (ref.kind === 'team') teams.set(ref.team.id, ref.team);
     }
@@ -32,8 +37,8 @@ export function assembleTournament(input: AssembleInput): Tournament {
       fetchedAt: input.fetchedAt,
     },
     teams: [...teams.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    matches: input.matches,
-    groups: computeGroups(input.matches),
-    bracket: buildBracket(input.matches),
+    matches,
+    groups: computeGroups(matches),
+    bracket: buildBracket(matches),
   };
 }
