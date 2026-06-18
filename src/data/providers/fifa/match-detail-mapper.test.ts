@@ -1,210 +1,267 @@
 import { describe, expect, it } from 'vitest';
-import type { ProviderRef } from '@/domain/types';
 import { mapFifaMatchDetail } from './match-detail-mapper';
-import { rawMatchLiveSchema, rawTimelineSchema } from './match-detail-schema';
-import liveFixture from './__fixtures__/match-detail.live.json';
-import timelineFixture from './__fixtures__/match-detail.timeline.json';
+import {
+  buildDetail,
+  FACTS,
+  parseLive,
+  parseTimeline,
+  rawLabelCount,
+  REF,
+} from './__fixtures__/match-detail.support';
 
-const REF: ProviderRef = {
-  idCompetition: '17',
-  idSeason: '285023',
-  idStage: 'st-1',
-  idMatch: '400251',
-};
+/**
+ * Asserts the mapper against the REAL captured FIFA payloads
+ * (match 400021443 — Mexico v South Africa, 2026-06-11).
+ *
+ * Ground-truth facts live in `__fixtures__/match-detail.support.ts` (FACTS) so a
+ * single edit re-points both this spec and the integration spec. Player names use
+ * the FIFA `ShortName` the panel renders — notably 356731 shows "RAÚL" even
+ * though its formal `PlayerName` is "Raul JIMENEZ", so the mapper MUST resolve
+ * the display ShortName, not the long name.
+ *
+ * Fixtures are byte-copies of docs/fifa-real-payloads/*. No live FIFA access.
+ */
 
-// Validate the captured fixtures through the boundary schema first, exactly as
-// the production fetch path does. Never hits live FIFA.
-const live = rawMatchLiveSchema.parse(liveFixture);
-const timeline = rawTimelineSchema.parse(timelineFixture);
-
-describe('mapFifaMatchDetail', () => {
+describe('mapFifaMatchDetail (real captured payloads)', () => {
   it('returns a MatchDetail keyed by the ref matchId', () => {
-    const detail = mapFifaMatchDetail(live, timeline, REF);
-    expect(detail.matchId).toBe('400251');
+    expect(buildDetail().matchId).toBe(FACTS.matchId);
   });
 
   describe('events (mapped by TypeLocalized label)', () => {
-    it('maps the home goal with correct minute, side and player name', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const goal = detail.events.find((e) => e.kind === 'goal' && e.side === 'home');
-      expect(goal).toBeDefined();
-      expect(goal!.minute).toBe(23);
-      expect(goal!.playerName).toBe('Kylian Mbappe');
+    it('produces a populated event list far smaller than the raw 80 events', () => {
+      const { events } = buildDetail();
+      // Some events map (counting labels are stripped), but never all 80.
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.length).toBeLessThan(FACTS.rawEventCount);
     });
 
-    it('maps the away goal to the away side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const goals = detail.events.filter((e) => e.kind === 'goal');
-      expect(goals.map((g) => g.side).sort()).toEqual(['away', 'home']);
+    it('maps both home goals with minute, side and a lineup-resolved ShortName', () => {
+      const goals = buildDetail().events.filter((e) => e.kind === 'goal');
+      expect(goals).toHaveLength(FACTS.home.goals.length);
+      // Both goals belong to Mexico (home).
+      expect(goals.every((g) => g.side === 'home')).toBe(true);
+      expect(goals.map((g) => g.minute).sort((a, b) => a - b)).toEqual(
+        FACTS.home.goals.map((g) => g.minute),
+      );
+      // Each scorer name resolves from the lineup (real events carry no PlayerName).
+      for (const expected of FACTS.home.goals) {
+        const goal = goals.find((g) => g.minute === expected.minute);
+        expect(goal, `goal at ${expected.minute}'`).toBeDefined();
+        expect(goal!.playerName).toContain(expected.name);
+      }
     });
 
-    it('maps a yellow card to its player and side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const yellow = detail.events.find((e) => e.kind === 'yellow');
+    it('maps the home yellow card to GUTIERREZ at the 23rd minute', () => {
+      const { minute, name } = FACTS.home.yellowCard;
+      const yellow = buildDetail().events.find((e) => e.kind === 'yellow' && e.minute === minute);
       expect(yellow).toBeDefined();
-      expect(yellow!.side).toBe('away');
-      expect(yellow!.playerName).toBe('Vinicius Junior');
-      expect(yellow!.minute).toBe(31);
+      expect(yellow!.side).toBe('home');
+      expect(yellow!.playerName).toContain(name);
     });
 
-    it('maps a substitution and a VAR event', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      expect(detail.events.some((e) => e.kind === 'substitution')).toBe(true);
-      expect(detail.events.some((e) => e.kind === 'var')).toBe(true);
+    it('parses a stoppage-time minute to its base ("90\'+2\'" → 90) for the Montes red', () => {
+      const reds = buildDetail().events.filter((e) => e.kind === 'red');
+      const montes = reds.find((e) => e.side === 'home');
+      expect(montes).toBeDefined();
+      // "90'+2'" must collapse to the base minute 90, not 92.
+      expect(montes!.minute).toBe(FACTS.home.secondYellowRed.minute);
+      expect(montes!.playerName).toContain(FACTS.home.secondYellowRed.name);
     });
 
-    it('maps an Assist event to its own player and the same (home) side as the goal', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const assist = detail.events.find((e) => e.kind === 'assist');
-      expect(assist).toBeDefined();
-      expect(assist!.side).toBe('home');
-      expect(assist!.playerName).toBe('Mike Maignan');
-      expect(assist!.minute).toBe(23);
+    it('maps both away red cards (SITHOLE 49\', ZWANE 84\') to the away side', () => {
+      const reds = buildDetail().events.filter((e) => e.kind === 'red');
+      for (const expected of FACTS.away.reds) {
+        const red = reds.find((e) => e.minute === expected.minute);
+        expect(red, `red at ${expected.minute}'`).toBeDefined();
+        expect(red!.side).toBe('away');
+        expect(red!.playerName).toContain(expected.name);
+      }
     });
 
-    it('emits exactly two goal events (one per side) and no duplicate kinds for them', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const goals = detail.events.filter((e) => e.kind === 'goal');
-      expect(goals).toHaveLength(2);
+    it('maps a substitution naming the player OFF and the player coming ON', () => {
+      const subs = buildDetail().events.filter((e) => e.kind === 'substitution');
+      // 9 raw "Substitution" timeline events all map (none are counting labels).
+      expect(subs).toHaveLength(rawLabelCount('Substitution'));
+      // GUTIERREZ off → Luis CHAVEZ on: the event names the OFF player and points
+      // at the ON player via relatedName (from live Substitutions[].PlayerOnName).
+      const gutierrezOff = subs.find((e) => e.playerName?.includes(FACTS.home.sub.offName));
+      expect(gutierrezOff).toBeDefined();
+      expect(gutierrezOff!.side).toBe('home');
+      expect(gutierrezOff!.relatedName).toContain(FACTS.home.sub.onName);
     });
 
-    it('does not emit domain events for non-domain labels (Attempt/Corner/Foul/Offside)', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const names = detail.events.map((e) => e.kind);
-      expect(names).not.toContain('shot');
-      // Those raw labels feed stats, not the timeline event list.
-      expect(detail.events.every((e) => e.kind !== ('attempt' as never))).toBe(true);
+    it('maps the single VAR event (82\', no team) into the timeline', () => {
+      const varEvents = buildDetail().events.filter((e) => e.kind === 'var');
+      expect(varEvents).toHaveLength(1);
+      expect(varEvents[0]!.minute).toBe(FACTS.varMinute);
+    });
+
+    it('maps both assists to home with relatedName = the paired scorer ShortName', () => {
+      const assists = buildDetail().events.filter((e) => e.kind === 'assist');
+      expect(assists).toHaveLength(FACTS.home.goals.length);
+      expect(assists.every((a) => a.side === 'home')).toBe(true);
+      // Each assist pairs with the adjacent same-minute, same-side Goal! scorer.
+      for (const goal of FACTS.home.goals) {
+        const assist = assists.find((a) => a.minute === goal.minute);
+        expect(assist, `assist at ${goal.minute}'`).toBeDefined();
+        expect(assist!.relatedName).toContain(goal.name);
+      }
+    });
+
+    it('drops counting/ignored labels — only domain kinds reach the event list', () => {
+      const events = buildDetail().events;
+      const allowed = new Set([
+        'goal',
+        'own-goal',
+        'penalty-goal',
+        'assist',
+        'yellow',
+        'red',
+        'second-yellow',
+        'substitution',
+        'var',
+        'period',
+      ]);
+      expect(events.every((e) => allowed.has(e.kind))).toBe(true);
+      // "Attempt at Goal" exists in the raw payload yet never becomes an event.
+      expect(rawLabelCount('Attempt at Goal')).toBeGreaterThan(0);
+      expect(events.some((e) => (e.kind as string) === 'attempt')).toBe(false);
     });
 
     it('orders events chronologically by minute', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const minutes = detail.events.map((e) => e.minute);
+      const minutes = buildDetail().events.map((e) => e.minute);
       expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
     });
   });
 
   describe('lineups', () => {
     it('reads the formation (Tactics) for each side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      expect(detail.home.formation).toBe('4-3-3');
-      expect(detail.away.formation).toBe('4-2-3-1');
+      const detail = buildDetail();
+      expect(detail.home.formation).toBe(FACTS.home.formation);
+      expect(detail.away.formation).toBe(FACTS.away.formation);
     });
 
-    it('reads the coach for each side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      expect(detail.home.coach).toBe('Didier Deschamps');
-      expect(detail.away.coach).toBe('Dorival Junior');
+    it('reads the head coach (Role 0) for each side, not Coaches[0]', () => {
+      const detail = buildDetail();
+      // Mexico lists assistant Rafael MARQUEZ (Role 1) FIRST — Coaches[0] is wrong.
+      expect(detail.home.coach).toBe(FACTS.home.coach);
+      expect(detail.away.coach).toBe(FACTS.away.coach);
     });
 
-    it('splits starters from bench by player status', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      expect(detail.home.starters.map((p) => p.shortName).sort()).toEqual(['Maignan', 'Mbappe']);
-      expect(detail.home.bench.map((p) => p.shortName)).toEqual(['Camavinga']);
+    it('splits exactly 11 starters from 15 bench by Status === 1', () => {
+      const detail = buildDetail();
+      expect(detail.home.starters).toHaveLength(FACTS.home.starters);
+      expect(detail.away.starters).toHaveLength(FACTS.away.starters);
+      expect(detail.home.bench).toHaveLength(FACTS.home.bench);
+      expect(detail.away.bench).toHaveLength(FACTS.away.bench);
     });
 
-    it('flags the captain', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const captain = detail.home.starters.find((p) => p.isCaptain);
-      expect(captain?.shortName).toBe('Mbappe');
+    it('flags the captain on each side with their shirt number', () => {
+      const detail = buildDetail();
+      const homeCaptain = detail.home.starters.find((p) => p.isCaptain);
+      expect(homeCaptain?.id).toBe(FACTS.home.captain.id);
+      expect(homeCaptain?.name).toContain(FACTS.home.captain.name);
+      expect(homeCaptain?.shirtNumber).toBe(FACTS.home.captain.shirtNumber);
+
+      const awayCaptain = detail.away.starters.find((p) => p.isCaptain);
+      expect(awayCaptain?.id).toBe(FACTS.away.captain.id);
+      expect(awayCaptain?.name).toContain(FACTS.away.captain.name);
     });
 
-    it('passes the headshot photoUrl through (and null when absent)', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const maignan = detail.home.starters.find((p) => p.shortName === 'Maignan');
-      expect(maignan?.photoUrl).toContain('digitalhub.fifa.com');
-      const camavinga = detail.home.bench.find((p) => p.shortName === 'Camavinga');
-      expect(camavinga?.photoUrl).toBeNull();
+    it('exposes exactly one captain per side', () => {
+      const detail = buildDetail();
+      expect(detail.home.starters.filter((p) => p.isCaptain)).toHaveLength(1);
+      expect(detail.away.starters.filter((p) => p.isCaptain)).toHaveLength(1);
     });
 
-    it('reads the shirt number', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const mbappe = detail.home.starters.find((p) => p.shortName === 'Mbappe');
-      expect(mbappe?.shirtNumber).toBe(10);
-    });
-  });
-
-  describe('player badges (from live Goals/Bookings/Substitutions)', () => {
-    it('counts a scorer goal on the player', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const mbappe = detail.home.starters.find((p) => p.shortName === 'Mbappe');
-      expect(mbappe?.goals).toBe(1);
-      const vinicius = detail.away.starters.find((p) => p.shortName === 'Vinicius');
-      expect(vinicius?.goals).toBe(1);
+    it('passes a real digitalhub headshot photoUrl through for the keeper', () => {
+      const keeper = buildDetail().home.starters.find((p) => p.id === FACTS.home.keeper.id);
+      expect(keeper?.photoUrl).toContain('digitalhub.fifa.com');
     });
 
-    it('flags a yellow card on the booked player', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const vinicius = detail.away.starters.find((p) => p.shortName === 'Vinicius');
-      expect(vinicius?.yellow).toBe(true);
-      expect(vinicius?.red).toBe(false);
-    });
-
-    it('records the minute a player was subbed off / on', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const mbappe = detail.home.starters.find((p) => p.shortName === 'Mbappe');
-      expect(mbappe?.subbedOff).toBe(70);
-      const camavinga = detail.home.bench.find((p) => p.shortName === 'Camavinga');
-      expect(camavinga?.subbedOn).toBe(70);
-    });
-
-    it('leaves badges empty for players with no events', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const maignan = detail.home.starters.find((p) => p.shortName === 'Maignan');
-      expect(maignan?.goals).toBe(0);
-      expect(maignan?.yellow).toBe(false);
-      expect(maignan?.red).toBe(false);
-      expect(maignan?.subbedOff).toBeUndefined();
+    it('orders positionIndex by line so the goalkeeper (Position 0) sorts first', () => {
+      const starters = [...buildDetail().home.starters].sort(
+        (a, b) => a.positionIndex - b.positionIndex,
+      );
+      // Raul RANGEL (Position 0, shirt 1) is the keeper → lowest positionIndex,
+      // and must sort strictly before every outfield player (line-major order),
+      // even where a defender wears a lower shirt number.
+      expect(starters[0]?.id).toBe(FACTS.home.keeper.id);
+      expect(starters[0]?.name).toContain(FACTS.home.keeper.name);
+      expect(starters[0]!.positionIndex).toBeLessThan(starters[10]!.positionIndex);
     });
   });
 
-  describe('event relatedName', () => {
-    it('sets the substitution relatedName to the player coming on', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const sub = detail.events.find((e) => e.kind === 'substitution');
-      expect(sub?.relatedName).toBe('Eduardo Camavinga');
+  describe('player badges (from per-team live Goals/Bookings/Substitutions)', () => {
+    it('credits every per-team Goals scorer despite Goal.Type === 2', () => {
+      const detail = buildDetail();
+      // Both legit Mexico goals carry Type 2 in the live payload — must NOT be
+      // treated as own goals and dropped from the scorer tally.
+      for (const goal of FACTS.home.goals) {
+        const scorer = detail.home.starters.find((p) => p.id === goal.id);
+        expect(scorer?.goals, `goals for ${goal.name}`).toBe(1);
+      }
     });
 
-    it('sets the assist relatedName to the scorer it set up', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      const assist = detail.events.find((e) => e.kind === 'assist');
-      expect(assist?.relatedName).toBe('Kylian Mbappe');
+    it('flags the yellow card on the booked home player', () => {
+      const gutierrez = buildDetail().home.starters.find((p) => p.id === FACTS.home.yellowCard.id);
+      expect(gutierrez?.yellow).toBe(true);
+    });
+
+    it('flags the captain red (second yellow, Card 2) from the per-team bookings', () => {
+      const montes = buildDetail().home.starters.find((p) => p.id === FACTS.home.secondYellowRed.id);
+      expect(montes?.red).toBe(true);
+    });
+
+    it('records the minute a player was subbed off', () => {
+      const gutierrez = buildDetail().home.starters.find((p) => p.id === FACTS.home.sub.offId);
+      expect(gutierrez?.subbedOff).toBe(FACTS.home.sub.minute);
+    });
+
+    it('leaves every badge empty for an uninvolved player (the keeper)', () => {
+      const keeper = buildDetail().home.starters.find((p) => p.id === FACTS.home.keeper.id);
+      expect(keeper?.goals).toBe(0);
+      expect(keeper?.yellow).toBe(false);
+      expect(keeper?.red).toBe(false);
+      expect(keeper?.subbedOff).toBeUndefined();
     });
   });
 
-  describe('derived stats + win probability', () => {
-    it('passes BallPossession through to each side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      expect(detail.homeStats.possession).toBe(58);
-      expect(detail.awayStats.possession).toBe(42);
+  describe('derived stats + possession', () => {
+    it('omits possession (BallPossession null, TerritorialPossesion null) → null', () => {
+      const detail = buildDetail();
+      expect(detail.homeStats.possession).toBe(FACTS.possession);
+      expect(detail.awayStats.possession).toBe(FACTS.possession);
     });
 
     it('derives shots from "Attempt at Goal" timeline events per side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      // Fixture timeline: one home attempt (e4); zero away attempts.
-      expect(detail.homeStats.shots).toBe(1);
-      expect(detail.awayStats.shots).toBe(0);
+      const detail = buildDetail();
+      expect(detail.homeStats.shots).toBe(FACTS.home.stats.shots);
+      expect(detail.awayStats.shots).toBe(FACTS.away.stats.shots);
     });
 
     it('counts corners/fouls/offsides from the timeline per side', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      // Home: 1 corner (e5), 1 offside (e10). Away: 1 foul (e9).
-      expect(detail.homeStats.corners).toBe(1);
-      expect(detail.homeStats.offsides).toBe(1);
-      expect(detail.awayStats.fouls).toBe(1);
+      const detail = buildDetail();
+      expect(detail.homeStats.corners).toBe(FACTS.home.stats.corners);
+      expect(detail.awayStats.corners).toBe(FACTS.away.stats.corners);
+      expect(detail.homeStats.fouls).toBe(FACTS.home.stats.fouls);
+      expect(detail.awayStats.fouls).toBe(FACTS.away.stats.fouls);
+      expect(detail.homeStats.offsides).toBe(FACTS.home.stats.offsides);
+      expect(detail.awayStats.offsides).toBe(FACTS.away.stats.offsides);
     });
 
     it('omits stats with no FIFA source — passes/passAccuracy/shotsOnTarget stay null', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
+      const detail = buildDetail();
       expect(detail.homeStats.passes).toBeNull();
       expect(detail.homeStats.passAccuracy).toBeNull();
       expect(detail.homeStats.shotsOnTarget).toBeNull();
     });
 
-    it('labels the win probability as an estimate (never an unlabeled FIFA figure) when present', () => {
-      const detail = mapFifaMatchDetail(live, timeline, REF);
-      if (detail.winProbability !== null) {
-        expect(detail.winProbability.estimated).toBe(true);
-        const { home, draw, away } = detail.winProbability;
+    it('labels win probability as an estimate summing to 100 (or omits it)', () => {
+      const { winProbability } = buildDetail();
+      if (winProbability !== null) {
+        expect(winProbability.estimated).toBe(true);
+        const { home, draw, away } = winProbability;
         expect(home + draw + away).toBe(100);
       }
     });
@@ -213,18 +270,28 @@ describe('mapFifaMatchDetail', () => {
   describe('graceful degradation', () => {
     it('returns the EMPTY_MATCH_DETAIL shape (no throw) for null payloads', () => {
       const detail = mapFifaMatchDetail(null, null, REF);
-      expect(detail.matchId).toBe('400251');
+      expect(detail.matchId).toBe(FACTS.matchId);
       expect(detail.events).toEqual([]);
       expect(detail.home.starters).toEqual([]);
       expect(detail.away.starters).toEqual([]);
       expect(detail.winProbability).toBeNull();
     });
 
-    it('tolerates a present live payload with an empty timeline', () => {
-      const detail = mapFifaMatchDetail(live, null, REF);
+    it('populates lineups even when the timeline is missing (live only)', () => {
+      const detail = mapFifaMatchDetail(parseLive(), null, REF);
       expect(detail.events).toEqual([]);
-      // Lineups still come from the live payload.
-      expect(detail.home.formation).toBe('4-3-3');
+      expect(detail.home.formation).toBe(FACTS.home.formation);
+      expect(detail.home.starters).toHaveLength(FACTS.home.starters);
+    });
+
+    it('drops every event when the live payload is missing (no side to resolve)', () => {
+      // Timeline events only carry an IdTeam — without the live HomeTeam/AwayTeam
+      // ids there is no way to label home/away, so events are degraded to [] (the
+      // panel shows no timeline) rather than guessing or crashing.
+      const detail = mapFifaMatchDetail(null, parseTimeline(), REF);
+      expect(detail.events).toEqual([]);
+      expect(detail.home.starters).toEqual([]);
+      expect(detail.away.starters).toEqual([]);
     });
   });
 });
