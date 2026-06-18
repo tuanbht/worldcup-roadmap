@@ -6,6 +6,7 @@ import {
   HEADER_H,
   RAIL_W,
   SLOT,
+  STACK,
   type XY,
 } from './layout-constants';
 
@@ -41,9 +42,19 @@ function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string): number {
 }
 
 /**
+ * Horizontal sub-slot for one kickoff-group within a cell: a single kickoff
+ * centres on the column; two distinct kickoffs sit side-by-side at ± SLOT/2.
+ */
+function subSlotX(index: number, count: number): number {
+  return count === 1 ? 0 : (index - (count - 1) / 2) * SLOT;
+}
+
+/**
  * Position each group's matches within its fixed column at the kickoff-day row.
- * A cell with two matches gets the earlier kickoff at `base - SLOT/2` (left) and
- * the later at `base + SLOT/2` (right); a singleton keeps the base column x.
+ * Within a (group, day) cell, matches are grouped by EXACT kickoff: distinct
+ * kickoffs sit side-by-side (± SLOT/2), while matches that share a kickoff (the
+ * simultaneous final group matchday) STACK VERTICALLY in one sub-slot, centred on
+ * the day-row at `y ± STACK/2`. A lone match keeps the base column x at the row.
  */
 function placeColumnMatches(
   groupMatches: Match[],
@@ -61,14 +72,21 @@ function placeColumnMatches(
 
   for (const cell of byDay.values()) {
     const ordered = [...cell].sort(bySlotOrder);
-    if (ordered.length === 1) {
-      const match = ordered[0];
-      out.set(match.id, { x: baseX, y: rowY(dayIndex, match.kickoff) });
-      continue;
+    // Group consecutive same-kickoff matches (the list is already kickoff-sorted).
+    const kickoffGroups: Match[][] = [];
+    for (const match of ordered) {
+      const current = kickoffGroups.at(-1);
+      if (current && current[0].kickoff === match.kickoff) current.push(match);
+      else kickoffGroups.push([match]);
     }
-    ordered.forEach((match, slot) => {
-      const offset = slot === 0 ? -SLOT / 2 : SLOT / 2;
-      out.set(match.id, { x: baseX + offset, y: rowY(dayIndex, match.kickoff) });
+
+    kickoffGroups.forEach((slotMatches, slotIndex) => {
+      const x = baseX + subSlotX(slotIndex, kickoffGroups.length);
+      const y0 = rowY(dayIndex, slotMatches[0].kickoff);
+      slotMatches.forEach((match, stackIndex) => {
+        const dy = (stackIndex - (slotMatches.length - 1) / 2) * STACK;
+        out.set(match.id, { x, y: y0 + dy });
+      });
     });
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeGroupGridLayout } from './group-layout';
 import { computeDayIndex } from './day-axis';
-import { GROUP_COL_PITCH, HEADER_H, DAY_ROW_PITCH, RAIL_W, SLOT, NODE_W } from './layout-constants';
+import { GROUP_COL_PITCH, HEADER_H, DAY_ROW_PITCH, RAIL_W, SLOT, STACK, NODE_W } from './layout-constants';
 import {
   deepFreeze,
   fixtureDayKey,
@@ -11,7 +11,8 @@ import {
   loadTournament,
   sortedEntries,
 } from '../__test-support__/roadmap-fixtures';
-import type { Match } from '@/domain/types';
+import { teamRef, EMPTY_SCORE } from '@/domain/types';
+import type { Match, Tournament } from '@/domain/types';
 
 /**
  * Spec for the NEW timeline-grid group zone (`computeGroupGridLayout`):
@@ -128,6 +129,41 @@ describe('computeGroupGridLayout — paired-cell sub-slots [Rev2:H1]', () => {
       // Same row: both sit on that cell's single day.
       expect(matches.get(first.id)!.y).toBe(matches.get(second.id)!.y);
     }
+  });
+
+  it('stacks same-kickoff matches vertically in one sub-slot (align vertical)', () => {
+    // Synthetic: two group-A matches at the SAME kickoff (FIFA's simultaneous MD3).
+    const ko = '2026-06-19T12:00:00.000Z';
+    const mk = (id: string): Match => ({
+      id,
+      providerMatchId: id,
+      stage: 'GROUP_STAGE',
+      group: 'A',
+      matchday: 3,
+      home: teamRef({ id: `${id}-h`, name: 'Home', code: 'HOM', flagUrl: null }),
+      away: teamRef({ id: `${id}-a`, name: 'Away', code: 'AWY', flagUrl: null }),
+      score: EMPTY_SCORE,
+      kickoff: ko,
+      status: 'scheduled',
+      minute: null,
+      venue: { name: null, city: null },
+    });
+    const synth = [mk('same-1'), mk('same-2')];
+    const t = {
+      meta: {},
+      teams: [],
+      matches: synth,
+      groups: [{ name: 'A', table: [] }],
+      bracket: { rounds: [] },
+    } as unknown as Tournament;
+    const { matches } = computeGroupGridLayout(t, computeDayIndex(synth));
+    const a = matches.get('same-1')!;
+    const b = matches.get('same-2')!;
+    // Vertically aligned: same column x (NO ± SLOT/2 spread), at the column base.
+    expect(a.x).toBe(b.x);
+    expect(a.x).toBe(RAIL_W);
+    // Stacked one STACK pitch apart, centred on the day-row.
+    expect(Math.abs(a.y - b.y)).toBe(STACK);
   });
 
   it('never overlaps an adjacent column on any populated row', () => {

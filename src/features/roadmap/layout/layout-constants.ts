@@ -15,8 +15,12 @@ export const NODE_H = 108;
 export const DAY_ROW_PITCH = NODE_H + 92;
 /** Horizontal pixels between adjacent group columns (room for 2 sub-slots). */
 export const GROUP_COL_PITCH = 2 * NODE_W + 96;
-/** Sub-slot offset inside a column: paired matches sit at x ± SLOT/2. */
+/** Sub-slot offset inside a column: matches at DIFFERENT kickoffs sit at x ± SLOT/2. */
 export const SLOT = NODE_W + 40;
+/** Vertical pitch between two cards stacked in one cell when their matches kick
+ *  off at the SAME time (the simultaneous final group matchday) — they align
+ *  vertically (centred on the day-row) instead of spreading horizontally. */
+export const STACK = NODE_H + 20;
 /** R32 leaf spacing for the centered knockout fan-in. */
 export const LEAF_X_PITCH = NODE_W + 36;
 /** Left date-rail width; group column 0 starts at x = RAIL_W. */
