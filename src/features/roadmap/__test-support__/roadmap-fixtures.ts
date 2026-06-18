@@ -71,8 +71,7 @@ export function expectedFeederCount(t: Tournament): number {
 /** Advance edges = one per non-group bracket slot (child -> parent). */
 export function expectedAdvanceEdgeCount(t: Tournament): number {
   return allBracketNodes(t.bracket).reduce(
-    (count, node) =>
-      count + [node.home, node.away].filter((s) => s.source.kind !== 'group').length,
+    (count, node) => count + [node.home, node.away].filter((s) => s.source.kind !== 'group').length,
     0,
   );
 }
