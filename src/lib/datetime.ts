@@ -2,19 +2,31 @@
  * Single date/timezone façade for the app. All kickoff/timezone rendering routes
  * through here (per the library-first stack policy: one date lib, no hand-rolled
  * `Intl.DateTimeFormat`). Wraps `date-fns` `parseISO` + `date-fns-tz`
- * `formatInTimeZone` against an explicit default IANA zone so output is
- * deterministic regardless of the viewer's machine zone or locale.
+ * `formatInTimeZone`. By default it renders in the viewer's LOCAL zone (their
+ * browser timezone); pass an explicit `tz` to pin a zone (tests/E2E do this for
+ * determinism).
  *
- * Pure module — no React, no ambient clock, no machine-zone/locale dependency.
+ * Pure formatting (no React, no ambient clock, no `new Date()`); the only ambient
+ * read is the runtime's local IANA zone, used as the default.
  */
 import { parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { formatInTimeZone } from 'date-fns-tz';
 
-/** Fixed broadcast zone. The model has no per-venue tz; a fixed zone keeps both
- *  production output and E2E visual snapshots reproducible. Overridable per call
- *  via the optional `tz` argument when a future task adds user/venue zones. */
-const DEFAULT_TZ = 'UTC';
+/** Fallback IANA zone when the runtime can't resolve a local one (non-browser or
+ *  locked-down environment). */
+const FALLBACK_TZ = 'UTC';
+
+/** The viewer's own IANA time zone (their browser/runtime local zone), so each
+ *  match's kickoff renders in the user's timezone. Degrades to `FALLBACK_TZ` when
+ *  the runtime can't resolve one. */
+export function localTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || FALLBACK_TZ;
+  } catch {
+    return FALLBACK_TZ;
+  }
+}
 
 /** Display shapes mirroring the prior `Intl` output (`dd MMM, HH:mm`, etc.). */
 const FMT_DATETIME = 'dd MMM, HH:mm'; // e.g. "02 Jun, 14:30"
@@ -26,9 +38,10 @@ const FALLBACK_DATETIME = 'Date TBD';
 const FALLBACK_TIME = '--:--';
 const FALLBACK_DATE = 'TBD';
 
-/** Resolve the effective IANA zone: an explicit value wins, else the default. */
+/** Resolve the effective IANA zone: an explicit value wins, else the viewer's
+ *  local zone. */
 export function resolveTimeZone(explicit?: string): string {
-  return explicit ?? DEFAULT_TZ;
+  return explicit ?? localTimeZone();
 }
 
 /**

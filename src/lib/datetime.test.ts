@@ -1,10 +1,15 @@
-// Node environment (global default). Deterministic by construction: every
-// assertion pins an explicit IANA zone, so a result never depends on the
-// machine's local zone or locale — the exact non-determinism this date-fns-tz
-// refactor removes. No real clock, no `new Date()` without an argument, no
-// ambient `Intl` default is touched anywhere in this file.
+// Node environment. Deterministic by construction: assertions either pin an
+// explicit IANA zone, or compare the no-zone default against `localTimeZone()`
+// self-referentially — so a result never hard-codes the machine's local zone.
+// No real clock and no `new Date()` without an argument anywhere in this file.
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatTime, resolveTimeZone } from '@/lib/datetime';
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  localTimeZone,
+  resolveTimeZone,
+} from '@/lib/datetime';
 
 // --- Fixtures -------------------------------------------------------------
 
@@ -46,8 +51,8 @@ describe('datetime façade — formatDateTime', () => {
     expect(formatDateTime(LATE_NIGHT_UTC, TOKYO)).toBe('03 Jun, 07:30');
   });
 
-  it('defaults to UTC when no zone is supplied', () => {
-    expect(formatDateTime(KICKOFF_UTC)).toBe('02 Jun, 14:30');
+  it('defaults to the viewer local zone when no zone is supplied', () => {
+    expect(formatDateTime(KICKOFF_UTC)).toBe(formatDateTime(KICKOFF_UTC, localTimeZone()));
   });
 
   it.each(INVALID_INPUTS)('falls back to "Date TBD" for %s', (_name, value) => {
@@ -95,12 +100,12 @@ describe('datetime façade — cross-zone divergence (proves real conversion, no
 });
 
 describe('datetime façade — resolveTimeZone', () => {
-  it('returns the fixed default zone "UTC" when nothing is passed', () => {
-    expect(resolveTimeZone()).toBe('UTC');
+  it('returns the viewer local zone when nothing is passed', () => {
+    expect(resolveTimeZone()).toBe(localTimeZone());
   });
 
-  it('returns the fixed default zone "UTC" when undefined is passed', () => {
-    expect(resolveTimeZone(undefined)).toBe('UTC');
+  it('returns the viewer local zone when undefined is passed', () => {
+    expect(resolveTimeZone(undefined)).toBe(localTimeZone());
   });
 
   it('returns the explicit zone unchanged when one is supplied', () => {
