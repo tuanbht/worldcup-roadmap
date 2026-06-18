@@ -35,8 +35,15 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
   const finished = status === 'finished';
   const homeWin = score.winner === 'home';
   const awayWin = score.winner === 'away';
-  const isGroup = group !== null && matchday !== null;
-  const groupLabel = isGroup ? `Group ${group} · MD${matchday}` : data.roundLabel;
+  // A group match is labelled by its group whenever the group is known; the
+  // matchday is appended only when available (FIFA omits MatchDay for WC-2026,
+  // so it can be null even though GroupName is present).
+  const isGroup = group !== null;
+  const groupLabel = !isGroup
+    ? data.roundLabel
+    : matchday !== null
+      ? `Group ${group} · MD${matchday}`
+      : `Group ${group}`;
 
   return (
     <article

@@ -66,6 +66,14 @@ describe('MatchNode — group label', () => {
     expect(screen.getByText(/Group A.*MD1/)).toBeInTheDocument();
   });
 
+  it('falls back to "Group A" (no MD) when matchday is null, never the stage label', () => {
+    // FIFA supplies GroupName but not MatchDay for WC-2026 group matches, so
+    // matchday arrives null. The card must still read by group, not "Group Stage".
+    renderNode(makeData({ group: 'A', matchday: null, roundLabel: 'Group Stage' }));
+    expect(screen.getByText('Group A')).toBeInTheDocument();
+    expect(screen.queryByText('Group Stage')).not.toBeInTheDocument();
+  });
+
   it('renders no group label for a knockout card', () => {
     renderNode(makeData({ stage: 'FINAL', roundLabel: 'Final', group: null, matchday: null }));
     expect(screen.queryByText(/Group [A-L].*MD\d/)).not.toBeInTheDocument();
