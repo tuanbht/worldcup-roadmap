@@ -104,6 +104,7 @@ function makeMatch(args: {
   return {
     id: args.id,
     providerMatchId: args.id,
+    providerRef: null,
     stage: args.stage,
     group: args.group,
     matchday: args.matchday,

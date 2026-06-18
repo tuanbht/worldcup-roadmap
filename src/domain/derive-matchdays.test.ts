@@ -13,6 +13,7 @@ function mkMatch(p: {
   return {
     id: p.id,
     providerMatchId: p.id,
+    providerRef: null,
     stage: p.stage ?? 'GROUP_STAGE',
     group: p.group,
     matchday: p.matchday,

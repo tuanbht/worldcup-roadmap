@@ -32,9 +32,15 @@ export default defineConfig({
         'src/features/roadmap/build-graph.ts',
         'src/features/roadmap/lod.ts',
         'src/features/roadmap/hooks/useTournamentQuery.ts',
+        'src/features/roadmap/hooks/useMatchDetailQuery.ts',
         'src/data/providers/**',
+        'src/data/cache/match-detail-cache.ts',
+        'src/components/panel/match-detail/**',
         'server/routes/**',
       ],
+      // Test-support builders/fixtures are not production code — they sit under
+      // `match-detail/**` (caught by the include glob) but must not be measured.
+      exclude: ['**/__test-support__/**', '**/__fixtures__/**'],
       reporter: ['text', 'html'],
     },
   },

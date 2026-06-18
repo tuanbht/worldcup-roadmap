@@ -111,7 +111,11 @@ function groupExitMatchId(matches: readonly Match[], groupName: string): string 
   let exit: Match | null = null;
   for (const m of matches) {
     if (m.stage !== 'GROUP_STAGE' || m.group !== groupName) continue;
-    if (exit === null || m.kickoff > exit.kickoff || (m.kickoff === exit.kickoff && m.id > exit.id)) {
+    if (
+      exit === null ||
+      m.kickoff > exit.kickoff ||
+      (m.kickoff === exit.kickoff && m.id > exit.id)
+    ) {
       exit = m;
     }
   }

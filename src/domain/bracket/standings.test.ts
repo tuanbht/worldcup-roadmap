@@ -22,6 +22,7 @@ function gm(id: string, home: Team, away: Team, s: Score, kickoff: string): Matc
   return {
     id,
     providerMatchId: id,
+    providerRef: null,
     stage: 'GROUP_STAGE',
     group: 'A',
     matchday: 1,

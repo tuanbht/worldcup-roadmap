@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { worldcup } from './routes/worldcup';
+import { matchDetail } from './routes/match-detail';
 
 /**
  * Standalone Hono API process (was the Next route handler).
@@ -12,5 +13,6 @@ const PORT = Number(process.env.PORT ?? 8787);
 
 const app = new Hono();
 app.route('/', worldcup);
+app.route('/', matchDetail);
 
 serve({ fetch: app.fetch, port: PORT });

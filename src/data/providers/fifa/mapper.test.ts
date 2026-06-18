@@ -4,6 +4,7 @@ import type { RawMatch } from './schema';
 
 const finishedKo: RawMatch = {
   IdMatch: '400251',
+  IdStage: 'st-r16',
   StageName: [{ Locale: 'en-GB', Description: 'Round of 16' }],
   Home: {
     IdTeam: '43946',
@@ -67,6 +68,22 @@ describe('mapFifaMatches', () => {
       },
     });
     expect(m.venue.city).toBe('Los Angeles');
+  });
+
+  it('populates providerRef from IdStage + IdMatch + env comp/season when IdStage is present', () => {
+    const [m] = mapFifaMatches([finishedKo]);
+    expect(m.providerRef).toEqual({
+      idCompetition: expect.any(String),
+      idSeason: expect.any(String),
+      idStage: 'st-r16',
+      idMatch: '400251',
+    });
+  });
+
+  it('leaves providerRef null when IdStage is absent (detail unavailable, no crash)', () => {
+    const noStage: RawMatch = { ...finishedKo, IdStage: undefined };
+    const [m] = mapFifaMatches([noStage]);
+    expect(m.providerRef).toBeNull();
   });
 
   it('maps a live group match with elapsed minute and no winner yet', () => {

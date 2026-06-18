@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { computeGroupGridLayout } from './group-layout';
 import { computeDayIndex } from './day-axis';
-import { GROUP_COL_PITCH, HEADER_H, DAY_ROW_PITCH, RAIL_W, SLOT, STACK, NODE_W } from './layout-constants';
+import {
+  GROUP_COL_PITCH,
+  HEADER_H,
+  DAY_ROW_PITCH,
+  RAIL_W,
+  SLOT,
+  STACK,
+  NODE_W,
+} from './layout-constants';
 import {
   deepFreeze,
   fixtureDayKey,
@@ -137,6 +145,7 @@ describe('computeGroupGridLayout — paired-cell sub-slots [Rev2:H1]', () => {
     const mk = (id: string): Match => ({
       id,
       providerMatchId: id,
+      providerRef: null,
       stage: 'GROUP_STAGE',
       group: 'A',
       matchday: 3,

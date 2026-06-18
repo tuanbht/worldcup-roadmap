@@ -1,0 +1,124 @@
+{
+  "IdMatch": "400251",
+  "Event": [
+    {
+      "EventId": "e1",
+      "MatchMinute": "0'",
+      "Period": 3,
+      "IdTeam": null,
+      "IdPlayer": null,
+      "Type": 18,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Start Time" }]
+    },
+    {
+      "EventId": "e2",
+      "MatchMinute": "23'",
+      "Period": 3,
+      "IdTeam": "43946",
+      "IdPlayer": "p-cap-h",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Kylian Mbappe" }],
+      "Type": 0,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Goal!" }]
+    },
+    {
+      "EventId": "e2a",
+      "MatchMinute": "23'",
+      "Period": 3,
+      "IdTeam": "43946",
+      "IdPlayer": "p-gk-h",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Mike Maignan" }],
+      "Type": 1,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Assist" }]
+    },
+    {
+      "EventId": "e3",
+      "MatchMinute": "31'",
+      "Period": 3,
+      "IdTeam": "43911",
+      "IdPlayer": "p-cap-a",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Vinicius Junior" }],
+      "Type": 72,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Yellow card" }]
+    },
+    {
+      "EventId": "e4",
+      "MatchMinute": "39'",
+      "Period": 3,
+      "IdTeam": "43946",
+      "IdPlayer": "p-cap-h",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Kylian Mbappe" }],
+      "Type": 14,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Attempt at Goal" }]
+    },
+    {
+      "EventId": "e5",
+      "MatchMinute": "44'",
+      "Period": 3,
+      "IdTeam": "43946",
+      "Type": 60,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Corner" }]
+    },
+    {
+      "EventId": "e6",
+      "MatchMinute": "45'",
+      "Period": 4,
+      "IdTeam": null,
+      "Type": 19,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "End Time" }]
+    },
+    {
+      "EventId": "e7",
+      "MatchMinute": "58'",
+      "Period": 5,
+      "IdTeam": "43911",
+      "IdPlayer": "p-cap-a",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Vinicius Junior" }],
+      "Type": 3,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Goal!" }]
+    },
+    {
+      "EventId": "e8",
+      "MatchMinute": "70'",
+      "Period": 5,
+      "IdTeam": "43946",
+      "IdPlayer": "p-cap-h",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Kylian Mbappe" }],
+      "Type": 5,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Substitution" }]
+    },
+    {
+      "EventId": "e9",
+      "MatchMinute": "75'",
+      "Period": 5,
+      "IdTeam": "43911",
+      "IdPlayer": "p-cap-a",
+      "Type": 71,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Foul" }]
+    },
+    {
+      "EventId": "e10",
+      "MatchMinute": "80'",
+      "Period": 5,
+      "IdTeam": "43946",
+      "Type": 65,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "Offside" }]
+    },
+    {
+      "EventId": "e11",
+      "MatchMinute": "82'",
+      "Period": 5,
+      "IdTeam": "43911",
+      "IdPlayer": "p-cap-a",
+      "PlayerName": [{ "Locale": "en-GB", "Description": "Vinicius Junior" }],
+      "Type": 999,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "VAR" }]
+    },
+    {
+      "EventId": "e12",
+      "MatchMinute": "90'",
+      "Period": 6,
+      "Type": 19,
+      "TypeLocalized": [{ "Locale": "en-GB", "Description": "End Time" }]
+    }
+  ]
+}

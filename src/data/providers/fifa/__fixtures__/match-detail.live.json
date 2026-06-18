@@ -1,0 +1,86 @@
+{
+  "IdMatch": "400251",
+  "BallPossession": { "OverallHome": 58, "OverallAway": 42 },
+  "HomeTeam": {
+    "IdTeam": "43946",
+    "Tactics": "4-3-3",
+    "Coaches": [{ "Name": [{ "Locale": "en-GB", "Description": "Didier Deschamps" }] }],
+    "Goals": [{ "IdPlayer": "p-cap-h", "IdAssistPlayer": "p-gk-h", "Type": 0, "Minute": "23'" }],
+    "Bookings": [],
+    "Substitutions": [
+      {
+        "IdPlayerOff": "p-cap-h",
+        "IdPlayerOn": "p-bench-h",
+        "PlayerOnName": [{ "Locale": "en-GB", "Description": "Eduardo Camavinga" }],
+        "Minute": "70'"
+      }
+    ],
+    "Players": [
+      {
+        "IdPlayer": "p-gk-h",
+        "IdTeam": "43946",
+        "ShirtNumber": 1,
+        "Captain": false,
+        "Position": "Goalkeeper",
+        "Status": 1,
+        "PlayerName": [{ "Locale": "en-GB", "Description": "Mike Maignan" }],
+        "ShortName": [{ "Locale": "en-GB", "Description": "Maignan" }],
+        "PlayerPicture": { "PictureUrl": "https://digitalhub.fifa.com/transform/gk-h/maignan.png" }
+      },
+      {
+        "IdPlayer": "p-cap-h",
+        "IdTeam": "43946",
+        "ShirtNumber": 10,
+        "Captain": true,
+        "Position": "Forward",
+        "Status": 1,
+        "PlayerName": [{ "Locale": "en-GB", "Description": "Kylian Mbappe" }],
+        "ShortName": [{ "Locale": "en-GB", "Description": "Mbappe" }],
+        "PlayerPicture": { "PictureUrl": "https://digitalhub.fifa.com/transform/cap-h/mbappe.png" }
+      },
+      {
+        "IdPlayer": "p-bench-h",
+        "IdTeam": "43946",
+        "ShirtNumber": 22,
+        "Captain": false,
+        "Position": "Midfielder",
+        "Status": 0,
+        "PlayerName": [{ "Locale": "en-GB", "Description": "Eduardo Camavinga" }],
+        "ShortName": [{ "Locale": "en-GB", "Description": "Camavinga" }],
+        "PlayerPicture": null
+      }
+    ]
+  },
+  "AwayTeam": {
+    "IdTeam": "43911",
+    "Tactics": "4-2-3-1",
+    "Coaches": [{ "Name": [{ "Locale": "en-GB", "Description": "Dorival Junior" }] }],
+    "Goals": [{ "IdPlayer": "p-cap-a", "Type": 0, "Minute": "58'" }],
+    "Bookings": [{ "IdPlayer": "p-cap-a", "Card": 1, "Minute": "31'" }],
+    "Substitutions": [],
+    "Players": [
+      {
+        "IdPlayer": "p-gk-a",
+        "IdTeam": "43911",
+        "ShirtNumber": 1,
+        "Captain": false,
+        "Position": "Goalkeeper",
+        "Status": 1,
+        "PlayerName": [{ "Locale": "en-GB", "Description": "Alisson Becker" }],
+        "ShortName": [{ "Locale": "en-GB", "Description": "Alisson" }],
+        "PlayerPicture": { "PictureUrl": "https://digitalhub.fifa.com/transform/gk-a/alisson.png" }
+      },
+      {
+        "IdPlayer": "p-cap-a",
+        "IdTeam": "43911",
+        "ShirtNumber": 10,
+        "Captain": true,
+        "Position": "Forward",
+        "Status": 1,
+        "PlayerName": [{ "Locale": "en-GB", "Description": "Vinicius Junior" }],
+        "ShortName": [{ "Locale": "en-GB", "Description": "Vinicius" }],
+        "PlayerPicture": null
+      }
+    ]
+  }
+}

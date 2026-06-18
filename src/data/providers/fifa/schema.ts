@@ -22,6 +22,11 @@ const rawStadium = z
 export const rawMatchSchema = z
   .object({
     IdMatch: z.string(),
+    // L-A: needed to build Match.providerRef for the detail fetch. Captured here
+    // (was only `.passthrough()`'d). Live-probe before finalizing the mapper: if
+    // calendar rows lack IdStage, derive it from the stage list instead.
+    IdStage: z.string().nullable().optional(),
+    IdGroup: z.string().nullable().optional(),
     MatchNumber: z.number().nullable().optional(),
     MatchDay: z.number().nullable().optional(),
     StageName: localized.optional(),

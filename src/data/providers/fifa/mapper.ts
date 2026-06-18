@@ -1,5 +1,15 @@
-import type { Match, MatchStatus, Outcome, Score, Stage, TeamRef, Venue } from '@/domain/types';
+import type {
+  Match,
+  MatchStatus,
+  Outcome,
+  ProviderRef,
+  Score,
+  Stage,
+  TeamRef,
+  Venue,
+} from '@/domain/types';
 import { placeholderRef, teamRef } from '@/domain/types';
+import { env } from '@/data/config/env';
 import { fifaFlagUrl } from '@/data/flag-url';
 import type { RawMatch } from './schema';
 
@@ -92,6 +102,24 @@ function mapVenue(raw: RawMatch): Venue {
   };
 }
 
+/**
+ * FIFA detail coordinates for the per-match `/live` + `/timelines` fetch. Built
+ * from the calendar row's `IdStage` + `IdMatch` and the configured comp/season;
+ * `null` when `IdStage` is absent so the detail endpoint degrades gracefully.
+ *
+ * L-A: if a live `/calendar/matches` probe shows `IdStage` is never present,
+ * derive it from the stage list instead and revisit this branch.
+ */
+function mapProviderRef(raw: RawMatch): ProviderRef | null {
+  if (!raw.IdStage) return null;
+  return {
+    idCompetition: env.WC_FIFA_COMPETITION_ID,
+    idSeason: env.WC_FIFA_SEASON_ID,
+    idStage: raw.IdStage,
+    idMatch: raw.IdMatch,
+  };
+}
+
 /** Normalize raw FIFA match records into the domain model. Pure + immutable. */
 export function mapFifaMatches(raws: readonly RawMatch[]): Match[] {
   return raws.map((raw) => {
@@ -100,6 +128,7 @@ export function mapFifaMatches(raws: readonly RawMatch[]): Match[] {
     return {
       id: `wc2026-fifa-${raw.IdMatch}`,
       providerMatchId: raw.IdMatch,
+      providerRef: mapProviderRef(raw),
       stage,
       group: stage === 'GROUP_STAGE' ? mapGroup(pickLocale(raw.GroupName)) : null,
       matchday: raw.MatchDay ?? null,

@@ -45,6 +45,14 @@ const matchSchema = z.object({
   status: z.enum(['scheduled', 'live', 'finished']),
   minute: z.number().nullable(),
   venue: z.object({ name: z.string().nullable(), city: z.string().nullable() }),
+  providerRef: z
+    .object({
+      idCompetition: z.string(),
+      idSeason: z.string(),
+      idStage: z.string(),
+      idMatch: z.string(),
+    })
+    .nullable(),
 });
 
 const standingRowSchema = z.object({

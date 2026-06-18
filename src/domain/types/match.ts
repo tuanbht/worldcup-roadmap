@@ -43,11 +43,26 @@ export const EMPTY_SCORE: Score = {
   winner: null,
 };
 
+/**
+ * Provider coordinates needed to fetch per-match detail from FIFA v3
+ * (`/live/football/...` + `/timelines/...`). Populated by the FIFA mapper when
+ * the calendar row carries `IdStage`; `null` for mock matches (→ detail
+ * unavailable).
+ */
+export interface ProviderRef {
+  readonly idCompetition: string;
+  readonly idSeason: string;
+  readonly idStage: string;
+  readonly idMatch: string;
+}
+
 export interface Match {
   /** Stable, provider-independent domain id, e.g. "wc2026-m37". */
   readonly id: string;
   /** Raw upstream id, kept for traceability/debugging. */
   readonly providerMatchId: string;
+  /** FIFA detail coordinates, or null when detail is unavailable (mock). */
+  readonly providerRef: ProviderRef | null;
   readonly stage: Stage;
   /** Group letter "A".."L" for group-stage matches; null in the knockout. */
   readonly group: string | null;

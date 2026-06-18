@@ -11,6 +11,8 @@ const EnvSchema = z.object({
   WC_FIFA_COUNTRY: z.string().default('US'),
   WC_CACHE_TTL_LIVE_MS: z.coerce.number().int().positive().default(30_000),
   WC_CACHE_TTL_IDLE_MS: z.coerce.number().int().positive().default(600_000),
+  WC_CACHE_TTL_DETAIL_LIVE_MS: z.coerce.number().int().positive().default(30_000),
+  WC_CACHE_TTL_DETAIL_IDLE_MS: z.coerce.number().int().positive().default(600_000),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

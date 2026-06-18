@@ -2,11 +2,12 @@ import { env } from '@/data/config/env';
 import { RateLimitError, RepositoryError, ValidationError, getErrorMessage } from '@/data/errors';
 import { rawMatchesResponseSchema, type RawMatch } from './schema';
 
-const BASE = 'https://api.fifa.com/api/v3';
+/** Shared FIFA v3 API base (reused by the per-match detail client). */
+export const BASE = 'https://api.fifa.com/api/v3';
 
 // Browser-like headers reduce the chance of bot-protection blocks on the
-// undocumented FIFA endpoint.
-const HEADERS: Record<string, string> = {
+// undocumented FIFA endpoint. Exported so the detail client reuses them verbatim.
+export const FIFA_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
@@ -34,7 +35,7 @@ export async function fetchFifaMatches(): Promise<RawMatch[]> {
     if (env.WC_FIFA_COUNTRY) url.searchParams.set('country', env.WC_FIFA_COUNTRY);
     if (token) url.searchParams.set('continuationToken', token);
 
-    const res = await fetch(url, { headers: HEADERS, cache: 'no-store' });
+    const res = await fetch(url, { headers: FIFA_HEADERS, cache: 'no-store' });
     if (res.status === 429) throw new RateLimitError();
     if (!res.ok)
       throw new RepositoryError('UPSTREAM_HTTP', `FIFA API responded ${res.status}`, 502);
