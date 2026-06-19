@@ -109,7 +109,7 @@ export function MatchDetailPanel({
       // region (WCAG 4.1.2 / axe aria-hidden-focus).
       inert={!open}
       className={[
-        'absolute top-0 right-0 z-10 flex h-full w-[min(380px,94vw)] flex-col gap-4 p-6',
+        'absolute top-0 right-0 z-10 flex h-full w-[min(560px,96vw)] flex-col gap-4 p-6',
         'border-edge bg-glass border-l shadow-[var(--elevation-panel)] backdrop-blur-[18px]',
         'transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
         'max-[640px]:top-auto max-[640px]:bottom-0 max-[640px]:h-auto max-[640px]:max-h-[80%]',

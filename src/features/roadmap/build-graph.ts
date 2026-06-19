@@ -6,14 +6,7 @@ import { formatDate } from '@/lib/datetime';
 import { computeGroupGridLayout } from './layout/group-layout';
 import { computeKnockoutFunnelLayout } from './layout/bracket-layout';
 import { computeDayIndex, dayKey, orderedDays } from './layout/day-axis';
-import {
-  CX,
-  DAY_MARKER_INSET,
-  DAY_ROW_PITCH,
-  HEADER_H,
-  RAIL_W,
-  type XY,
-} from './layout/layout-constants';
+import { CX, DAY_ROW_PITCH, HEADER_H, type XY } from './layout/layout-constants';
 import type {
   AdvanceEdgeState,
   DayMarkerFlowNode,
@@ -76,7 +69,7 @@ function dayMarkerNode(day: string, index: number, label: string): DayMarkerFlow
   return {
     id: `day-marker-${day}`,
     type: 'day-marker',
-    position: { x: RAIL_W - DAY_MARKER_INSET, y: HEADER_H + index * DAY_ROW_PITCH },
+    position: { x: 0, y: HEADER_H + index * DAY_ROW_PITCH },
     data: { dayKey: day, dayLabel: label, dayIndex: index },
   };
 }

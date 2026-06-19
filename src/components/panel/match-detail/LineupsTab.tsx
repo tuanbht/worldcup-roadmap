@@ -22,7 +22,7 @@ function Pitch({ lineup, teamName }: { lineup: Lineup; teamName: string }): Reac
               key={player.id}
               player={player}
               className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${x * 100}%`, top: `${(1 - y) * 90 + 5}%` }}
+              style={{ left: `${x * 100}%`, top: `${(1 - y) * 76 + 12}%` }}
             />
           ))}
         </ul>
