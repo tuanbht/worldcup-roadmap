@@ -45,11 +45,10 @@ describe('useFocusMatch — centers the camera on a found node [Acceptance #10]'
 
     expect(getNode).toHaveBeenCalledWith('m1');
     expect(setCenter).toHaveBeenCalledTimes(1);
-    expect(setCenter).toHaveBeenCalledWith(
-      NODE_X + NODE_W / 2,
-      NODE_Y + NODE_H / 2,
-      { zoom: FOCUS_ZOOM, duration: FOCUS_DURATION_MS },
-    );
+    expect(setCenter).toHaveBeenCalledWith(NODE_X + NODE_W / 2, NODE_Y + NODE_H / 2, {
+      zoom: FOCUS_ZOOM,
+      duration: FOCUS_DURATION_MS,
+    });
   });
 
   it('invokes onFocused with the focused matchId for selection/highlight', () => {
@@ -94,10 +93,9 @@ describe('useFocusMatch — stable identity', () => {
     // must remain callable AND route to the current onFocused (not a dead one).
     getNode.mockReturnValue({ id: 'm3', position: { x: 5, y: 5 } });
     const firstFocused = vi.fn();
-    const { result, rerender } = renderHook(
-      ({ onFocused }) => useFocusMatch({ onFocused }),
-      { initialProps: { onFocused: firstFocused } },
-    );
+    const { result, rerender } = renderHook(({ onFocused }) => useFocusMatch({ onFocused }), {
+      initialProps: { onFocused: firstFocused },
+    });
     const capturedHandle = result.current.focusMatch;
 
     const secondFocused = vi.fn();
@@ -113,10 +111,9 @@ describe('useFocusMatch — stable identity', () => {
     getNode.mockReturnValue({ id: 'm2', position: { x: 100, y: 200 } });
     const { result } = renderHook(() => useFocusMatch());
     result.current.focusMatch('m2');
-    expect(setCenter).toHaveBeenCalledWith(
-      100 + NODE_W / 2,
-      200 + NODE_H / 2,
-      { zoom: FOCUS_ZOOM, duration: FOCUS_DURATION_MS },
-    );
+    expect(setCenter).toHaveBeenCalledWith(100 + NODE_W / 2, 200 + NODE_H / 2, {
+      zoom: FOCUS_ZOOM,
+      duration: FOCUS_DURATION_MS,
+    });
   });
 });

@@ -8,12 +8,7 @@
 // so every behavioural assertion fails for the right (missing-logic) reason while
 // the constant-shape tests already pass against the named constants.
 import { describe, expect, it } from 'vitest';
-import {
-  FOCUS_DURATION_MS,
-  FOCUS_ZOOM,
-  MATCH_DURATION_MS,
-  pickFocusMatchId,
-} from './focus-target';
+import { FOCUS_DURATION_MS, FOCUS_ZOOM, MATCH_DURATION_MS, pickFocusMatchId } from './focus-target';
 import { EMPTY_SCORE, teamRef } from '@/domain/types';
 import type { Match, MatchStatus } from '@/domain/types';
 import { deepFreeze } from './__test-support__/roadmap-fixtures';
