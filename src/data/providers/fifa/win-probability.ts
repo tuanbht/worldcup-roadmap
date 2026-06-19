@@ -14,6 +14,15 @@ export interface WinProbabilityInput {
 
 const FULL_TIME = 90;
 
+/**
+ * CR-12 — neutral "no signal" split on the module's 0..100 integer scale
+ * (`home + draw + away === 100`). Returned by `renormalize` when the inputs are
+ * all-zero / non-positive-sum / non-finite, so an undefined division can never
+ * surface a non-neutral or `NaN` distribution. `34` on draw keeps the exact
+ * `sum === 100` invariant and matches the module's draw-favoured-at-even bias.
+ */
+export const NEUTRAL_SPLIT: WinProbability = { home: 33, draw: 34, away: 33, estimated: true };
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -30,7 +39,18 @@ function progress(minute: number | null): number {
  * component (re-clamped), so the invariant holds whether the overflow came from
  * a negative away share, a >100 home share, or a >100 draw share (L-C).
  */
-function renormalize(home: number, draw: number, away: number): WinProbability {
+// Exported (CR-12) for direct unit testing of the all-zero / non-finite guard.
+export function renormalize(home: number, draw: number, away: number): WinProbability {
+  // CR-12: guard before any clamp/round/division. An all-zero, non-positive-sum,
+  // or non-finite input has no signal — return the neutral split instead of an
+  // undefined / meaningless distribution.
+  if (!Number.isFinite(home) || !Number.isFinite(draw) || !Number.isFinite(away)) {
+    return NEUTRAL_SPLIT;
+  }
+  if (home + draw + away <= 0) {
+    return NEUTRAL_SPLIT;
+  }
+
   let h = clamp(Math.round(home), 0, 100);
   let d = clamp(Math.round(draw), 0, 100);
   let a = clamp(Math.round(away), 0, 100);

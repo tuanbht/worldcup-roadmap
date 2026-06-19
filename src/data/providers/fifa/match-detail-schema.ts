@@ -17,9 +17,50 @@ const localized = z
   .nullable()
   .optional();
 
-const rawPicture = z.object({ PictureUrl: z.string().nullable().optional() }).passthrough();
+/**
+ * CR-11 — accept an image URL only when it is `https:` (any scheme casing) or
+ * relative; degrade everything else to `null` (defense-in-depth against
+ * mixed-content and `javascript:`/`data:` injection through `<img src>`).
+ * NEVER throws — this preserves the tolerant-but-validating boundary posture.
+ *
+ * Single rule:
+ *  - `null`/`undefined`/empty/whitespace-only -> `null`.
+ *  - unparseable by `new URL()` (no scheme) -> a RELATIVE url, accepted unchanged.
+ *  - parseable absolute url -> accepted unchanged iff `protocol === 'https:'`,
+ *    otherwise `null` (rejects `http:`, `javascript:`, `data:`, `ftp:`, …).
+ *
+ * Protocol-relative urls (`//host/x.png`) parse-throw with no base and are thus
+ * treated as relative and accepted unchanged — a deliberate, pinned decision:
+ * they inherit the page scheme (https here), so they are not a mixed-content
+ * vector on this https-served app.
+ */
+export function sanitizePictureUrl(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  if (value.trim() === '') return null;
 
-const rawPlayer = z
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' ? value : null;
+  } catch {
+    // No parseable scheme => relative URL (incl. protocol-relative) => accept.
+    return value;
+  }
+}
+
+/**
+ * Image-URL field used for every photo/flag URL the schema exposes. Uses
+ * `.transform()` (not `.refine()`) so a rejected URL downgrades to `null`
+ * instead of rejecting the whole payload, mirroring the mapper's `?? null`.
+ */
+const safePictureUrl = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => sanitizePictureUrl(v));
+
+const rawPicture = z.object({ PictureUrl: safePictureUrl }).passthrough();
+
+export const rawPlayer = z
   .object({
     IdPlayer: z.string().nullable().optional(),
     IdTeam: z.string().nullable().optional(),

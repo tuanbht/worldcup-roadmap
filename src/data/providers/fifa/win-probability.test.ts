@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { estimateWinProbability, type WinProbabilityInput } from './win-probability';
+import type { WinProbability } from '@/domain/types';
+import {
+  estimateWinProbability,
+  NEUTRAL_SPLIT,
+  renormalize,
+  type WinProbabilityInput,
+} from './win-probability';
 
 function input(over: Partial<WinProbabilityInput>): WinProbabilityInput {
   return {
@@ -87,5 +93,90 @@ describe('estimateWinProbability', () => {
       expect(wp!.home + wp!.draw + wp!.away).toBe(100);
       expect(wp!.draw).toBeLessThanOrEqual(100);
     });
+  });
+});
+
+/**
+ * CR-12 — `renormalize(0,0,0)` must return the neutral split. An all-zero input
+ * (sum <= 0) or any non-finite input must short-circuit to the project neutral
+ * distribution instead of dividing by / absorbing into a meaningless sum.
+ * Acceptance #5 (requirement) / plan acceptance #7-#9.
+ */
+describe('renormalize all-zero / non-finite guard (CR-12)', () => {
+  /** Assert a split is a usable distribution: no NaN, all finite, sums to 100. */
+  function expectValidDistribution(wp: WinProbability): void {
+    for (const part of [wp.home, wp.draw, wp.away]) {
+      expect(Number.isNaN(part)).toBe(false);
+      expect(Number.isFinite(part)).toBe(true);
+    }
+    expect(wp.home + wp.draw + wp.away).toBe(100);
+    expect(wp.estimated).toBe(true);
+  }
+
+  it('NEUTRAL_SPLIT is itself a valid normalized distribution (finite, sums to 100, labeled)', () => {
+    expectValidDistribution(NEUTRAL_SPLIT);
+  });
+
+  it('renormalize(0, 0, 0) returns a finite split with no NaN, summing to 100 (acceptance #5/#7)', () => {
+    expectValidDistribution(renormalize(0, 0, 0));
+  });
+
+  it('renormalize(0, 0, 0) deep-equals the NEUTRAL_SPLIT const (no drift) (acceptance #8)', () => {
+    expect(renormalize(0, 0, 0)).toEqual(NEUTRAL_SPLIT);
+  });
+
+  it.each([
+    ['all-zero', [0, 0, 0]],
+    ['negative sum (home)', [-5, 0, 0]],
+    ['negative sum (all)', [-1, -2, -3]],
+    ['zero after the home component', [0, -10, 0]],
+  ])('returns NEUTRAL_SPLIT for a %s input (sum <= 0 guard)', (_label, [h, d, a]) => {
+    const wp = renormalize(h, d, a);
+    expect(wp).toEqual(NEUTRAL_SPLIT);
+    expectValidDistribution(wp);
+  });
+
+  it.each([
+    ['NaN home', [NaN, 0, 0]],
+    ['Infinity draw', [0, Infinity, 0]],
+    ['-Infinity away', [0, 0, -Infinity]],
+    ['NaN draw with finite siblings', [40, NaN, 60]],
+  ])(
+    'returns NEUTRAL_SPLIT for a non-finite %s input (no NaN leak) (acceptance #8)',
+    (_label, [h, d, a]) => {
+      const wp = renormalize(h, d, a);
+      expect(wp).toEqual(NEUTRAL_SPLIT);
+      expectValidDistribution(wp);
+    },
+  );
+});
+
+/**
+ * Acceptance #6 (requirement) / plan acceptance #9 — non-zero normalization is
+ * unchanged by the guard. Representative non-zero inputs pass straight through
+ * the existing residual-absorption math; the guard must not perturb them.
+ */
+describe('renormalize non-zero behaviour is unchanged (CR-12 regression)', () => {
+  it('passes an already-normalized non-zero split through unchanged', () => {
+    expect(renormalize(45, 10, 45)).toEqual({ home: 45, draw: 10, away: 45, estimated: true });
+  });
+
+  it('preserves the exact integer split for another already-normalized input', () => {
+    expect(renormalize(60, 10, 30)).toEqual({ home: 60, draw: 10, away: 30, estimated: true });
+  });
+
+  it('renormalizes a non-zero, non-100 split to sum exactly 100, absorbing into the largest', () => {
+    const wp = renormalize(70, 10, 30); // sum 110 -> residual -10 absorbed by home
+    expect(wp.home + wp.draw + wp.away).toBe(100);
+    expect(wp.estimated).toBe(true);
+    expect(wp.draw).toBe(10);
+    expect(wp.away).toBe(30);
+    expect(wp.home).toBe(60);
+  });
+
+  it('a barely-positive sum is NOT caught by the guard (boundary is sum <= 0, not sum < epsilon)', () => {
+    const wp = renormalize(1, 0, 0);
+    expect(wp).not.toEqual(NEUTRAL_SPLIT);
+    expect(wp.home + wp.draw + wp.away).toBe(100);
   });
 });
