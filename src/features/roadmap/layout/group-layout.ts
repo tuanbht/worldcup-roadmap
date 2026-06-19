@@ -23,8 +23,14 @@ export interface GroupGridLayout {
   readonly headers: ReadonlyMap<string, XY>;
 }
 
-/** Header y: a small inset above the row-0 band so it reads as a column title. */
-const HEADER_Y = HEADER_H / 2;
+/**
+ * Header y: the column-title pill (~44px tall — a 26px badge + `py-2` + border)
+ * sits high in the top band with clear air beneath it before row 0 begins at
+ * `HEADER_H`. Was `HEADER_H / 2` (= 48), which dropped the pill's bottom to ~92px
+ * — only ~4px above the first day's cards, reading as an overlap. At 24 the gap
+ * is ~28px and the title is balanced in the band.
+ */
+const HEADER_Y = 24;
 
 /** kickoff ascending (ISO-UTC ⇒ lexical == chronological), id tiebreak. */
 function bySlotOrder(a: Match, b: Match): number {
