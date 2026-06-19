@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { buildRoadmapGraph } from './build-graph';
+import { formatDate } from '@/lib/datetime';
 import { DAY_ROW_PITCH, HEADER_H, RAIL_W } from './layout/layout-constants';
-import type { MatchNodeData, RoadmapGraph, RoadmapNode } from './graph-model';
+import type {
+  DayMarkerFlowNode,
+  MatchFlowNode,
+  MatchNodeData,
+  RoadmapGraph,
+  RoadmapNode,
+} from './graph-model';
 import {
   allBracketNodes,
   deepFreeze,
@@ -15,20 +24,24 @@ import {
 import type { Match } from '@/domain/types';
 
 /**
- * Spec for the NEW timeline-grid `buildRoadmapGraph(tournament)` transform: ONE
+ * Spec for the timeline-grid `buildRoadmapGraph(tournament, tz?)` transform: ONE
  * immutable graph composing the group grid + knockout funnel onto a shared day
  * axis, plus `day-marker` rail guides and `group-header` column guides, with
  * feeder (group-header -> seeded R32) + downward advance edges. Plan Test
- * Strategy 17-23 / Acceptance #1, #5, #6, #9, #10, #11.
+ * Strategy 9-12 / Acceptance #1, #2, #3, #6.
  *
- * RED until the timeline-grid build-graph is implemented. Every count is
- * fixture-derived (104 matches = 72 group + 32 bracket; 14 distinct days; 12
- * groups), never hardcoded. The graph is rebuilt INSIDE each test so an
- * unimplemented builder fails each assertion individually.
+ * DETERMINISM: structural assertions that compare against `fixtureDayKey` (a UTC
+ * ISO slice) pin `tz:'UTC'` so they hold on ANY machine zone. The new bug
+ * regression builds in `Asia/Bangkok` and proves every row pill == its card's
+ * own local kickoff date.
+ *
+ * Every count is fixture-derived (104 matches = 72 group + 32 bracket; 14
+ * distinct UTC days; 12 groups), never hardcoded. The graph is rebuilt INSIDE
+ * each test so an unimplemented builder fails each assertion individually.
  */
 
 const tournament = loadTournament();
-const graph = (): RoadmapGraph => buildRoadmapGraph(tournament);
+const graph = (): RoadmapGraph => buildRoadmapGraph(tournament, 'UTC');
 
 const groupMatches: Match[] = groupStageMatches(tournament);
 const bracketNodes = allBracketNodes(tournament.bracket);
@@ -236,11 +249,144 @@ describe('buildRoadmapGraph — shared day axis [Acceptance #3]', () => {
 
 describe('buildRoadmapGraph — purity', () => {
   it('produces structurally-equal output across calls', () => {
-    expect(buildRoadmapGraph(tournament)).toEqual(buildRoadmapGraph(tournament));
+    expect(buildRoadmapGraph(tournament, 'UTC')).toEqual(buildRoadmapGraph(tournament, 'UTC'));
   });
 
   it('does not mutate a deeply-frozen tournament', () => {
     const frozen = deepFreeze(loadTournament());
-    expect(() => buildRoadmapGraph(frozen)).not.toThrow();
+    expect(() => buildRoadmapGraph(frozen, 'UTC')).not.toThrow();
+  });
+});
+
+// --- Bug regression + one-zone wiring (the headline fix) --------------------
+
+/** Type guard for the left-rail date markers. */
+function isDayMarker(n: RoadmapNode): n is DayMarkerFlowNode {
+  return n.type === 'day-marker';
+}
+/** Type guard for the positioned match cards. */
+function isMatchNode(n: RoadmapNode): n is MatchFlowNode {
+  return n.type === 'match';
+}
+
+const BKK = 'Asia/Bangkok'; // UTC+7: evening-UTC fixtures roll to the next day.
+
+/** Independent oracle for "the card's own local kickoff date" — date-fns-tz
+ *  directly, NOT the production code under test, so the assertion is real. */
+const localDay = (iso: string, tz: string = BKK): string =>
+  formatInTimeZone(parseISO(iso), tz, 'yyyy-MM-dd');
+/** True when an instant lands on a different calendar day in `tz` than its UTC slice. */
+const rolls = (iso: string, tz: string = BKK): boolean => localDay(iso, tz) !== fixtureDayKey(iso);
+
+/** The day-marker pill living on a given row `y` (the card's row), by position. */
+function markersByRow(g: RoadmapGraph): ReadonlyMap<number, DayMarkerFlowNode> {
+  const byY = new Map<number, DayMarkerFlowNode>();
+  for (const n of g.nodes) if (isDayMarker(n)) byY.set(n.position.y, n);
+  return byY;
+}
+
+/** Every match's TRUE kickoff (KO card data carries kickoff:null by design, so
+ *  the knockout kickoff is recovered from the tournament for row assertions). */
+const kickoffById = new Map(tournament.matches.map((m) => [m.id, m.kickoff]));
+
+describe('buildRoadmapGraph — local-zone pill == card date [Acceptance #2]', () => {
+  it("groups EVERY match's row (group AND knockout) under its own local calendar day", () => {
+    // THE BUG: the card shows local time but the row was grouped by the UTC day,
+    // so a match locally on 19 Jun could land in a row pill reading 18 Jun. Built
+    // in Asia/Bangkok, the day-marker on each match's row must carry that match's
+    // OWN local kickoff date — both as the sortable dayKey and the human label.
+    // We use each match's true kickoff (recovered for KO cards whose data.kickoff
+    // is null) so the invariant is proven for the knockout funnel too, not just
+    // the group grid.
+    const g = buildRoadmapGraph(tournament, BKK);
+    const markers = markersByRow(g);
+    const cards = g.nodes.filter(isMatchNode);
+    expect(cards).toHaveLength(104); // guard: not vacuously true
+
+    let checked = 0;
+    for (const card of cards) {
+      const kickoff = kickoffById.get(card.id);
+      expect(kickoff, `no kickoff resolvable for card ${card.id}`).toBeDefined();
+      const marker = markers.get(card.position.y);
+      expect(marker, `no day-marker on the row of card ${card.id}`).toBeDefined();
+      // Sortable key: the row groups by the card's LOCAL day, not its UTC day.
+      expect(marker!.data.dayKey, `dayKey mismatch for ${card.id}`).toBe(localDay(kickoff!));
+      // Human label: the pill text == the card's own local date (formatDate is
+      // already local; this proves grouping is now consistent with it).
+      expect(marker!.data.dayLabel, `dayLabel mismatch for ${card.id}`).toBe(
+        formatDate(kickoff!, BKK),
+      );
+      checked += 1;
+    }
+    expect(checked).toBe(104); // every card asserted, none skipped
+  });
+
+  it('exercises BOTH a rolled GROUP card and a rolled KNOCKOUT card (guard: not vacuous)', () => {
+    // Without this guard the regression could pass vacuously if fixtures changed
+    // so nothing rolled. Evening-UTC kickoffs (18:00Z+) roll forward in UTC+7 —
+    // and we require at least one of EACH stage so both layout passes are proven.
+    const groupRolled = groupMatches.filter((m) => rolls(m.kickoff));
+    const koRolled = bracketNodes
+      .map((n) => kickoffById.get(n.matchId))
+      .filter((k): k is string => k !== undefined && rolls(k));
+    expect(groupRolled.length, 'a group match must roll over in UTC+7').toBeGreaterThan(0);
+    expect(koRolled.length, 'a knockout match must roll over in UTC+7').toBeGreaterThan(0);
+  });
+
+  it('yields strictly more day-rows in Asia/Bangkok than in UTC (local grouping diverges)', () => {
+    const utcMarkers = buildRoadmapGraph(tournament, 'UTC').nodes.filter(isDayMarker);
+    const bkkMarkers = buildRoadmapGraph(tournament, BKK).nodes.filter(isDayMarker);
+    expect(utcMarkers).toHaveLength(distinctMatchDays(tournament).length); // 14
+    expect(bkkMarkers.length).toBeGreaterThan(utcMarkers.length);
+  });
+});
+
+describe('buildRoadmapGraph — ONE consistent zone across passes [Acceptance #3]', () => {
+  it('applies the same zone to BOTH group rows (group-layout) and knockout rows (bracket-layout)', () => {
+    // group-layout and bracket-layout each compute a card's row via their own
+    // `rowY -> dayKey` call. If either used a zone different from the markers,
+    // a rolled-over card would land on a UTC-day row. Build in Bangkok and assert
+    // a rolled GROUP card AND a rolled KNOCKOUT node both land on a marker row
+    // carrying their LOCAL day.
+    const g = buildRoadmapGraph(tournament, BKK);
+    const markers = markersByRow(g);
+    const posById = new Map(g.nodes.filter(isMatchNode).map((c) => [c.id, c.position]));
+
+    // A rolled GROUP card (kickoff lives on the card; group-layout placed its row).
+    const groupRolled = groupMatches.find((m) => posById.has(m.id) && rolls(m.kickoff));
+    expect(groupRolled, 'expected a group card that rolls over in UTC+7').toBeDefined();
+    expect(markers.get(posById.get(groupRolled!.id)!.y)?.data.dayKey).toBe(
+      localDay(groupRolled!.kickoff),
+    );
+
+    // A rolled KNOCKOUT match (kickoff from the tournament; bracket-layout placed
+    // its row). The mock's 22:00Z semi-final rolls forward in UTC+7.
+    const koMatch = tournament.matches.find(
+      (m) => m.stage !== 'GROUP_STAGE' && posById.has(m.id) && rolls(m.kickoff),
+    );
+    expect(koMatch, 'expected a knockout match that rolls over in UTC+7').toBeDefined();
+    expect(markers.get(posById.get(koMatch!.id)!.y)?.data.dayKey).toBe(localDay(koMatch!.kickoff));
+  });
+
+  it('keeps match-node + edge identity stable across zones (only the day computation changes)', () => {
+    // The zone changes which ROW a card sits on, never which MATCH nodes/edges
+    // exist: match-node ids and edge ids must be identical between UTC and
+    // Bangkok builds (Acceptance #3 — one zone applied uniformly, no structural
+    // drift). Day-marker guide nodes are deliberately EXCLUDED: their ids are
+    // `day-marker-${dayKey}`, so they correctly differ by zone (evening-UTC
+    // matches roll forward in UTC+7, producing more day-rows — exactly the
+    // feature's point, asserted by the sibling test above).
+    const utc = buildRoadmapGraph(tournament, 'UTC');
+    const bkk = buildRoadmapGraph(tournament, BKK);
+    const matchIds = (g: RoadmapGraph) => new Set(g.nodes.filter(isMatchNode).map((n) => n.id));
+    expect(matchIds(bkk)).toEqual(matchIds(utc));
+    expect(new Set(bkk.edges.map((e) => e.id))).toEqual(new Set(utc.edges.map((e) => e.id)));
+    // Advance edges still flow strictly downward in the non-UTC zone.
+    const posById = new Map(bkk.nodes.map((n) => [n.id, n.position]));
+    const advance = bkk.edges.filter((e) => e.id.startsWith('adv-'));
+    expect(advance.length).toBeGreaterThan(0);
+    for (const e of advance) {
+      expect(posById.get(e.target)!.y).toBeGreaterThan(posById.get(e.source)!.y);
+    }
   });
 });

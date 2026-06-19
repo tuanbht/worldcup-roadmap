@@ -2,7 +2,7 @@ import type { BracketNode, Match, Tournament } from '@/domain/types';
 import { EMPTY_SCORE } from '@/domain/types';
 import { STAGE_LABELS } from '@/domain/bracket/stage-order';
 import { R32_SEEDING } from '@/domain/bracket/seeding';
-import { formatDate } from '@/lib/datetime';
+import { formatDate, resolveTimeZone } from '@/lib/datetime';
 import { computeGroupGridLayout } from './layout/group-layout';
 import { computeKnockoutFunnelLayout } from './layout/bracket-layout';
 import { computeDayIndex, dayKey, orderedDays } from './layout/day-axis';
@@ -182,21 +182,28 @@ function advanceEdges(tournament: Tournament): RoadmapEdge[] {
  *
  * Composes the pure day-axis + group + knockout passes; never mutates the input.
  */
-export function buildRoadmapGraph(tournament: Tournament): RoadmapGraph {
-  const dayIndex = computeDayIndex(tournament.matches);
-  const groupGrid = computeGroupGridLayout(tournament, dayIndex);
-  const knockout = computeKnockoutFunnelLayout(tournament, dayIndex, CX);
+export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapGraph {
+  // ONE zone for the whole graph (req:day-axis-local-timezone, Acceptance #3):
+  // resolve it ONCE here via the `lib/datetime` façade (explicit `tz` wins,
+  // else the viewer's local zone) and thread that concrete string through the
+  // day axis, both layout passes, and the marker label. This guarantees
+  // grouping == ordering == group rows == knockout rows == the `formatDate(...)`
+  // pill label, with no second ambient read drifting between passes.
+  const zone = resolveTimeZone(tz);
+  const dayIndex = computeDayIndex(tournament.matches, zone);
+  const groupGrid = computeGroupGridLayout(tournament, dayIndex, zone);
+  const knockout = computeKnockoutFunnelLayout(tournament, dayIndex, CX, zone);
 
   const nodes: RoadmapNode[] = [];
 
   // --- Guide nodes: left date rail + top group-header columns. ----------------
   const isoByDay = new Map<string, string>();
   for (const match of tournament.matches) {
-    const key = dayKey(match.kickoff);
+    const key = dayKey(match.kickoff, zone);
     if (!isoByDay.has(key)) isoByDay.set(key, match.kickoff);
   }
-  orderedDays(tournament.matches).forEach((day, index) => {
-    nodes.push(dayMarkerNode(day, index, formatDate(isoByDay.get(day) ?? null)));
+  orderedDays(tournament.matches, zone).forEach((day, index) => {
+    nodes.push(dayMarkerNode(day, index, formatDate(isoByDay.get(day) ?? null, zone)));
   });
   for (const [name, position] of groupGrid.headers) {
     nodes.push(groupHeaderNode(name, position));

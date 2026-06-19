@@ -58,4 +58,37 @@ test.describe('timeline-grid canvas', () => {
     // The Final node is reachable via its stable data attribute (center-bottom).
     await expect(page.locator('[data-final="true"]')).toBeAttached({ timeout: 10_000 });
   });
+
+  test('a near-midnight-UTC match row pill date matches its own card date [Acceptance #8]', async ({
+    page,
+  }) => {
+    // Regression for THIS bug end-to-end. With timezoneId pinned to 'UTC'
+    // (playwright.config.ts), pick a near-midnight-UTC group match — the mock's
+    // latest group kickoff is Group D matchday 3 at 18:30Z on 19 Jun, the case
+    // most prone to a grouping/label zone split. The card footer renders
+    // `dd MMM, HH:mm` via formatDateTime; the row's <time> pill renders `dd MMM`.
+    // They MUST agree: the pill date == the card's own rendered date.
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // Zoom out so the whole tall timeline is attached to the DOM.
+    await ctrlWheel(page, 240, 6);
+
+    // Locate the Group D · MD3 card and read its rendered date (the `dd MMM`
+    // prefix of the `dd MMM, HH:mm` footer). Deterministic attach wait, no sleep.
+    const card = page.locator('article', { hasText: /Group D · MD3/ }).first();
+    await expect(card).toBeAttached({ timeout: 10_000 });
+    const cardText = (await card.textContent()) ?? '';
+    const cardDate = cardText.match(/(\d{2} [A-Z][a-z]{2}),/)?.[1];
+    // Precise shape, not a truthiness smoke check: the footer must render a real
+    // `dd MMM` token (e.g. "19 Jun"), the exact text the pill is matched against.
+    expect(cardDate, 'card should render a "dd MMM," date').toMatch(/^\d{2} [A-Z][a-z]{2}$/);
+
+    // The row's date pill is a <time> whose visible label is the same `dd MMM`.
+    // Under UTC this is "19 Jun"; the assertion is derived from the card, not a
+    // hardcoded string, so it stays honest if fixtures change.
+    await expect(page.locator('time', { hasText: cardDate! }).first()).toBeAttached({
+      timeout: 10_000,
+    });
+  });
 });

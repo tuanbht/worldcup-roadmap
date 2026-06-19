@@ -39,11 +39,16 @@ const names = groupNames(tournament); // 'A'..'L' canonical order
 // Built lazily inside each test (via `layout()`), so an unimplemented
 // `computeDayIndex`/`computeGroupGridLayout` fails each assertion individually
 // instead of collapsing the whole file at import.
+//
+// DETERMINISM: every call pins `tz:'UTC'` so the rows computed here agree with
+// `fixtureDayKey` (a UTC ISO slice) on ANY machine zone. The geometry assertions
+// (column x, sub-slots, stacking) are zone-invariant once the zone is held fixed
+// (req "Tests > do not weaken these tests"; plan Test Strategy 8).
 function dayIndex(): ReadonlyMap<string, number> {
-  return computeDayIndex(tournament.matches);
+  return computeDayIndex(tournament.matches, 'UTC');
 }
 function layout() {
-  return computeGroupGridLayout(tournament, dayIndex());
+  return computeGroupGridLayout(tournament, dayIndex(), 'UTC');
 }
 
 /** Expected fixed base x of a group's column from its A..L index. */
@@ -165,7 +170,7 @@ describe('computeGroupGridLayout — paired-cell sub-slots [Rev2:H1]', () => {
       groups: [{ name: 'A', table: [] }],
       bracket: { rounds: [] },
     } as unknown as Tournament;
-    const { matches } = computeGroupGridLayout(t, computeDayIndex(synth));
+    const { matches } = computeGroupGridLayout(t, computeDayIndex(synth, 'UTC'), 'UTC');
     const a = matches.get('same-1')!;
     const b = matches.get('same-2')!;
     // Vertically aligned: same column x (NO ± SLOT/2 spread), at the column base.
@@ -205,7 +210,7 @@ describe('computeGroupGridLayout — purity', () => {
 
   it('does not mutate a deeply-frozen tournament', () => {
     const frozen = deepFreeze(loadTournament());
-    const frozenIndex = computeDayIndex(frozen.matches);
-    expect(() => computeGroupGridLayout(frozen, frozenIndex)).not.toThrow();
+    const frozenIndex = computeDayIndex(frozen.matches, 'UTC');
+    expect(() => computeGroupGridLayout(frozen, frozenIndex, 'UTC')).not.toThrow();
   });
 });

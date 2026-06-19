@@ -33,8 +33,13 @@ const koMatch = koMatchById(tournament);
 // Built lazily inside each test (via `layout()`), so an unimplemented
 // `computeDayIndex`/`computeKnockoutFunnelLayout` fails each assertion
 // individually instead of collapsing the whole file at import.
+//
+// DETERMINISM: every call pins `tz:'UTC'` so the KO day-rows agree with
+// `fixtureDayKey` (a UTC ISO slice) on ANY machine zone. Funnel geometry (x
+// midpoints, leaf spans, centering) is zone-invariant once the zone is fixed
+// (req "Tests > do not weaken these tests"; plan Test Strategy 8).
 function dayIndex(): ReadonlyMap<string, number> {
-  return computeDayIndex(tournament.matches);
+  return computeDayIndex(tournament.matches, 'UTC');
 }
 
 const nodeByMatchId = new Map(allNodes.map((n) => [n.matchId, n]));
@@ -49,7 +54,7 @@ const internalNodes = allNodes.filter(
 const KO_STAGES = ['ROUND_OF_32', 'ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'] as const;
 
 function layout(): ReadonlyMap<string, XY> {
-  return computeKnockoutFunnelLayout(tournament, dayIndex(), CX);
+  return computeKnockoutFunnelLayout(tournament, dayIndex(), CX, 'UTC');
 }
 
 function pos(map: ReadonlyMap<string, XY>, matchId: string): XY {
@@ -171,9 +176,9 @@ describe('computeKnockoutFunnelLayout — THIRD_PLACE [Q1]', () => {
 describe('computeKnockoutFunnelLayout — purity', () => {
   it('produces structurally-equal output across calls and tolerates a frozen tournament', () => {
     const frozen = deepFreeze(loadTournament());
-    const frozenIndex = computeDayIndex(frozen.matches);
-    const a = computeKnockoutFunnelLayout(frozen, frozenIndex, CX);
-    const b = computeKnockoutFunnelLayout(frozen, frozenIndex, CX);
+    const frozenIndex = computeDayIndex(frozen.matches, 'UTC');
+    const a = computeKnockoutFunnelLayout(frozen, frozenIndex, CX, 'UTC');
+    const b = computeKnockoutFunnelLayout(frozen, frozenIndex, CX, 'UTC');
     expect([...a.entries()].sort()).toEqual([...b.entries()].sort());
   });
 });

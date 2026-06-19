@@ -4,8 +4,8 @@ import { dayKey } from './day-axis';
 import { DAY_ROW_PITCH, HEADER_H, LEAF_X_PITCH, type XY } from './layout-constants';
 
 /** All edges flow downward, so a parent always sits below both its children. */
-function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string): number {
-  return HEADER_H + (dayIndex.get(dayKey(kickoff)) ?? 0) * DAY_ROW_PITCH;
+function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string, tz?: string): number {
+  return HEADER_H + (dayIndex.get(dayKey(kickoff, tz)) ?? 0) * DAY_ROW_PITCH;
 }
 
 /** Children = the two `winnerOf` feeders in [home, away] (slot) order. */
@@ -36,6 +36,7 @@ export function computeKnockoutFunnelLayout(
   tournament: Tournament,
   dayIndex: ReadonlyMap<string, number>,
   cx: number,
+  tz?: string,
 ): ReadonlyMap<string, XY> {
   const byMatchId = new Map<string, BracketNode>();
   let finalNode: BracketNode | undefined;
@@ -73,7 +74,7 @@ export function computeKnockoutFunnelLayout(
     const kickoff = koKickoff.get(n.data.matchId);
     layout.set(n.data.matchId, {
       x: xOf(n) + shift,
-      y: kickoff ? rowY(dayIndex, kickoff) : HEADER_H,
+      y: kickoff ? rowY(dayIndex, kickoff, tz) : HEADER_H,
     });
   }
 
@@ -82,7 +83,7 @@ export function computeKnockoutFunnelLayout(
     const kickoff = koKickoff.get(thirdNode.matchId);
     layout.set(thirdNode.matchId, {
       x: final.x + LEAF_X_PITCH,
-      y: kickoff ? rowY(dayIndex, kickoff) : final.y,
+      y: kickoff ? rowY(dayIndex, kickoff, tz) : final.y,
     });
   }
 

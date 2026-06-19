@@ -37,8 +37,8 @@ function columnX(colIndex: number): number {
 }
 
 /** Day-row y on the shared axis. */
-function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string): number {
-  return HEADER_H + (dayIndex.get(dayKey(kickoff)) ?? 0) * DAY_ROW_PITCH;
+function rowY(dayIndex: ReadonlyMap<string, number>, kickoff: string, tz?: string): number {
+  return HEADER_H + (dayIndex.get(dayKey(kickoff, tz)) ?? 0) * DAY_ROW_PITCH;
 }
 
 /**
@@ -61,10 +61,11 @@ function placeColumnMatches(
   baseX: number,
   dayIndex: ReadonlyMap<string, number>,
   out: Map<string, XY>,
+  tz?: string,
 ): void {
   const byDay = new Map<string, Match[]>();
   for (const match of groupMatches) {
-    const key = dayKey(match.kickoff);
+    const key = dayKey(match.kickoff, tz);
     const cell = byDay.get(key) ?? [];
     cell.push(match);
     byDay.set(key, cell);
@@ -82,7 +83,7 @@ function placeColumnMatches(
 
     kickoffGroups.forEach((slotMatches, slotIndex) => {
       const x = baseX + subSlotX(slotIndex, kickoffGroups.length);
-      const y0 = rowY(dayIndex, slotMatches[0].kickoff);
+      const y0 = rowY(dayIndex, slotMatches[0].kickoff, tz);
       slotMatches.forEach((match, stackIndex) => {
         const dy = (stackIndex - (slotMatches.length - 1) / 2) * STACK;
         out.set(match.id, { x, y: y0 + dy });
@@ -98,6 +99,7 @@ function placeColumnMatches(
 export function computeGroupGridLayout(
   tournament: Tournament,
   dayIndex: ReadonlyMap<string, number>,
+  tz?: string,
 ): GroupGridLayout {
   const matches = new Map<string, XY>();
   const headers = new Map<string, XY>();
@@ -113,7 +115,7 @@ export function computeGroupGridLayout(
   tournament.groups.forEach((group, colIndex) => {
     const baseX = columnX(colIndex);
     headers.set(group.name, { x: baseX, y: HEADER_Y });
-    placeColumnMatches(byGroup.get(group.name) ?? [], baseX, dayIndex, matches);
+    placeColumnMatches(byGroup.get(group.name) ?? [], baseX, dayIndex, matches, tz);
   });
 
   return { matches, headers };
