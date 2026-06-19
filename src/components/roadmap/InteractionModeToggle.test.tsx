@@ -92,6 +92,85 @@ describe('InteractionModeToggle — switching', () => {
   });
 });
 
+// --- CR-4: roving tabindex + arrow/Home/End keyboard navigation -----------
+//
+// RED until InteractionModeToggle wires roving tabindex (active tab
+// tabIndex=0, the rest tabIndex=-1) and an onKeyDown handler mirroring
+// MatchDetailTabs (ArrowLeft/Right + ArrowUp/Down + Home/End, all wrapping)
+// into SegmentedControl. The current toggle passes neither getOptionId nor
+// onKeyDown, so all tabs share the default tabIndex and arrow keys do nothing.
+
+/** The two interaction modes in tablist order: index 0 = zoom, 1 = pan. */
+const MODE_LABELS: Record<InteractionMode, RegExp> = {
+  zoom: /zoom/i,
+  pan: /pan/i,
+};
+
+function tab(mode: InteractionMode): HTMLElement {
+  return screen.getByRole('tab', { name: MODE_LABELS[mode] });
+}
+
+describe('InteractionModeToggle — CR-4 roving tabindex', () => {
+  // Exactly one option carries tabIndex=0 (the active mode); the other is
+  // removed from the tab order with tabIndex=-1 (AC4). Parametrized over both
+  // modes so the invariant is asserted for whichever option is active.
+  it.each<[InteractionMode, InteractionMode]>([
+    ['zoom', 'pan'],
+    ['pan', 'zoom'],
+  ])(
+    'puts only the active "%s" option in the tab order (other tabIndex=-1)',
+    (active, inactive) => {
+      renderToggle(active);
+      expect(tab(active)).toHaveAttribute('tabindex', '0');
+      expect(tab(inactive)).toHaveAttribute('tabindex', '-1');
+    },
+  );
+});
+
+describe('InteractionModeToggle — CR-4 arrow / Home / End navigation', () => {
+  // Each row: a starting mode, the key pressed, and the mode it must move to.
+  // Covers Left/Right + Up/Down (the handler mirrors MatchDetailTabs, which
+  // treats vertical arrows as horizontal) and Home/End, including the
+  // wrap-around boundaries (zoom←→pan in both directions).
+  it.each<[string, InteractionMode, string, InteractionMode]>([
+    ['ArrowRight advances zoom -> pan', 'zoom', '{ArrowRight}', 'pan'],
+    ['ArrowDown advances zoom -> pan (vertical mirror)', 'zoom', '{ArrowDown}', 'pan'],
+    ['ArrowLeft wraps zoom -> pan', 'zoom', '{ArrowLeft}', 'pan'],
+    ['ArrowUp wraps zoom -> pan (vertical mirror)', 'zoom', '{ArrowUp}', 'pan'],
+    ['ArrowRight wraps pan -> zoom', 'pan', '{ArrowRight}', 'zoom'],
+    ['ArrowLeft retreats pan -> zoom', 'pan', '{ArrowLeft}', 'zoom'],
+    ['End jumps to last (pan)', 'zoom', '{End}', 'pan'],
+    ['Home jumps to first (zoom)', 'pan', '{Home}', 'zoom'],
+  ])('%s: switches mode once and moves focus to the new tab', async (_label, from, key, to) => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    renderToggle(from, onChange);
+    tab(from).focus();
+
+    await user.keyboard(key);
+
+    // Activation switches the interaction mode exactly once...
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(to);
+    // ...and roving focus follows the newly active option.
+    expect(tab(to)).toHaveFocus();
+  });
+
+  it('ignores unrelated keys: a printable key changes neither mode nor focus', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    renderToggle('zoom', onChange);
+    tab('zoom').focus();
+
+    // 'x' is not an arrow/Home/End nav key, so the roving handler must return
+    // early (no preventDefault, no onChange, no focus move).
+    await user.keyboard('x');
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(tab('zoom')).toHaveFocus();
+  });
+});
+
 describe('InteractionModeToggle — active-affordance hint', () => {
   it('shows only the "Scroll to zoom" affordance in zoom mode', () => {
     renderToggle('zoom');

@@ -1,4 +1,4 @@
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { X } from 'lucide-react';
 import type { Match, TeamRef, Tournament } from '@/domain/types';
 import { refLabel } from '@/domain/types';
@@ -84,6 +84,10 @@ export function MatchDetailPanel({
   matchId,
   onClose,
 }: MatchDetailPanelProps): ReactElement {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const open = Boolean(matchId);
+
   useEffect(() => {
     if (!matchId) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -91,13 +95,28 @@ export function MatchDetailPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [matchId, onClose]);
 
+  // Focus management: on open (null->set) capture the trigger that held focus,
+  // then move focus into the panel (close button). On close (set->null, or
+  // unmount) restore focus to that trigger when it is still connected, so it is
+  // never thrown onto a stale/detached node.
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement;
+    lastFocusedRef.current = previouslyFocused instanceof HTMLElement ? previouslyFocused : null;
+    closeButtonRef.current?.focus();
+    return () => {
+      const target = lastFocusedRef.current;
+      if (target && target.isConnected) target.focus();
+      lastFocusedRef.current = null;
+    };
+  }, [open]);
+
   const match = findMatch(tournament, matchId);
   const placeholder = match ? null : findBracketPlaceholder(tournament, matchId);
   const isLive = match?.status === 'live';
   // Detail is only fetchable for a real match; an unresolved/placeholder node
   // passes a null id so the hook stays disabled.
   const { detail, status } = useMatchDetailQuery(match ? matchId : null, isLive);
-  const open = Boolean(matchId);
   const groups = tournament?.groups ?? [];
 
   return (
@@ -121,6 +140,7 @@ export function MatchDetailPanel({
     >
       <header className="flex items-center justify-end">
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={onClose}
           aria-label="Close match details"

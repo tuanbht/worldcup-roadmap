@@ -1,3 +1,4 @@
+import { useId, type KeyboardEvent } from 'react';
 import { Panel } from '@xyflow/react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { InteractionMode } from '@/features/roadmap/interaction-mode';
@@ -29,6 +30,39 @@ interface InteractionModeToggleProps {
  */
 export function InteractionModeToggle({ mode, onChange }: InteractionModeToggleProps) {
   const hintId = 'interaction-mode-hint';
+  const baseId = useId();
+  const optionId = (value: InteractionMode) => `${baseId}-mode-${value}`;
+
+  // Roving-tabindex keyboard nav mirroring MatchDetailTabs: arrows + Home/End
+  // move the active option (wrapping) and pull focus to it; activation still
+  // switches the interaction mode via onChange.
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const index = OPTIONS.findIndex((o) => o.value === mode);
+    let next = index;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (index + 1) % OPTIONS.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (index - 1 + OPTIONS.length) % OPTIONS.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = OPTIONS.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const value = OPTIONS[next].value;
+    onChange(value);
+    document.getElementById(optionId(value))?.focus();
+  };
+
   return (
     <Panel position="bottom-center" className="interaction-mode-toggle">
       <div className="flex flex-col items-center gap-1.5">
@@ -38,6 +72,8 @@ export function InteractionModeToggle({ mode, onChange }: InteractionModeToggleP
             value={mode}
             onChange={onChange}
             ariaLabel="Canvas scroll behavior"
+            getOptionId={optionId}
+            onKeyDown={onKeyDown}
           />
         </div>
         <p id={hintId} className="text-dim text-[0.7rem] tracking-wide">

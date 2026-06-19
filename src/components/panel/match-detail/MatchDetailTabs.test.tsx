@@ -88,6 +88,110 @@ describe('MatchDetailTabs — ARIA tabs pattern', () => {
   });
 });
 
+// --- CR-3: aria-controls must not dangle; inactive panels hidden ----------
+//
+// RED until MatchDetailTabs renders ALL three tabpanels (active visible,
+// inactive `hidden`) so every tab's aria-controls resolves to a present
+// element. The current single-panel render leaves the two inactive tabs'
+// aria-controls pointing at ids absent from the DOM.
+
+/**
+ * Assert the CR-3 ARIA-integrity invariant on the currently-rendered widget:
+ *   - every tab carries a non-empty aria-controls,
+ *   - each referenced id resolves to a present element with role="tabpanel",
+ *   - and that panel points back at its tab via aria-labelledby (no dangling,
+ *     no mismatched cross-wiring).
+ * Reused by the static and the post-switch cases so the contract is identical
+ * before and after the active tab changes.
+ */
+function expectAllTabControlsResolve(): void {
+  const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
+  expect(tabs).toHaveLength(3);
+  for (const tab of tabs) {
+    const controls = tab.getAttribute('aria-controls');
+    expect(controls).not.toBeNull();
+    expect(controls).not.toBe('');
+    const panel = document.getElementById(controls as string);
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    // The wiring is bidirectional: the resolved panel labels itself by this tab.
+    expect(panel).toHaveAttribute('aria-labelledby', tab.id);
+  }
+}
+
+describe('MatchDetailTabs — CR-3 aria-controls integrity', () => {
+  it('resolves every tab aria-controls (active AND both inactive) to a matching tabpanel', () => {
+    renderTabs();
+    expectAllTabControlsResolve();
+  });
+
+  it('renders all three tabpanels with exactly one visible and the other two hidden', () => {
+    renderTabs();
+    const allPanels = screen.getAllByRole('tabpanel', { hidden: true });
+    expect(allPanels).toHaveLength(3);
+    const visible = allPanels.filter((p) => !p.hasAttribute('hidden'));
+    const hidden = allPanels.filter((p) => p.hasAttribute('hidden'));
+    expect(visible).toHaveLength(1);
+    expect(hidden).toHaveLength(2);
+    // The single visible panel is the one wired to the (default) Timeline tab.
+    const timelineTab = screen.getByRole('tab', { name: /timeline/i });
+    expect(timelineTab).toHaveAttribute('aria-controls', visible[0].id);
+  });
+
+  it('keeps exactly one tabpanel in the default (hidden:false) role query — the active one', () => {
+    renderTabs();
+    const panels = screen.getAllByRole('tabpanel');
+    expect(panels).toHaveLength(1);
+    const activeTab = screen.getByRole('tab', { name: /timeline/i });
+    expect(activeTab).toHaveAttribute('aria-controls', panels[0].id);
+  });
+
+  // Drive the active tab via each interaction surface (click, ArrowRight, End)
+  // and assert the hidden/visible split tracks the active tab while every
+  // aria-controls keeps resolving — the AC2 "switching keeps this invariant".
+  it.each<[string, () => Promise<void>, RegExp]>([
+    [
+      'clicking Stats',
+      () => userEvent.setup().click(screen.getByRole('tab', { name: /stats/i })),
+      /stats/i,
+    ],
+    [
+      'ArrowRight to Lineups',
+      async () => {
+        screen.getByRole('tab', { name: /timeline/i }).focus();
+        await userEvent.setup().keyboard('{ArrowRight}');
+      },
+      /lineups/i,
+    ],
+    [
+      'End to Stats',
+      async () => {
+        screen.getByRole('tab', { name: /timeline/i }).focus();
+        await userEvent.setup().keyboard('{End}');
+      },
+      /stats/i,
+    ],
+  ])(
+    'after %s, the visible panel tracks the active tab and all aria-controls still resolve',
+    async (_label, activate, activeName) => {
+      renderTabs();
+      await activate();
+
+      const activeTab = screen.getByRole('tab', { name: activeName });
+      expect(activeTab).toHaveAttribute('aria-selected', 'true');
+
+      // Exactly one panel is visible and it is the active tab's panel.
+      const visiblePanels = screen.getAllByRole('tabpanel');
+      expect(visiblePanels).toHaveLength(1);
+      expect(activeTab).toHaveAttribute('aria-controls', visiblePanels[0].id);
+
+      // All three panels remain present (hidden:true) and every tab still resolves.
+      expect(screen.getAllByRole('tabpanel', { hidden: true })).toHaveLength(3);
+      expectAllTabControlsResolve();
+    },
+  );
+});
+
 // --- Timeline tab (AC3) ----------------------------------------------------
 
 describe('MatchDetailTabs — Timeline', () => {

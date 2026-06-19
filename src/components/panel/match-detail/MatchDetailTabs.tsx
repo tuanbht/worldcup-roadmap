@@ -63,6 +63,24 @@ export function MatchDetailTabs({
     document.getElementById(tabId(value))?.focus();
   };
 
+  const renderPanelBody = (value: TabValue): ReactElement => {
+    switch (value) {
+      case 'timeline':
+        return <TimelineTab detail={detail} />;
+      case 'lineups':
+        return (
+          <LineupsTab
+            home={detail.home}
+            away={detail.away}
+            homeName={homeName}
+            awayName={awayName}
+          />
+        );
+      case 'stats':
+        return <StatsTab detail={detail} />;
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <SegmentedControl
@@ -74,24 +92,28 @@ export function MatchDetailTabs({
         getControlsId={panelId}
         onKeyDown={onKeyDown}
       />
-      <div
-        role="tabpanel"
-        id={panelId(active)}
-        aria-labelledby={tabId(active)}
-        tabIndex={0}
-        className="min-h-0 flex-1 overflow-y-auto"
-      >
-        {active === 'timeline' && <TimelineTab detail={detail} />}
-        {active === 'lineups' && (
-          <LineupsTab
-            home={detail.home}
-            away={detail.away}
-            homeName={homeName}
-            awayName={awayName}
-          />
-        )}
-        {active === 'stats' && <StatsTab detail={detail} />}
-      </div>
+      {/*
+        Render one tabpanel per tab so every tab's `aria-controls` resolves to a
+        present element (no dangling reference — CR-3 / WAI-ARIA tab pattern).
+        Inactive panels carry `hidden`, removing them from the a11y tree and the
+        tab order; their bodies stay unmounted so heavy subtrees aren't built.
+      */}
+      {TABS.map(({ value }) => {
+        const isActive = value === active;
+        return (
+          <div
+            key={value}
+            role="tabpanel"
+            id={panelId(value)}
+            aria-labelledby={tabId(value)}
+            hidden={!isActive}
+            tabIndex={isActive ? 0 : -1}
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
+            {isActive && renderPanelBody(value)}
+          </div>
+        );
+      })}
     </div>
   );
 }

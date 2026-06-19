@@ -228,6 +228,132 @@ describe('MatchDetailPanel — 3-tab redesign (RED until implemented)', () => {
   });
 });
 
+// --- CR-5: focus management on open/close ---------------------------------
+//
+// RED until MatchDetailPanel moves focus to the close button when it opens
+// (matchId null->set) and restores focus to the element that was focused at
+// open time when it closes (matchId set->null), guarding for a still-connected
+// element. Escape-to-close and the inert/aria-hidden contract must be preserved.
+
+/**
+ * Render the panel with `matchId` controllable across rerenders, plus a real
+ * attached trigger <button> so jsdom focus semantics behave (focus only lands
+ * on connected focusable elements). Returns the trigger and a `setMatchId`
+ * helper that rerenders the same tree (so the open/close transition fires).
+ */
+function renderWithTrigger(initialMatchId: string | null, onClose = vi.fn()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const trigger = document.createElement('button');
+  trigger.textContent = 'Open match';
+  document.body.appendChild(trigger);
+
+  const tree = (matchId: string | null) => (
+    <QueryClientProvider client={client}>
+      <MatchDetailPanel tournament={TOURNAMENT} matchId={matchId} onClose={onClose} />
+    </QueryClientProvider>
+  );
+  const utils = render(tree(initialMatchId));
+  const setMatchId = (matchId: string | null) => utils.rerender(tree(matchId));
+  return { ...utils, trigger, setMatchId, onClose };
+}
+
+/**
+ * The canonical AC7/AC8 setup recipe (review M-1): mount closed with a real,
+ * attached trigger, focus the trigger, then open via rerender so the
+ * null->set transition fires AFTER a known element holds focus. Returns the
+ * harness so each test drives the close transition itself.
+ *
+ * jsdom focus only lands on connected focusable elements, so capturing the
+ * trigger via document.activeElement is only meaningful once it is focused —
+ * hence the strict ordering enforced here.
+ */
+function openWithFocusedTrigger(onClose = vi.fn()) {
+  stubDetailReady(GROUP_MATCH.id);
+  const harness = renderWithTrigger(null, onClose);
+  harness.trigger.focus();
+  expect(harness.trigger).toHaveFocus(); // precondition: trigger holds focus
+  harness.setMatchId(GROUP_MATCH.id); // null -> set: panel opens
+  return harness;
+}
+
+describe('MatchDetailPanel — CR-5 focus management', () => {
+  it('moves focus to the close button when the panel opens (matchId null -> set)', () => {
+    const { trigger } = openWithFocusedTrigger();
+    expect(trigger).not.toHaveFocus();
+    expect(closeButton()).toHaveFocus();
+  });
+
+  it('restores focus to the trigger that was focused at open when the panel closes (set -> null)', () => {
+    const { setMatchId, trigger } = openWithFocusedTrigger();
+    expect(closeButton()).toHaveFocus();
+
+    setMatchId(null); // set -> null: panel closes
+    expect(trigger).toHaveFocus();
+  });
+
+  it('round-trips focus across a reopen: trigger -> close button -> trigger -> close button', () => {
+    // Determinism check: the capture/restore is not a one-shot — a second
+    // open/close cycle must behave identically (no stale ref leaking through).
+    const { setMatchId, trigger } = openWithFocusedTrigger();
+    expect(closeButton()).toHaveFocus();
+
+    setMatchId(null);
+    expect(trigger).toHaveFocus();
+
+    setMatchId(GROUP_MATCH.id);
+    expect(closeButton()).toHaveFocus();
+
+    setMatchId(null);
+    expect(trigger).toHaveFocus();
+  });
+
+  it('does not throw, and keeps focus on the close button, when the trigger is gone before close', () => {
+    const { setMatchId, trigger } = openWithFocusedTrigger();
+    expect(closeButton()).toHaveFocus();
+
+    // Remove the trigger from the DOM before closing (e.g. its match node was
+    // filtered out of the canvas). The isConnected guard must skip restore.
+    trigger.remove();
+    expect(() => setMatchId(null)).not.toThrow();
+    // Focus must NOT be thrown onto the detached node...
+    expect(document.activeElement).not.toBe(trigger);
+    // ...and must not have jumped to some unrelated element: it stays where it
+    // was (the close button, which is inert-but-still-mounted post-close — so it
+    // is now aria-hidden/inert and only reachable via the hidden:true query).
+    expect(screen.getByRole('button', { name: CLOSE_BUTTON_NAME, hidden: true })).toHaveFocus();
+  });
+
+  it('still closes on Escape after opening (Escape-to-close preserved)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    openWithFocusedTrigger(onClose);
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onClose on Escape while the panel is closed', async () => {
+    // The Escape listener is gated on an open panel; pressing Escape with no
+    // match selected must be a no-op (no spurious close callbacks).
+    stubDetailLoading();
+    const user = userEvent.setup();
+    const { onClose } = renderWithTrigger(null);
+
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps the closed panel inert + aria-hidden after a close transition', () => {
+    const { setMatchId, container } = openWithFocusedTrigger();
+    setMatchId(null);
+
+    const panel = container.querySelector('aside[aria-label="Match details"]');
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel).toHaveAttribute('inert');
+  });
+});
+
 // --- Unscheduled knockout bracket node (H-1 regression) -------------------
 
 describe('MatchDetailPanel — unscheduled knockout bracket node', () => {
