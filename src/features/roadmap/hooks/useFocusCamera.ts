@@ -7,7 +7,7 @@ const PADDING = 0.16;
 const DURATION = 500;
 
 /** Footprint of a node by type (guides are roughly card-width / small). */
-function footprintOf(node: RoadmapNode): { w: number; h: number } {
+export function footprintOf(node: RoadmapNode): { w: number; h: number } {
   if (node.type === 'day-marker') return { w: 96, h: 32 };
   if (node.type === 'group-header') return { w: NODE_W, h: 44 };
   return { w: NODE_W, h: NODE_H };
@@ -17,18 +17,18 @@ function footprintOf(node: RoadmapNode): { w: number; h: number } {
  * True for the group zone: the column headers PLUS the group-stage match cards.
  * Guaranteed non-empty so the "Groups" tab frames a real subset.
  */
-function isGroupZoneNode(node: RoadmapNode): boolean {
+export function isGroupZoneNode(node: RoadmapNode): boolean {
   if (node.type === 'group-header') return true;
   return node.type === 'match' && node.data.stage === 'GROUP_STAGE';
 }
 
 /** The knockout zone: match cards that are NOT in the group stage. */
-function isKnockoutNode(node: RoadmapNode): boolean {
+export function isKnockoutNode(node: RoadmapNode): boolean {
   return node.type === 'match' && node.data.stage !== 'GROUP_STAGE';
 }
 
 /** Axis-aligned bounds of a node set, accounting for each node's footprint. */
-function boundsOf(nodes: RoadmapNode[]): Rect | null {
+export function boundsOf(nodes: RoadmapNode[]): Rect | null {
   if (nodes.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
