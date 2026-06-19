@@ -1,5 +1,5 @@
 import type { ProviderRef } from '@/domain/types';
-import { BASE, FIFA_HEADERS } from './client';
+import { BASE, FIFA_FETCH_TIMEOUT_MS, FIFA_HEADERS } from './client';
 import {
   rawMatchLiveSchema,
   rawTimelineSchema,
@@ -21,13 +21,20 @@ function detailPath(kind: 'live/football' | 'timelines', ref: ProviderRef): stri
 }
 
 /**
- * Fetch + zod-validate one FIFA detail endpoint. On HTTP / oversized / empty /
- * invalid-JSON / schema failure returns `null` so the mapper degrades to empty
- * — it never throws into a route crash.
+ * Fetch + zod-validate one FIFA detail endpoint under a finite abort deadline
+ * (`FIFA_FETCH_TIMEOUT_MS`). On HTTP / abort-timeout / oversized / empty /
+ * invalid-JSON / schema failure returns `null` so the mapper degrades to empty —
+ * it never throws into a route crash. The shared deadline stops a hung FIFA
+ * socket from pinning the section; the existing catch turns that abort into the
+ * same graceful `null` as any other failure.
  */
 async function fetchSection<T>(url: string, parse: (value: unknown) => T): Promise<T | null> {
   try {
-    const res = await fetch(url, { headers: FIFA_HEADERS, cache: 'no-store' });
+    const res = await fetch(url, {
+      headers: FIFA_HEADERS,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(FIFA_FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const text = await res.text();
     if (!text || text.length > MAX_BYTES) return null;

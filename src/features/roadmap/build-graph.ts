@@ -21,8 +21,43 @@ import type {
 /** All edges flow downward: bottom of the child into the top of the parent. */
 const HANDLES = { sourceHandle: 'b', targetHandle: 't' } as const;
 
-/** Flatten a knockout bracket node into the shared match-card view model. */
-function knockoutMatchData(node: BracketNode): MatchNodeData {
+/**
+ * The live fields of a knockout card, resolved from the real `Match` when one
+ * backs the bracket slot, else the safe "unscheduled slot" fallback. Read off
+ * the `Match` (never mutated) so the merge below stays immutable.
+ */
+function knockoutLiveFields(
+  match: Match | undefined,
+): Pick<MatchNodeData, 'score' | 'status' | 'kickoff' | 'minute' | 'venue'> {
+  if (!match) {
+    return {
+      score: EMPTY_SCORE,
+      status: 'scheduled',
+      kickoff: null,
+      minute: null,
+      venue: { name: null, city: null },
+    };
+  }
+  return {
+    score: match.score,
+    status: match.status,
+    kickoff: match.kickoff,
+    minute: match.minute,
+    venue: match.venue,
+  };
+}
+
+/**
+ * Flatten a knockout bracket node into the shared match-card view model.
+ *
+ * Structural fields (stage / round label / placeholder teams / Final & 3rd-place
+ * flags) come from the `BracketNode`; the live fields (score / status / kickoff /
+ * minute / venue) are merged in from the resolved `Match` in `tournament.matches`
+ * when one exists, so the card reflects REAL state instead of a hardcoded
+ * "scheduled" pill. Falls back to the safe defaults for an unscheduled slot.
+ * Immutable: returns a new object; never mutates `node` or `match`.
+ */
+function knockoutMatchData(node: BracketNode, match?: Match): MatchNodeData {
   return {
     matchId: node.matchId,
     stage: node.stage,
@@ -31,11 +66,7 @@ function knockoutMatchData(node: BracketNode): MatchNodeData {
     matchday: null,
     home: node.home.team,
     away: node.away.team,
-    score: EMPTY_SCORE,
-    status: 'scheduled',
-    kickoff: null,
-    minute: null,
-    venue: { name: null, city: null },
+    ...knockoutLiveFields(match),
     isFinal: node.stage === 'FINAL',
     isThirdPlace: node.stage === 'THIRD_PLACE',
   };
@@ -190,6 +221,10 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
   // grouping == ordering == group rows == knockout rows == the `formatDate(...)`
   // pill label, with no second ambient read drifting between passes.
   const zone = resolveTimeZone(tz);
+  // The live `Match` for each KO bracket slot — the same data that already
+  // colors the advance edges — keyed once so each knockout card can merge in its
+  // real score/status/kickoff/minute/venue instead of a hardcoded "scheduled".
+  const matchById = new Map(tournament.matches.map((m) => [m.id, m]));
   const dayIndex = computeDayIndex(tournament.matches, zone);
   const groupGrid = computeGroupGridLayout(tournament, dayIndex, zone);
   const knockout = computeKnockoutFunnelLayout(tournament, dayIndex, CX, zone);
@@ -221,7 +256,7 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
   for (const round of tournament.bracket.rounds) {
     for (const node of round.nodes) {
       const position = knockout.get(node.matchId) ?? { x: CX, y: HEADER_H };
-      nodes.push(matchNode(knockoutMatchData(node), position));
+      nodes.push(matchNode(knockoutMatchData(node, matchById.get(node.matchId)), position));
     }
   }
 

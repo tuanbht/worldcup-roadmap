@@ -26,6 +26,18 @@ export class RateLimitError extends RepositoryError {
   }
 }
 
+/**
+ * An upstream request exceeded its abort deadline (a hung/slow provider socket).
+ * Mirrors the `UPSTREAM_HTTP` 502 shape so the route surfaces a clean gateway
+ * error instead of pinning a never-resolving single-flight promise.
+ */
+export class UpstreamTimeoutError extends RepositoryError {
+  constructor(message = 'FIFA API request timed out') {
+    super('UPSTREAM_TIMEOUT', message, 502);
+    this.name = 'UpstreamTimeoutError';
+  }
+}
+
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected error';
 }

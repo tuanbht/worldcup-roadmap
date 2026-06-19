@@ -19,9 +19,11 @@ import {
   expectedFeederCount,
   fixtureDayKey,
   groupStageMatches,
+  koMatchById,
   loadTournament,
 } from './__test-support__/roadmap-fixtures';
-import type { Match } from '@/domain/types';
+import type { Match, Tournament } from '@/domain/types';
+import { EMPTY_SCORE } from '@/domain/types';
 
 /**
  * Spec for the timeline-grid `buildRoadmapGraph(tournament, tz?)` transform: ONE
@@ -285,8 +287,9 @@ function markersByRow(g: RoadmapGraph): ReadonlyMap<number, DayMarkerFlowNode> {
   return byY;
 }
 
-/** Every match's TRUE kickoff (KO card data carries kickoff:null by design, so
- *  the knockout kickoff is recovered from the tournament for row assertions). */
+/** Every match's TRUE kickoff, recovered from the tournament for row assertions.
+ *  Independent of `data.kickoff` so the row math stays valid for an UNSCHEDULED
+ *  KO slot too (a bracket node with no backing Match carries kickoff:null). */
 const kickoffById = new Map(tournament.matches.map((m) => [m.id, m.kickoff]));
 
 describe('buildRoadmapGraph — local-zone pill == card date [Acceptance #2]', () => {
@@ -295,9 +298,9 @@ describe('buildRoadmapGraph — local-zone pill == card date [Acceptance #2]', (
     // so a match locally on 19 Jun could land in a row pill reading 18 Jun. Built
     // in Asia/Bangkok, the day-marker on each match's row must carry that match's
     // OWN local kickoff date — both as the sortable dayKey and the human label.
-    // We use each match's true kickoff (recovered for KO cards whose data.kickoff
-    // is null) so the invariant is proven for the knockout funnel too, not just
-    // the group grid.
+    // We use each match's true kickoff (recovered from the tournament, never from
+    // data.kickoff) so the invariant is proven for the knockout funnel too — and
+    // stays valid for any unscheduled slot whose data.kickoff is null.
     const g = buildRoadmapGraph(tournament, BKK);
     const markers = markersByRow(g);
     const cards = g.nodes.filter(isMatchNode);
@@ -388,5 +391,149 @@ describe('buildRoadmapGraph — ONE consistent zone across passes [Acceptance #3
     for (const e of advance) {
       expect(posById.get(e.target)!.y).toBeGreaterThan(posById.get(e.source)!.y);
     }
+  });
+});
+
+// --- CR-1: knockout cards must reflect REAL live state, not hardcoded scheduled ---
+//
+// BUG: knockoutMatchData(node) hardcodes score:EMPTY_SCORE / status:'scheduled' /
+// kickoff:null / minute:null, so every KO card shows a grey "scheduled" pill +
+// blank score regardless of the real Match in tournament.matches (which already
+// colors the advance edges). The fix merges the resolved Match's live fields
+// (score, status, kickoff, minute, venue) into the KO card node, keeping the
+// structural fields from the BracketNode, with the current safe fallback only
+// when NO real Match backs the slot. CR-1 Acceptance #1-#3, #5.
+//
+// The mock fixture (build-mock-tournament) gives us all three live states without
+// any rigging: R32-SF are all `finished`, the Final `wc2026-f-1` is `live` at
+// minute 67 / score 1-0, and the third-place `wc2026-3p-1` is `scheduled`. The
+// no-real-match case (#3) is constructed by cloning the tournament with one
+// bracket match removed from `matches`, so `matchById.get(node.matchId)` is
+// undefined for a real bracket node.
+describe('buildRoadmapGraph — knockout live state [CR-1 Acceptance #1-#3]', () => {
+  /** Independent oracle: the real KO `Match` by id, straight off the tournament. */
+  const liveMatches = koMatchById(tournament);
+
+  /** The KO card payloads of a graph, indexed by match id (DRY: one build, reused). */
+  const koCardsById = (g: RoadmapGraph): ReadonlyMap<string, MatchNodeData> =>
+    new Map(
+      g.nodes
+        .filter(isMatch)
+        .filter((n) => bracketMatchIds.has(n.id))
+        .map((n) => [n.id, n.data]),
+    );
+
+  /** The KO card for `id` in a fresh default-zone build; fails loud if absent. */
+  const koCard = (id: string, g: RoadmapGraph = graph()): MatchNodeData => {
+    const card = koCardsById(g).get(id);
+    expect(card, `expected a knockout card for ${id}`).toBeDefined();
+    return card!;
+  };
+
+  /** The real `Match` for `id`; fails loud if the fixture invariant broke. */
+  const oracle = (id: string, status: Match['status']): Match => {
+    const match = liveMatches.get(id);
+    expect(match, `fixture invariant: ${id} must exist`).toBeDefined();
+    expect(match!.status, `fixture invariant: ${id} must be ${status}`).toBe(status);
+    return match!;
+  };
+
+  it('#1 a KO node mapping to a FINISHED match carries that real score + status:finished', () => {
+    const sf = oracle('wc2026-sf-1', 'finished');
+    const card = koCard('wc2026-sf-1');
+    expect(card.status).toBe('finished');
+    // The REAL scoreline, not the EMPTY_SCORE the buggy code hardcoded.
+    expect(card.score).toEqual(sf.score);
+    expect(card.score).not.toEqual(EMPTY_SCORE);
+    expect(card.score.home).not.toBeNull();
+    expect(card.score.away).not.toBeNull();
+  });
+
+  it('#2 the live Final KO card carries status:live + its minute + running score', () => {
+    const final = oracle('wc2026-f-1', 'live');
+    const card = koCard('wc2026-f-1');
+    expect(card.status).toBe('live');
+    expect(card.minute).toBe(final.minute); // 67 in the fixture
+    expect(card.minute).not.toBeNull();
+    expect(card.score).toEqual(final.score); // running 1-0
+    expect(card.isFinal).toBe(true); // structural flag preserved through the merge
+  });
+
+  it('#2b carries kickoff + venue from the real Match (no longer null-by-default)', () => {
+    const final = oracle('wc2026-f-1', 'live');
+    const card = koCard('wc2026-f-1');
+    expect(card.kickoff).toBe(final.kickoff); // real ISO instant, not null
+    expect(card.venue).toEqual(final.venue); // real venue, not {name:null,city:null}
+    expect(card.venue.name).not.toBeNull();
+  });
+
+  it('merges a real-but-scheduled match: real kickoff/venue, status stays scheduled', () => {
+    // EDGE CASE the bug masked: wc2026-3p-1 HAS a backing Match that is genuinely
+    // `scheduled` (so status/score look like the old hardcoded default) yet still
+    // carries a REAL kickoff + venue. The fix must merge those live fields, NOT
+    // collapse to the no-match fallback — distinguishing "scheduled match" from
+    // "no match at all" (the next test).
+    const tp = oracle('wc2026-3p-1', 'scheduled');
+    expect(tp.kickoff, 'fixture invariant: third-place has a real kickoff').not.toBeNull();
+    expect(tp.venue.name, 'fixture invariant: third-place has a real venue').not.toBeNull();
+    const card = koCard('wc2026-3p-1');
+    expect(card.status).toBe('scheduled');
+    expect(card.score).toEqual(EMPTY_SCORE); // scheduled → empty score, from the real Match
+    expect(card.kickoff).toBe(tp.kickoff); // real kickoff merged, NOT null
+    expect(card.venue).toEqual(tp.venue); // real venue merged, NOT {null,null}
+    expect(card.isThirdPlace).toBe(true); // structural flag preserved
+  });
+
+  it('#3 a KO node with NO backing match yields the safe fallback and does not throw', () => {
+    // Build a tournament whose `matches` lacks ONE bracket match so that real
+    // bracket node resolves to `undefined` (a truly unscheduled slot). Immutable
+    // clone — never mutate the shared fixture, never re-parse.
+    const dropped = 'wc2026-sf-1';
+    const trimmed: Tournament = {
+      ...tournament,
+      matches: tournament.matches.filter((m) => m.id !== dropped),
+    };
+    let g: RoadmapGraph | undefined;
+    expect(() => {
+      g = buildRoadmapGraph(trimmed, 'UTC');
+    }, 'an unscheduled KO slot must not throw').not.toThrow();
+
+    const card = koCard(dropped, g!);
+    expect(card.status).toBe('scheduled');
+    expect(card.score).toEqual(EMPTY_SCORE);
+    expect(card.kickoff).toBeNull();
+    expect(card.minute).toBeNull();
+    expect(card.venue).toEqual({ name: null, city: null });
+
+    // The removal is SURGICAL: a sibling KO node still backed by a real Match
+    // keeps its real state, proving the fallback is per-slot, not graph-wide.
+    const survivingFinal = koCard('wc2026-f-1', g!);
+    expect(survivingFinal.status).toBe('live');
+  });
+
+  it('#4 KO cards reflect real state, not the buggy graph-wide scheduled/EMPTY default', () => {
+    // Regression guard: the OLD behaviour stamped EVERY KO card scheduled/EMPTY.
+    // After the fix the finished R32-SF set + the live Final must surface real
+    // state — assert concrete counts so a partial merge can't pass vacuously.
+    const cards = [...koCardsById(graph()).values()];
+    expect(cards).toHaveLength(bracketNodes.length);
+    const finished = cards.filter((d) => d.status === 'finished');
+    const liveCards = cards.filter((d) => d.status === 'live');
+    expect(finished.length, 'finished KO cards must surface from real matches').toBeGreaterThan(0);
+    expect(liveCards, 'exactly the one live Final card').toHaveLength(1);
+    // Group cards remain governed by their own per-match status (the "match
+    // payload" block keeps that green); this block only governs KO cards.
+  });
+
+  it('#1 immutable merge: leaves the source tournament and its Match objects untouched', () => {
+    // Build against a deeply-frozen tournament: any in-place mutation of `node`
+    // or a `Match` during the merge would throw under the freeze.
+    const frozen = deepFreeze(loadTournament());
+    expect(() => buildRoadmapGraph(frozen, 'UTC')).not.toThrow();
+    // And the live Match the graph read from is byte-for-byte unchanged after.
+    const before = oracle('wc2026-f-1', 'live');
+    const snapshot = structuredClone(before);
+    buildRoadmapGraph(tournament, 'UTC');
+    expect(liveMatches.get('wc2026-f-1')).toEqual(snapshot);
   });
 });
