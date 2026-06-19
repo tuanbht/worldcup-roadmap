@@ -19,8 +19,15 @@ type FetchOutcome =
   | { readonly kind: 'ready'; readonly detail: MatchDetail }
   | { readonly kind: 'unavailable' };
 
-async function fetchMatchDetail(matchId: string): Promise<FetchOutcome> {
-  const res = await fetch(`/api/worldcup/match/${matchId}/detail`, { cache: 'no-store' });
+interface FetchOptions {
+  readonly signal?: AbortSignal;
+}
+
+async function fetchMatchDetail(matchId: string, options?: FetchOptions): Promise<FetchOutcome> {
+  const res = await fetch(`/api/worldcup/match/${matchId}/detail`, {
+    cache: 'no-store',
+    signal: options?.signal,
+  });
 
   let envelope: ApiEnvelope<MatchDetail>;
   try {
@@ -46,7 +53,7 @@ export function useMatchDetailQuery(
 ): MatchDetailQueryResult {
   const { data, error, isPending } = useQuery({
     queryKey: ['match-detail', matchId],
-    queryFn: () => fetchMatchDetail(matchId!),
+    queryFn: ({ signal }) => fetchMatchDetail(matchId!, { signal }),
     enabled: matchId != null,
     staleTime: STALE_TIME_MS,
     refetchInterval: isLive ? REFETCH_INTERVAL_MS : false,

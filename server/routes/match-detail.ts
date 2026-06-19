@@ -6,7 +6,7 @@ import { selectRepository } from '@/data/repository-factory';
 import { fetchFifaMatchDetail } from '@/data/providers/fifa/match-detail-client';
 import { mapFifaMatchDetail } from '@/data/providers/fifa/match-detail-mapper';
 import type { Match } from '@/domain/types';
-import { CACHE_CONTROL, DETAIL_UNAVAILABLE, mapError } from './error-mapping';
+import { CACHE_CONTROL, DETAIL_UNAVAILABLE, mapError, toHttpStatus } from './error-mapping';
 
 const UNAVAILABLE_MESSAGE = "Detailed timeline, lineups and stats aren't available for this match.";
 
@@ -47,6 +47,6 @@ export const matchDetail = new Hono().get('/api/worldcup/match/:matchId/detail',
     return c.json(ok(detail), 200, { 'Cache-Control': CACHE_CONTROL });
   } catch (error: unknown) {
     const apiError = mapError(error);
-    return c.json(fail(apiError.code, apiError.message), apiError.http as 429 | 500 | 502);
+    return c.json(fail(apiError.code, apiError.message), toHttpStatus(apiError.http));
   }
 });

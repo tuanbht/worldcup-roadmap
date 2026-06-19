@@ -41,8 +41,10 @@ export default defineConfig({
         'src/components/roadmap/FocusMatchButton.tsx',
         'src/data/providers/**',
         'src/data/cache/match-detail-cache.ts',
+        'src/data/config/env.ts',
         'src/components/panel/match-detail/**',
         'server/routes/**',
+        'server/cors.ts',
       ],
       // Test-support builders/fixtures are not production code — they sit under
       // `match-detail/**` (caught by the include glob) but must not be measured.

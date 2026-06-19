@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { buildCorsMiddleware } from './cors';
 import { worldcup } from './routes/worldcup';
 import { matchDetail } from './routes/match-detail';
 
@@ -8,10 +9,18 @@ import { matchDetail } from './routes/match-detail';
  *
  * The Vite dev/preview server proxies `/api` here, so the SPA fetches a relative
  * `/api/worldcup` while this process owns the FIFA fetch + TTL cache server-side.
+ *
+ * CORS is opt-in via `CORS_ALLOWED_ORIGIN` (CR-7): unset keeps the same-origin
+ * default (no CORS headers); set restricts `/api/*` to exactly that origin. See
+ * `docs/deploy-runbook.md`.
  */
 const PORT = Number(process.env.PORT ?? 8787);
 
 const app = new Hono();
+
+const corsMiddleware = buildCorsMiddleware(process.env.CORS_ALLOWED_ORIGIN);
+if (corsMiddleware) app.use('/api/*', corsMiddleware);
+
 app.route('/', worldcup);
 app.route('/', matchDetail);
 

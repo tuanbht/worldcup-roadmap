@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCachedTournament } from '@/data/cache/tournament-cache';
 import { fail, ok } from '@/data/envelope';
 import { selectRepository } from '@/data/repository-factory';
-import { CACHE_CONTROL, mapError } from './error-mapping';
+import { CACHE_CONTROL, mapError, toHttpStatus } from './error-mapping';
 
 /**
  * `GET /api/worldcup` — the thin Hono replacement for the old Next route.
@@ -19,6 +19,6 @@ export const worldcup = new Hono().get('/api/worldcup', async (c) => {
     return c.json(ok(tournament), 200, { 'Cache-Control': CACHE_CONTROL });
   } catch (error: unknown) {
     const apiError = mapError(error);
-    return c.json(fail(apiError.code, apiError.message), apiError.http as 429 | 500 | 502);
+    return c.json(fail(apiError.code, apiError.message), toHttpStatus(apiError.http));
   }
 });

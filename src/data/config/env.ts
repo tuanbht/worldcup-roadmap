@@ -1,6 +1,26 @@
 import { z } from 'zod';
 
 /**
+ * Fail loudly if this module is evaluated in a browser context (CR-8). It reads
+ * `process.env` at module-eval and lives under `src/`, so an accidental client
+ * import would otherwise crash the SPA with a cryptic `process is not defined`.
+ * A defined `window` (the SPA bundle's tell-tale global) or a missing `process`
+ * both mean "not the server" — throw a clear, descriptive error at the boundary.
+ */
+function assertServerContext(): void {
+  const inBrowser = typeof window !== 'undefined';
+  const noNodeProcess = typeof process === 'undefined';
+  if (inBrowser || noNodeProcess) {
+    throw new Error(
+      'env.ts is a server-only module — do not import from client code. It reads ' +
+        'process.env at load time and will crash the browser bundle.',
+    );
+  }
+}
+
+assertServerContext();
+
+/**
  * Zod-validated configuration, read from the Node process env (now plain Node,
  * not a Next server runtime). Validates and fails fast on bad config.
  */

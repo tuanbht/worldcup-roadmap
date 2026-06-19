@@ -41,11 +41,33 @@ function stubFetchHttpError(status = 500) {
   } as unknown as Response);
 }
 
+/**
+ * Stub `fetch` with a request that NEVER resolves, capturing the per-call
+ * AbortSignal so a test can keep the request "in flight" and later assert the
+ * signal aborts on unmount / key-change. Returns both the spy and a getter for
+ * the most-recently-captured signal.
+ */
+function stubFetchInFlight() {
+  let capturedSignal: AbortSignal | undefined;
+  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
+    capturedSignal = (init as RequestInit | undefined)?.signal ?? undefined;
+    return new Promise<Response>(() => {});
+  });
+  return { spy, lastSignal: (): AbortSignal | undefined => capturedSignal };
+}
+
+interface QueryProps {
+  id: string | null;
+}
+
 function renderQuery(
   matchId: string | null,
   isLive = false,
-): RenderHookResult<MatchDetailQueryResult, unknown> {
-  return renderHook(() => useMatchDetailQuery(matchId, isLive), { wrapper: makeWrapper() });
+): RenderHookResult<MatchDetailQueryResult, QueryProps> {
+  return renderHook(({ id }) => useMatchDetailQuery(id, isLive), {
+    wrapper: makeWrapper(),
+    initialProps: { id: matchId },
+  });
 }
 
 beforeEach(() => vi.restoreAllMocks());
@@ -110,5 +132,63 @@ describe('useMatchDetailQuery', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(spy).toHaveBeenCalledWith(ENDPOINT, expect.anything());
     expect(result.current.detail?.matchId).toBe(MATCH_ID);
+  });
+
+  // CR-13 #9/#10: TanStack Query creates an AbortController per query and aborts
+  // it on unmount / key-change. The queryFn must thread its context `signal` into
+  // fetch so the in-flight detail request is actually cancellable.
+  describe('CR-13: AbortSignal forwarding + cancellation', () => {
+    it('forwards the TanStack-provided AbortSignal into the fetch call (#9/#10)', async () => {
+      const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+      const { result } = renderQuery(MATCH_ID);
+      await waitFor(() => expect(result.current.status).toBe('ready'));
+
+      expect(spy).toHaveBeenCalledWith(
+        ENDPOINT,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    it('keeps the existing fetch options (cache: no-store) alongside the new signal', async () => {
+      const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+      const { result } = renderQuery(MATCH_ID);
+      await waitFor(() => expect(result.current.status).toBe('ready'));
+
+      // Forwarding the signal must NOT drop the no-store cache directive that
+      // keeps live detail fresh — both belong in the same options object.
+      expect(spy).toHaveBeenCalledWith(
+        ENDPOINT,
+        expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    it('aborts the in-flight detail request when the query unmounts (#9)', async () => {
+      const { spy, lastSignal } = stubFetchInFlight();
+      const { unmount } = renderQuery(MATCH_ID);
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+
+      expect(lastSignal()).toBeInstanceOf(AbortSignal);
+      expect(lastSignal()?.aborted).toBe(false);
+
+      unmount();
+
+      await waitFor(() => expect(lastSignal()?.aborted).toBe(true));
+    });
+
+    it('aborts the in-flight detail request when the query key changes (#9)', async () => {
+      const { spy, lastSignal } = stubFetchInFlight();
+      const { rerender } = renderQuery(MATCH_ID);
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+
+      const firstSignal = lastSignal();
+      expect(firstSignal).toBeInstanceOf(AbortSignal);
+      expect(firstSignal?.aborted).toBe(false);
+
+      // Selecting a different match changes the query key; the prior in-flight
+      // request must be aborted rather than left dangling.
+      rerender({ id: 'wc2026-fifa-400252' });
+
+      await waitFor(() => expect(firstSignal?.aborted).toBe(true));
+    });
   });
 });
