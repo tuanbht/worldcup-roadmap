@@ -9,6 +9,7 @@ bundled here as one "release-blocker correctness/reliability" unit.
 ## CR-1 — Knockout cards must reflect real live state, not hardcoded "scheduled"
 
 ### Bug
+
 `src/features/roadmap/build-graph.ts` → `knockoutMatchData(node)` hardcodes
 `score: EMPTY_SCORE`, `status: 'scheduled'`, `kickoff: null`, `minute: null`.
 `BracketNode` is structural-only; the real live `Match` (score/status/kickoff/
@@ -16,9 +17,10 @@ minute) lives in `tournament.matches`. The same live data already colors the
 advance edges (`edgeState(status)` via `statusById`), but it is never merged
 into the knockout card node. Result: every R16 / QF / SF / Final / 3rd-place
 card shows a grey "scheduled" pill and blank score regardless of actual state —
-a core failure for a *live* roadmap.
+a core failure for a _live_ roadmap.
 
 ### Fix
+
 - In `buildRoadmapGraph`, build `const matchById = new Map(tournament.matches.map(m => [m.id, m]))`.
 - Pass the resolved match into `knockoutMatchData(node, matchById.get(node.matchId))`
   and merge the live fields (`score`, `status`, `kickoff`, `minute`, and `venue`
@@ -30,6 +32,7 @@ a core failure for a *live* roadmap.
   `Match`).
 
 ### Acceptance criteria
+
 1. A knockout `BracketNode` whose `matchId` maps to a `finished` match in
    `tournament.matches` yields a node with that match's real `score` and
    `status: 'finished'` (not `EMPTY_SCORE`/`'scheduled'`).
@@ -46,15 +49,17 @@ a core failure for a *live* roadmap.
 ## CR-2 — FIFA fetches need a timeout / AbortController (both code paths)
 
 ### Bug
+
 `src/data/providers/fifa/match-detail-client.ts` (the two parallel `live` +
 `timelines` fetches in `fetchSection`) and `src/data/providers/fifa/client.ts`
 (`fetchFifaMatches`) call `fetch(...)` with no `signal`/deadline. A
 post-connect-hung FIFA socket pins the per-key single-flight `inflight` promise
 in the cache layer, blocking every concurrent caller for that key until the OS/
 undici timeout (minutes), and it defeats stale-on-error (which only triggers on a
-*thrown* error).
+_thrown_ error).
 
 ### Fix
+
 - Add a shared request deadline of ~8–10 s to every FIFA `fetch`, via
   `AbortSignal.timeout(ms)` (preferred — it is supported by the Node/undici
   runtime) or an explicit `AbortController` + `setTimeout` cleared in `finally`.
@@ -70,6 +75,7 @@ undici timeout (minutes), and it defeats stale-on-error (which only triggers on 
 - Use a single shared timeout constant (e.g. `FIFA_FETCH_TIMEOUT_MS`).
 
 ### Acceptance criteria
+
 6. Every FIFA `fetch` call (calendar pager + both detail sections) passes an
    abort `signal` with a finite deadline.
 7. A timed-out/aborted calendar fetch surfaces as
@@ -86,6 +92,7 @@ undici timeout (minutes), and it defeats stale-on-error (which only triggers on 
 ---
 
 ## Constraints (whole requirement)
+
 - Library-first per `requirements/library-first-stack-policy.md`: use the
   platform `fetch` + `AbortSignal.timeout`/`AbortController`; no new HTTP
   dependency. Reuse the existing `RepositoryError` / error types.
@@ -96,6 +103,7 @@ undici timeout (minutes), and it defeats stale-on-error (which only triggers on 
   touched files.
 
 ## Files likely touched
+
 - `src/features/roadmap/build-graph.ts` + `build-graph.test.ts` (CR-1)
 - `src/data/providers/fifa/client.ts` (CR-2)
 - `src/data/providers/fifa/match-detail-client.ts` (CR-2)

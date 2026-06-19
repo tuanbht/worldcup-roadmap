@@ -1,6 +1,7 @@
 ---
 description: Verify the running local app at http://localhost:3217 in a real browser via the Playwright CLI (live smoke check).
-argument-hint: [optional focus, e.g. "group cards show Group X · MD#" or "?view=full and the Final node renders"]
+argument-hint:
+  [optional focus, e.g. "group cards show Group X · MD#" or "?view=full and the Final node renders"]
 ---
 
 Dispatch the `live-verifier` agent to verify the running app at **http://localhost:3217** using the Playwright CLI (headless Chromium driven by a `tsx` script).

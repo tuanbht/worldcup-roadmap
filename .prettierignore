@@ -9,3 +9,12 @@ package-lock.json
 *.snap
 e2e/**/*-snapshots
 *.png
+
+# req-* pipeline working artifacts (plans, reviews, scratch) — not source
+.req-runs
+# Captured real FIFA payloads are ground truth — kept verbatim, never reflowed
+docs/fifa-real-payloads
+# Generated req-* pipeline planning/review docs (one hits a prettier idempotency bug)
+docs/pipeline
+# Untracked external review note (not part of this codebase)
+docs/code-review-vite-hono-rework.md

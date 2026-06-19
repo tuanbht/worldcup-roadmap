@@ -1,6 +1,7 @@
 # Requirement: Localize the day-axis grouping to the viewer's timezone
 
 ## Context
+
 This is the deferred follow-up named in the **Edge note** of
 `requirements/kickoff-local-timezone.md`. That change localized the displayed
 kickoff **time** (via `src/lib/datetime.ts`'s `localTimeZone()` default) but
@@ -8,6 +9,7 @@ explicitly left `src/features/roadmap/layout/day-axis.ts` keying day-rows off a
 **UTC** `yyyy-MM-dd` string. The deferred edge case has now been reported as a bug.
 
 ## Bug (observed)
+
 On the timeline grid, a match's left-rail **date pill** disagrees with the
 match's own locally-rendered kickoff. The card shows a local time (e.g. `02:00`,
 `05:00`), but the row it lives in is grouped by the match's **UTC** calendar day,
@@ -16,6 +18,7 @@ into the row whose pill reads a different date — the label and the grouping us
 different timezones.
 
 ## Root cause
+
 `day-axis.ts` hardcodes `const DAY_ZONE = 'UTC'`, and its comment falsely claims
 this "matches `lib/datetime`'s zone." Since the `kickoff-local-timezone` change,
 `lib/datetime` renders in the **viewer's local** zone, not UTC. The day-row
@@ -23,6 +26,7 @@ this "matches `lib/datetime`'s zone." Since the `kickoff-local-timezone` change,
 own diagnosis: "you only convert in match, not when ordering."
 
 ## Decision
+
 Localize the day-axis key to the **same** zone the façade uses, routed through the
 date library (`date-fns` + `date-fns-tz`) via `lib/datetime` — no hand-rolled date
 math, no `iso.slice(0, 10)` in production.
@@ -44,6 +48,7 @@ math, no `iso.slice(0, 10)` in production.
   `day-axis.ts`.
 
 ## Library-first constraint
+
 Per `requirements/library-first-stack-policy.md`: all timezone work goes through
 `date-fns` / `date-fns-tz` and the single `lib/datetime` façade. No hand-rolled
 offset math in production. `fixtureDayKey` (a test helper) may keep a UTC slice
@@ -51,6 +56,7 @@ offset math in production. `fixtureDayKey` (a test helper) may keep a UTC slice
 functions, so the helper and the computed index agree on any machine.
 
 ## Tests (determinism is critical)
+
 Fixture kickoffs are at **evening UTC** (≈19:00–23:xx), so any zone east of UTC
 rolls some matches into the next calendar day. Tests must be deterministic on ANY
 machine zone:
@@ -75,6 +81,7 @@ machine zone:
   confirm a near-midnight-UTC match's row pill matches its card date.
 
 ## Acceptance criteria
+
 1. Day-rows group by the **viewer's local** calendar day — the same zone as the
    card kickoff time and the date pill.
 2. For every match, the date pill on its row equals the match card's own local
@@ -91,6 +98,7 @@ machine zone:
 7. The stale comment in `day-axis.ts` ("matches lib/datetime's zone") is corrected.
 
 ## Files likely touched
+
 - `src/features/roadmap/layout/day-axis.ts` — zone + optional `tz`.
 - `src/features/roadmap/build-graph.ts` — resolve zone once, thread down; label
   already local.

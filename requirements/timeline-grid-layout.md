@@ -4,12 +4,14 @@
 > decision is kept; the "horizontal lanes / vertical bracket" positioning is replaced by this).
 
 ## Context
+
 Keep every match as its own node (the current group-match expansion is good), but **re-order the whole
 tournament onto a single vertical timeline**: dates run **down the left**, groups are **columns across the
 top**, each group match sits at **(its group column × its kickoff-day row)**, and the knockout continues down
 the same day rail as a **center-converging funnel** ending at the Final.
 
 ## Decisions (locked with owner — via scratch)
+
 1. **1 node per match** (group stage included) — unchanged.
 2. **Timeline = vertical, one row per calendar day** for the whole tournament (group stage **and** knockout share
    one continuous day axis, chronological top→bottom). Date labels on a **left rail**.
@@ -25,6 +27,7 @@ the same day rail as a **center-converging funnel** ending at the Final.
    R32 matches they seed; **advance edges** flow downward within the knockout.
 
 ## Coordinate model (pure, O(n))
+
 - **Day axis (shared).** Collect all distinct match **days**, sort ascending → `dayIndex`.
   `y = HEADER_H + dayIndex * DAY_ROW_PITCH` for every node (group and knockout).
 - **Group zone X.** Group A..L → `colIndex` 0..11. `x = RAIL_W + colIndex * GROUP_COL_PITCH`. If a (group, day)
@@ -44,11 +47,13 @@ funnel emerges because later rounds fall on later days AND at narrower x.
 ```
 
 ## Topology (correctness)
+
 The funnel's parent→child connections must use the **official FIFA R32→Final feeder map**, not naive slot
 adjacency (e.g. R16 = winners of M74 & M77). Track this with `fifa-regulation-accurate-bracket` (Art. 12.6/12.7);
 until that lands, the existing `buildBracket` map is the source of `x` midpoints.
 
 ## Files to change (extend existing)
+
 - `src/.../layout/layout-constants.ts` — add `DAY_ROW_PITCH`, `GROUP_COL_PITCH`, `SLOT`, `LEAF_X_PITCH`,
   `RAIL_W`, `HEADER_H`.
 - `src/.../layout/*` — replace the lane/mirrored-bracket layout with: `computeDayIndex(matches)` (shared),
@@ -66,6 +71,7 @@ until that lands, the existing `buildBracket` map is the source of `x` midpoints
   match-centric.)
 
 ## Acceptance criteria (testable)
+
 - Every match in `tournament.matches` → exactly one `match` node. Group-match count rendered (e.g. 72 in mock).
 - **Group grid:** a group match's `x` maps to its group's fixed column; its `y` = its day-row; rows are strictly
   chronological by day. A group's two same-day (MD3) matches render side-by-side in that column.
@@ -78,6 +84,7 @@ until that lands, the existing `buildBracket` map is the source of `x` midpoints
 - Layout functions are **pure and O(n)**; `buildRoadmapGraph` stays an immutable transform.
 
 ## Risks / notes
+
 - **Round smear:** a knockout round spans several day-rows (truthful to the schedule); accept this — `x` still
   narrows so the funnel reads. Don't force one row per round (that would break the timeline).
 - Group columns are wide enough for **2 sub-slots** (MD3). Pick `GROUP_COL_PITCH ≥ 2*card + gap`.
@@ -85,6 +92,7 @@ until that lands, the existing `buildBracket` map is the source of `x` midpoints
 - A day with many knockout matches (e.g. 4 R32 on one day) places them at their bracket-x in the same row — fine.
 
 ## Verification
+
 `npm run test` (new layout/build-graph unit tests green) → run the app: dates down the left rail, A–L headers
 across the top, each group's matches in its column at the right day, MD3 pairs side-by-side, the knockout
 funnel descending to a centered Final on the last day; feeder edges link groups → R32; wheel-zoom + `fitView`

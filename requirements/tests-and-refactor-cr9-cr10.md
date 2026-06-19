@@ -15,6 +15,7 @@ No user-facing behavior changes; the existing suites are the safety net.
 ---
 
 ## CR-10 — Add tests on reachable, documented branches
+
 Two branches are reachable and documented but untested:
 
 - `src/data/cache/tournament-cache.ts` (~lines 35-37): the **stale-on-error**
@@ -29,6 +30,7 @@ Two branches are reachable and documented but untested:
   nodes correctly (incl. empty/edge inputs).
 
 ### Acceptance
+
 1. A `tournament-cache` test exercises stale-on-error: stale value served when a
    refresh throws AND a stale entry exists; error propagates when none exists.
 2. `boundsOf` / `isGroupZoneNode` / `isKnockoutNode` have direct unit tests
@@ -40,11 +42,13 @@ Two branches are reachable and documented but untested:
 ---
 
 ## CR-9 — Split the oversized match-detail mapper
+
 `src/data/providers/fifa/match-detail-mapper.ts` is ~429 lines (over the 400-line
 soft target) and `mapFifaMatchDetail` (~lines 375-429) exceeds the 50-line
 function guidance.
 
 ### Fix
+
 Extract the stats / win-probability block and the enrichment block into
 single-responsibility helper functions (same file or a sibling module under the
 same folder, e.g. `match-detail-mapper.stats.ts`). `mapFifaMatchDetail` becomes a
@@ -53,6 +57,7 @@ identical** — the existing mapper tests (and the real-payload fixtures under
 `docs/fifa-real-payloads/` if used) must stay green unchanged.
 
 ### Acceptance
+
 4. `mapFifaMatchDetail` is under ~50 lines and reads as a composition of named
    helpers; the file is at/under the 400-line target (or clearly split into
    focused modules).
@@ -65,12 +70,14 @@ identical** — the existing mapper tests (and the real-payload fixtures under
 ---
 
 ## Constraints (whole requirement)
+
 - Pure refactor + test addition; no dependency changes, no API changes.
 - Immutability + small focused functions per the coding-style rules.
 - All gates green and deterministic: `npm run test`, `npm run typecheck`,
   `npm run build`, `npx prettier --check` on touched files.
 
 ## Files likely touched
+
 - `src/data/cache/tournament-cache.test.ts` (new/extended) — CR-10
 - `src/features/roadmap/hooks/useFocusCamera.ts` (maybe export helpers) +
   a new unit test — CR-10

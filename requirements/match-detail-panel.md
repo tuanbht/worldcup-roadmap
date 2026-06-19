@@ -4,57 +4,118 @@
 > (dark, right slide-in). Data comes from **real FIFA per-match endpoints** (owner's choice).
 
 ## Context
+
 The current `MatchDetailPanel` (`src/components/panel/MatchDetailPanel.tsx`) is a right-side glass slide-in
 showing flags, score, status, kickoff, venue. We expand it into a tabbed panel matching the three reference
 screenshots: **TIMELINE** (who scored / events), **LINEUPS** (formation pitch + player photos), **STATS**
 (team stats comparison + win probability). None of this data exists yet in the model.
 
 ## Data source (CONFIRMED via live probe)
+
 Wire two FIFA v3 endpoints, fetched **on demand** per selected match (browser-like `User-Agent`, like the
 existing `fifa/client.ts`):
+
 - **`/live/football/{idCompetition}/{idSeason}/{idStage}/{idMatch}`** → `Players[]` (`IdPlayer`,
   `ShirtNumber`, `Captain`, `Position`, `Status`/`FieldStatus` for starter/bench, `PlayerName`/`ShortName`,
   `PlayerPicture.PictureUrl` = real headshot on `digitalhub.fifa.com`), `Goals[]`, `Bookings[]`,
   `Substitutions[]`, `Coaches[]`, `BallPossession`. Formation = the match's `Tactics` (e.g. `"4-1-2-3"`).
   `LineupX/Y` are null → derive pitch coordinates from the formation string + position.
 - **`/timelines/{idCompetition}/{idSeason}/{idStage}/{idMatch}`** → event list; each has `MatchMinute`,
-  `Period`, `IdTeam`, `IdPlayer`, `Type` + `TypeLocalized` (labels seen: *Goal!, Assist, Yellow card,
-  Red card, Substitution, Attempt at Goal, Corner, Foul, Offside, Goal Prevention, VAR, Start/End Time*).
+  `Period`, `IdTeam`, `IdPlayer`, `Type` + `TypeLocalized` (labels seen: _Goal!, Assist, Yellow card,
+  Red card, Substitution, Attempt at Goal, Corner, Foul, Offside, Goal Prevention, VAR, Start/End Time_).
 
 > **Map events by `TypeLocalized` label (verified), not raw numeric `Type` codes** (undocumented/unstable).
 
 ### Stats coverage (derive from the above)
-| Stat | Source |
-|---|---|
-| Possession | `BallPossession` (live) — direct |
-| Shots | count `Attempt at Goal` events per team |
-| Corners / Fouls / Offsides | count those events per team |
-| Yellow / Red cards | count card events per team (and `Bookings[]`) |
-| Shots on target / Passes / Pass accuracy | **may be unavailable** → omit the row if absent (no fakes) |
-| **Win probability** | **NOT provided by FIFA.** Either compute a lightweight, clearly-labeled estimate (from scoreline + minute + shots/possession) **or omit**. Default: compute + label "estimate". |
+
+| Stat                                     | Source                                                                                                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Possession                               | `BallPossession` (live) — direct                                                                                                                                                |
+| Shots                                    | count `Attempt at Goal` events per team                                                                                                                                         |
+| Corners / Fouls / Offsides               | count those events per team                                                                                                                                                     |
+| Yellow / Red cards                       | count card events per team (and `Bookings[]`)                                                                                                                                   |
+| Shots on target / Passes / Pass accuracy | **may be unavailable** → omit the row if absent (no fakes)                                                                                                                      |
+| **Win probability**                      | **NOT provided by FIFA.** Either compute a lightweight, clearly-labeled estimate (from scoreline + minute + shots/possession) **or omit**. Default: compute + label "estimate". |
 
 ## New domain types — `src/domain/types/`
+
 ```ts
-type MatchEventKind = 'goal' | 'own-goal' | 'penalty-goal' | 'assist' | 'yellow' | 'red'
-  | 'second-yellow' | 'substitution' | 'var' | 'period';
-interface MatchEvent { id; minute: number; period: string; kind: MatchEventKind;
-  side: 'home' | 'away'; playerId: string | null; playerName: string | null;
-  relatedName?: string | null; } // assist / player coming on
-interface LineupPlayer { id; shirtNumber: number; name; shortName; positionIndex: number;
-  isCaptain: boolean; isStarter: boolean; photoUrl: string | null;
-  goals: number; yellow: boolean; red: boolean; subbedOff?: number; subbedOn?: number; }
-interface Lineup { side: 'home' | 'away'; formation: string | null; coach: string | null;
-  starters: LineupPlayer[]; bench: LineupPlayer[]; }
-interface TeamStats { possession: number | null; shots: number | null; shotsOnTarget: number | null;
-  passes: number | null; passAccuracy: number | null; fouls: number | null;
-  yellowCards: number | null; redCards: number | null; offsides: number | null; corners: number | null; }
-interface WinProbability { home: number; draw: number; away: number; estimated: true } // null if omitted
-interface MatchDetail { matchId; events: MatchEvent[]; home: Lineup; away: Lineup;
-  homeStats: TeamStats; awayStats: TeamStats; winProbability: WinProbability | null; }
+type MatchEventKind =
+  | 'goal'
+  | 'own-goal'
+  | 'penalty-goal'
+  | 'assist'
+  | 'yellow'
+  | 'red'
+  | 'second-yellow'
+  | 'substitution'
+  | 'var'
+  | 'period';
+interface MatchEvent {
+  id;
+  minute: number;
+  period: string;
+  kind: MatchEventKind;
+  side: 'home' | 'away';
+  playerId: string | null;
+  playerName: string | null;
+  relatedName?: string | null;
+} // assist / player coming on
+interface LineupPlayer {
+  id;
+  shirtNumber: number;
+  name;
+  shortName;
+  positionIndex: number;
+  isCaptain: boolean;
+  isStarter: boolean;
+  photoUrl: string | null;
+  goals: number;
+  yellow: boolean;
+  red: boolean;
+  subbedOff?: number;
+  subbedOn?: number;
+}
+interface Lineup {
+  side: 'home' | 'away';
+  formation: string | null;
+  coach: string | null;
+  starters: LineupPlayer[];
+  bench: LineupPlayer[];
+}
+interface TeamStats {
+  possession: number | null;
+  shots: number | null;
+  shotsOnTarget: number | null;
+  passes: number | null;
+  passAccuracy: number | null;
+  fouls: number | null;
+  yellowCards: number | null;
+  redCards: number | null;
+  offsides: number | null;
+  corners: number | null;
+}
+interface WinProbability {
+  home: number;
+  draw: number;
+  away: number;
+  estimated: true;
+} // null if omitted
+interface MatchDetail {
+  matchId;
+  events: MatchEvent[];
+  home: Lineup;
+  away: Lineup;
+  homeStats: TeamStats;
+  awayStats: TeamStats;
+  winProbability: WinProbability | null;
+}
 ```
+
 Nullable everywhere → graceful partial/empty data.
 
 ## Backend (Hono) — new on-demand endpoint
+
 - Add **`GET /api/worldcup/match/:matchId/detail`** → `ApiEnvelope<MatchDetail>`. Reuse the cache pattern
   (per-match TTL tiered by liveness, single-flight, stale-on-error) keyed by matchId.
 - **ID mapping:** the detail fetch needs `idCompetition/idSeason/idStage/idMatch`. Retain the FIFA
@@ -66,6 +127,7 @@ Nullable everywhere → graceful partial/empty data.
   `fetchFifaMatchDetail()`); derive `TeamStats` by counting timeline events + possession.
 
 ## Frontend
+
 - **`useMatchDetailQuery(matchId)`** (TanStack Query) — `enabled` only when a match is selected; lazy fetch of
   `/api/worldcup/match/:id/detail`; short refetch interval while the match is live.
 - **`MatchDetailPanel` redesign** (keep right slide-in, glass, `inert`/Escape/focus a11y, mobile bottom-sheet):
@@ -79,13 +141,14 @@ Nullable everywhere → graceful partial/empty data.
     captain/goal/card/sub badge icons), positions computed from `formation` + `positionIndex`. The
     Performance/Age/Club sub-tabs in the screenshot are **phase 2 (optional)** — ship the pitch first.
   - **STATS:** **LIVE WIN PROBABILITY** bar (home/draw/away, labeled "estimate" if computed; hidden if omitted)
-    + **TEAM STATS** rows (home value · label · away value), the higher side highlighted (pill), omit null rows.
+    - **TEAM STATS** rows (home value · label · away value), the higher side highlighted (pill), omit null rows.
   - **States:** skeleton while loading; "Lineups/stats not available yet" for pre-match or missing data;
     typed error state. Visual direction matches the Google screenshots (dark, restrained).
 - **Player photos:** allow `digitalhub.fifa.com`; render `<img loading="lazy" width height>` with an
   initials fallback when `photoUrl` is null.
 
 ## Acceptance criteria (testable)
+
 - Selecting a (FIFA-provider) match fetches detail once and renders all three tabs; mock matches show the
   graceful "detail unavailable" state (no crash).
 - **Timeline:** goal/card/substitution events render with correct minute, side, and player; the header
@@ -100,6 +163,7 @@ Nullable everywhere → graceful partial/empty data.
 - Panel keeps `inert`/Escape/focus-restore a11y and the mobile bottom-sheet layout.
 
 ## Risks / notes
+
 - FIFA per-match endpoints are **undocumented** — shapes can change and may be empty pre-match or for some
   fixtures. Validate + degrade gracefully; never block the panel on detail.
 - Map events by **localized label**, not numeric `Type`.
@@ -109,6 +173,7 @@ Nullable everywhere → graceful partial/empty data.
   Query) and is independent of the timeline-grid layout work.
 
 ## Verification
+
 `npm run test` (mapper + stats-derivation + panel component tests green) → run the app, open a played FIFA
 match: header shows competition/score/standings/scorers; TIMELINE lists goals/cards/subs; LINEUPS shows both
 formations with photos; STATS shows possession + derived comparisons. Open a mock match → clean
