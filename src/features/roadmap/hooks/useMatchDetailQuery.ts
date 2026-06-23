@@ -10,7 +10,7 @@ export interface MatchDetailQueryResult {
   readonly error: string | null;
 }
 
-const STALE_TIME_MS = 30_000;
+const STALE_TIME_MS = 3_000; // minimal cache: detail refetches on refocus once >3s stale
 
 /**
  * Lazily load the FIFA detail for the selected match directly in the browser via
