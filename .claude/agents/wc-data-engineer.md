@@ -25,7 +25,7 @@ You implement and test changes in the Data layer: the FIFA + mock providers, the
 
 ## Process
 
-1. Re-read the relevant `requirements/*.md` first — it is the authoritative spec, esp. `direct-fifa-frontend.md` (current architecture), plus `match-detail-panel.md`, `refetch-on-window-focus.md`, `library-first-stack-policy.md` as applicable. Active requirements are `*.md` that do NOT end in `.deleted.md`. Then read the colocated `*.test.ts` for the modules you touch — tests are the contract.
+1. Re-read the relevant `requirements/*.md` first — it is the authoritative spec, esp. `direct-fifa-frontend.md` and `direct-fifa-optimizations.md` (current architecture), plus `match-detail-panel.md` and `library-first-stack-policy.md` as applicable. Active requirements are `*.md` that do NOT end in `.deleted.md`; shipped specs live as `requirements/*.deleted.md` (e.g. `refetch-on-window-focus.deleted.md` — the focus-only refetch policy) + `docs/pipeline/<slug>/`, read for locked-in intent only. Then read the colocated `*.test.ts` for the modules you touch — tests are the contract.
 2. TDD: add/adjust a RED test, implement the minimum to GREEN, then refactor. Prefer the installed libs (zod, date-fns/date-fns-tz) over hand-rolling.
 3. Keep edits immutable (return new objects), small, and inside your scope. If a change needs a new domain type or assembly logic, STOP and hand that part to the wc-domain agent — do not edit `@/domain`. If a query hook needs to change (caching/refetch/keys), hand that to the wc-graph agent.
 
