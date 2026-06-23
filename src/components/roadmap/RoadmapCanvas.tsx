@@ -158,6 +158,7 @@ function CanvasInner() {
         maxZoom={1.8}
         nodesConnectable={false}
         edgesFocusable={false}
+        onlyRenderVisibleElements={true}
         onNodeClick={onNodeClick}
         onPaneClick={() => {
           setSelected(null);

@@ -12,6 +12,11 @@ interface ImportMetaEnv {
   readonly VITE_FIFA_COMPETITION_ID?: string;
   readonly VITE_FIFA_SEASON_ID?: string;
   readonly VITE_FIFA_COUNTRY?: string;
+  /**
+   * Optional build/deploy identifier used as the localStorage cache `buster`
+   * (`src/lib/queryPersister.ts`). Bumping it invalidates persisted snapshots.
+   */
+  readonly VITE_BUILD_ID?: string;
 }
 
 interface ImportMeta {

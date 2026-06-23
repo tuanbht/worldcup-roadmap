@@ -212,6 +212,19 @@ describe('RoadmapCanvas — wheel-zoom, drag-pan, and pinch-zoom remain active',
 });
 
 // ============================================================================
+// Virtualization — onlyRenderVisibleElements (requirement 1044, §1)
+// ============================================================================
+// With 64-100+ nodes, React Flow must only render the elements inside the
+// viewport so pan/zoom paint cost (esp. on mobile) stays bounded. RED until
+// RoadmapCanvas.tsx adds `onlyRenderVisibleElements` to the <ReactFlow> props.
+describe('RoadmapCanvas — virtualizes offscreen nodes (onlyRenderVisibleElements)', () => {
+  it('passes onlyRenderVisibleElements=true to ReactFlow', () => {
+    render(<RoadmapCanvas />);
+    expect(capturedFlowProps.onlyRenderVisibleElements).toBe(true);
+  });
+});
+
+// ============================================================================
 // fitView-on-load stays
 // ============================================================================
 

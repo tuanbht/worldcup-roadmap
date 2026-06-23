@@ -9,6 +9,12 @@
       content="An interactive, zoomable roadmap of the FIFA World Cup 2026: group tables feeding a live knockout bracket tree."
     />
     <link rel="icon" href="/icon.png" />
+    <!-- Warm the CORS connections to FIFA: the browser fetches tournament JSON
+         and flag/photo images directly from these origins (requirement 1044, §1). -->
+    <link rel="preconnect" href="https://api.fifa.com" crossorigin />
+    <link rel="dns-prefetch" href="https://api.fifa.com" />
+    <link rel="preconnect" href="https://digitalhub.fifa.com" crossorigin />
+    <link rel="dns-prefetch" href="https://digitalhub.fifa.com" />
     <title>World Cup 2026 — Roadmap</title>
   </head>
   <body>

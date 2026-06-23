@@ -27,7 +27,9 @@
   "dependencies": {
     "@fontsource/archivo": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
+    "@tanstack/query-sync-storage-persister": "^5.101.1",
     "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query-persist-client": "^5.101.1",
     "@xyflow/react": "^12.4.4",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
