@@ -27,6 +27,7 @@ export default defineConfig({
       provider: 'v8',
       include: [
         'src/domain/**',
+        'src/lib/api.ts',
         'src/lib/datetime.ts',
         'src/features/roadmap/layout/**',
         'src/features/roadmap/build-graph.ts',

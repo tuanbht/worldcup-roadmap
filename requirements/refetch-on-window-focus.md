@@ -1,6 +1,7 @@
 # Requirement: Refetch only on window focus — zero query intervals
 
 ## Context
+
 Reviewed the whole `src/` tree for timer-based fetching. Findings:
 
 - **Two query intervals (must be removed):**
@@ -18,6 +19,7 @@ Owner wants **no query intervals anywhere**; refresh data **only when the window
 (TanStack Query's built-in `refetchOnWindowFocus`).
 
 ## Decision
+
 1. **`src/lib/queryClient.ts`** — set `refetchOnWindowFocus: true` (was `false`). Keep `staleTime ≈ 30s` so a
    return-to-tab only refetches **stale** queries (prevents refetch storms on rapid tab toggling).
    `refetchOnReconnect` stays at its default (`true`); `retry: 1` unchanged. Fix the doc comment that still
@@ -28,27 +30,32 @@ Owner wants **no query intervals anywhere**; refresh data **only when the window
    the dead `REFETCH_INTERVAL_MS` constant. Keep `enabled` (selected match only) + `staleTime`.
 
 ## Reconcile other specs
+
 - **`match-detail-panel.md`** previously planned a "short refetch interval while the match is live." That is
   **removed** — match detail is focus-only too. This requirement is the single source of truth for refetch
   behavior. (The match-detail spec's `useMatchDetailQuery` line is updated to match.)
 
 ## Tradeoff (accepted)
+
 A live match's score won't tick while you watch unless the tab loses and regains focus — the literal meaning of
 focus-only. If live ticking is wanted later, re-introduce a short `refetchInterval` for `useMatchDetailQuery`
 **only** while `isLive`, as a single documented exception to this requirement.
 
 ## How it behaves (built-in)
+
 `refetchOnWindowFocus: true` refetches a query **only if it is stale** (past `staleTime`) when the window
 regains focus — so `staleTime` is the eagerness knob. With no `refetchInterval`, nothing fetches while the tab
 is hidden or idle.
 
 ## Tests to update
+
 - `useTournamentQuery.test.tsx` — drop the polling/interval assumption; assert no `refetchInterval` and that
   data still loads on mount.
 - The match-detail query test — assert no `refetchInterval`.
 - (optional) a `queryClient` test asserting `refetchOnWindowFocus === true`.
 
 ## Acceptance criteria (testable)
+
 - `grep -rn "refetchInterval" src` returns **nothing** (both constants removed too).
 - No `setInterval`-based data polling anywhere; the two one-shot `setTimeout`s (fitView, focus camera) remain
   untouched.
@@ -56,5 +63,6 @@ is hidden or idle.
 - Returning focus to the tab refetches stale data; a hidden/idle tab issues no fetches; data loads on mount.
 
 ## Notes
+
 - Built-in behavior — **no new dependency**.
 - The server-side Hono TTL cache is unrelated and stays — it is not a client query interval.

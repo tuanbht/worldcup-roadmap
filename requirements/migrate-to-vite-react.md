@@ -26,10 +26,18 @@ So this is **not** a pure-frontend app, and a straight "Next → SPA" drop would
 
 ## Target architecture (one repo, two processes)
 
+> **Reconciled (Batch G — `fix-direct-api-connection.md`):** the original plan had the
+> SPA fetch a **relative** `/api/worldcup` resolved by the Vite dev proxy. That is
+> superseded: the SPA now connects to the Hono API **origin directly** via
+> `VITE_API_BASE_URL` (built through `src/lib/api.ts` → `apiUrl()`), so production
+> (static SPA + separate API origin, no proxy) works. The `/api` proxy below is an
+> **optional dev/preview fallback** used only when `VITE_API_BASE_URL` is unset.
+> Direct cross-origin GETs are gated by the `server/cors.ts` origin allowlist.
+
 ```
 wc-roadmap/
 ├── index.html                 # Vite entry (was Next app shell)
-├── vite.config.ts             # + dev proxy /api -> http://localhost:8787
+├── vite.config.ts             # OPTIONAL dev fallback proxy /api -> http://localhost:8787
 ├── src/                       # FRONTEND (Vite + React)
 │   ├── main.tsx               # ReactDOM.createRoot + QueryClientProvider
 │   ├── App.tsx                # was app/page.tsx body
@@ -45,16 +53,16 @@ wc-roadmap/
 
 ### What moves where
 
-| Next thing                            | Replacement                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------- |
-| `src/app/api/worldcup/route.ts`       | `server/routes/worldcup.ts` (Hono handler — same `ok/fail` envelope, ~15 lines) |
-| `src/app/layout.tsx` + `globals.css`  | `index.html` + `src/main.tsx` + `src/styles/global.css`                         |
-| `src/app/page.tsx`                    | `src/App.tsx`                                                                   |
-| `next/font` (Archivo, Inter)          | `@fontsource/archivo` + `@fontsource/inter` (self-hosted, `font-display: swap`) |
-| `next/image` (flags)                  | plain `<img loading="lazy" width height>` (or keep `Flag.tsx`, drop next/image) |
-| `server-only` import in `env.ts`      | delete the import; keep the zod `process.env` validation (now plain Node env)   |
-| `useStageView` `history.replaceState` | keep, or React Router (light — app is essentially single-page)                  |
-| `useTournament` (fetch+setInterval)   | `useQuery(['tournament'], …, { refetchInterval })`                              |
+| Next thing                            | Replacement                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/app/api/worldcup/route.ts`       | `server/routes/worldcup.ts` (Hono handler — same `ok/fail` envelope, ~15 lines)                    |
+| `src/app/layout.tsx` + `globals.css`  | `index.html` + `src/main.tsx` + `src/styles/global.css`                                            |
+| `src/app/page.tsx`                    | `src/App.tsx`                                                                                      |
+| `next/font` (Archivo, Inter)          | `@fontsource/archivo` + `@fontsource/inter` (self-hosted, `font-display: swap`)                    |
+| `next/image` (flags)                  | plain `<img loading="lazy" width height>` (or keep `Flag.tsx`, drop next/image)                    |
+| `server-only` import in `env.ts`      | delete the import; keep the zod `process.env` validation (now plain Node env)                      |
+| `useStageView` `history.replaceState` | keep, or React Router (light — app is essentially single-page)                                     |
+| `useTournament` (fetch+setInterval)   | `useQuery(['tournament'], …)` — focus-only refetch, no interval (see `refetch-on-window-focus.md`) |
 
 ### Reused unchanged
 
@@ -75,7 +83,7 @@ The FIFA `User-Agent`/pagination logic now runs in the Hono server (still server
 1. Add Vite (`index.html`, `vite.config.ts` with `/api` proxy, `src/main.tsx` w/ `QueryClientProvider`).
 2. Stand up `server/` (Hono) with `GET /api/worldcup` reusing `selectRepository()` + `getCachedTournament()`.
 3. Port `app/layout`+`page`+`globals` → `App.tsx` + `index.html` + `global.css`; wire Tailwind via PostCSS.
-4. Swap `useTournament` → TanStack Query `useQuery`; replace `next/font`, `next/image`.
+4. Swap `useTournament` → TanStack Query `useQuery` (focus-only refetch, no interval); replace `next/font`, `next/image`.
 5. Delete `next`, `src/app/`, `next.config.ts`, `next-env.d.ts`, `server-only`; fix imports.
 6. Update `package.json` scripts + the Playwright config/baseURL; run typecheck, tests, e2e, build.
 
@@ -84,7 +92,8 @@ The FIFA `User-Agent`/pagination logic now runs in the Hono server (still server
 - No Next remnants: `grep -r "next" package.json` shows no `next`/`eslint-config-next`/`server-only`; no
   `next.config.ts`, `next-env.d.ts`, or `src/app/`.
 - `vite build` succeeds; `GET /api/worldcup` (Hono) returns the **same** `ApiEnvelope<Tournament>` shape.
-- Frontend data comes through **TanStack Query** (no hand-rolled `setInterval` polling); live refetch still works.
+- Frontend data comes through **TanStack Query** (no hand-rolled `setInterval` polling); refetch is focus-only
+  (see `refetch-on-window-focus.md`).
 - All existing **domain + data unit tests pass unchanged** (they're framework-agnostic); e2e updated to the new
   dev URL and green.
 - Live FIFA data still flows through the server proxy + cache (CORS-safe); dev runs `web` + `api` together.

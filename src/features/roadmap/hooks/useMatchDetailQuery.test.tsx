@@ -12,7 +12,10 @@ import { EMPTY_MATCH_DETAIL } from '@/domain/types';
 import { useMatchDetailQuery, type MatchDetailQueryResult } from './useMatchDetailQuery';
 
 const MATCH_ID = 'wc2026-fifa-400251';
-const ENDPOINT = `/api/worldcup/match/${MATCH_ID}/detail`;
+const DETAIL_PATH = `/api/worldcup/match/${MATCH_ID}/detail`;
+const ENDPOINT = DETAIL_PATH; // relative fallback URL (base unset)
+const API_BASE = 'http://localhost:8787';
+const ABSOLUTE_ENDPOINT = `${API_BASE}${DETAIL_PATH}`;
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -70,8 +73,21 @@ function renderQuery(
   });
 }
 
+/** Render and wait until the detail query reaches a terminal `ready` status. */
+async function renderReady(
+  matchId: string,
+  isLive = false,
+): Promise<RenderHookResult<MatchDetailQueryResult, QueryProps>> {
+  const view = renderQuery(matchId, isLive);
+  await waitFor(() => expect(view.result.current.status).toBe('ready'));
+  return view;
+}
+
 beforeEach(() => vi.restoreAllMocks());
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 describe('useMatchDetailQuery', () => {
   it('exposes the { detail, status, error } contract', () => {
@@ -89,17 +105,39 @@ describe('useMatchDetailQuery', () => {
     expect(result.current.detail).toBeNull();
   });
 
-  it('lazily fetches the per-match detail endpoint when a match is selected', async () => {
+  it('lazily fetches the per-match detail endpoint via apiUrl() relative fallback (base unset)', async () => {
+    // Part 1: with no VITE_API_BASE_URL configured, apiUrl() returns the path
+    // unchanged so the dev proxy still resolves it — the URL still comes from
+    // apiUrl(), never a hardcoded relative literal in the fetcher.
     const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = renderQuery(MATCH_ID);
-    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await renderReady(MATCH_ID);
     expect(spy).toHaveBeenCalledWith(ENDPOINT, expect.anything());
+  });
+
+  it('builds the detail URL through apiUrl() — absolute when VITE_API_BASE_URL is set', async () => {
+    // Part 1: configured base → direct cross-origin call to the Hono origin.
+    vi.stubEnv('VITE_API_BASE_URL', API_BASE);
+    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+    await renderReady(MATCH_ID);
+    expect(spy).toHaveBeenCalledWith(ABSOLUTE_ENDPOINT, expect.anything());
+  });
+
+  it('encodes the matchId into the deep detail path for a different match', async () => {
+    // Guards against the URL being hardcoded to one id: a second match must
+    // resolve to its own endpoint segment, still routed through apiUrl().
+    const otherId = 'wc2026-fifa-400777';
+    vi.stubEnv('VITE_API_BASE_URL', API_BASE);
+    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(otherId)));
+    await renderReady(otherId);
+    expect(spy).toHaveBeenCalledWith(
+      `${API_BASE}/api/worldcup/match/${otherId}/detail`,
+      expect.anything(),
+    );
   });
 
   it('resolves to status "ready" with the detail on a success envelope', async () => {
     stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = renderQuery(MATCH_ID);
-    await waitFor(() => expect(result.current.status).toBe('ready'));
+    const { result } = await renderReady(MATCH_ID);
     expect(result.current.detail?.matchId).toBe(MATCH_ID);
     expect(result.current.error).toBeNull();
   });
@@ -128,10 +166,55 @@ describe('useMatchDetailQuery', () => {
 
   it('still resolves to "ready" when the match is live (isLive flag does not block the fetch)', async () => {
     const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = renderQuery(MATCH_ID, true);
-    await waitFor(() => expect(result.current.status).toBe('ready'));
+    const { result } = await renderReady(MATCH_ID, true);
     expect(spy).toHaveBeenCalledWith(ENDPOINT, expect.anything());
     expect(result.current.detail?.matchId).toBe(MATCH_ID);
+  });
+
+  it('issues the SAME request (url + options) whether or not isLive is set', async () => {
+    // Part 2: isLive no longer drives any fetch behavior. The endpoint, the
+    // no-store cache directive, and the abort signal must be identical for a
+    // live and a non-live match — isLive is purely informational now.
+    const liveSpy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+    await renderReady(MATCH_ID, true);
+    expect(liveSpy).toHaveBeenCalledTimes(1);
+    expect(liveSpy).toHaveBeenCalledWith(
+      ENDPOINT,
+      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
+    );
+
+    vi.restoreAllMocks();
+
+    const idleSpy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+    await renderReady(MATCH_ID, false);
+    expect(idleSpy).toHaveBeenCalledTimes(1);
+    expect(idleSpy).toHaveBeenCalledWith(
+      ENDPOINT,
+      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  // Part 2: the `isLive` interval branch is removed. isLive stays in the
+  // signature (callers unchanged) but no longer drives any fetch timing — a live
+  // match does NOT poll on a timer.
+  describe('no interval polling regardless of isLive (Part 2)', () => {
+    it('does not re-fetch on a timer for a LIVE match after the mount load', async () => {
+      vi.useFakeTimers();
+      try {
+        const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+        const { result } = renderQuery(MATCH_ID, true);
+
+        await vi.waitFor(() => expect(result.current.status).toBe('ready'));
+        const callsAfterMount = spy.mock.calls.length;
+
+        // Past the old 30s live interval; no second request must be scheduled.
+        await vi.advanceTimersByTimeAsync(120_000);
+
+        expect(spy.mock.calls.length).toBe(callsAfterMount);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   // CR-13 #9/#10: TanStack Query creates an AbortController per query and aborts
@@ -140,8 +223,7 @@ describe('useMatchDetailQuery', () => {
   describe('CR-13: AbortSignal forwarding + cancellation', () => {
     it('forwards the TanStack-provided AbortSignal into the fetch call (#9/#10)', async () => {
       const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-      const { result } = renderQuery(MATCH_ID);
-      await waitFor(() => expect(result.current.status).toBe('ready'));
+      await renderReady(MATCH_ID);
 
       expect(spy).toHaveBeenCalledWith(
         ENDPOINT,
@@ -151,8 +233,7 @@ describe('useMatchDetailQuery', () => {
 
     it('keeps the existing fetch options (cache: no-store) alongside the new signal', async () => {
       const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-      const { result } = renderQuery(MATCH_ID);
-      await waitFor(() => expect(result.current.status).toBe('ready'));
+      await renderReady(MATCH_ID);
 
       // Forwarding the signal must NOT drop the no-store cache directive that
       // keeps live detail fresh — both belong in the same options object.
