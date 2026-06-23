@@ -128,34 +128,72 @@ export function MatchDetailPanel({
       // region (WCAG 4.1.2 / axe aria-hidden-focus).
       inert={!open}
       className={[
-        'absolute top-0 right-0 z-10 flex h-full w-[min(560px,96vw)] flex-col gap-4 p-6',
+        // Desktop: right drawer — full viewport height, fixed width, slides in from right
+        'absolute top-0 right-0 z-10 flex h-full w-[min(560px,96vw)] flex-col',
         'border-edge bg-glass border-l shadow-[var(--elevation-panel)] backdrop-blur-[18px]',
         'transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
-        'max-[640px]:top-auto max-[640px]:bottom-0 max-[640px]:h-auto max-[640px]:max-h-[80%]',
+        // Mobile (≤640px): bottom sheet — near-full-height, safe-area aware
+        'max-[640px]:top-auto max-[640px]:bottom-0',
+        'max-[640px]:h-[88dvh] max-[640px]:max-h-[92dvh]',
         'max-[640px]:w-full max-[640px]:border-t max-[640px]:border-l-0',
+        'max-[640px]:rounded-t-[20px]',
         open
           ? 'translate-x-0 max-[640px]:translate-y-0'
           : 'pointer-events-none translate-x-full max-[640px]:translate-y-full',
       ].join(' ')}
     >
-      <header className="flex items-center justify-end">
-        <button
-          ref={closeButtonRef}
-          type="button"
-          onClick={onClose}
-          aria-label="Close match details"
-          className="border-edge bg-surf-2 text-muted hover:border-edge-strong hover:text-ink flex h-8 w-8 items-center justify-center rounded-full border transition-colors"
-        >
-          <X aria-hidden size={16} />
-        </button>
-      </header>
+      {/*
+        Desktop: the header (close button) is a simple flex row at the top.
+        Mobile: the close button sits absolute top-right so it doesn't consume
+        vertical space in the three-region flex column below.
+      */}
+      <button
+        ref={closeButtonRef}
+        type="button"
+        onClick={onClose}
+        aria-label="Close match details"
+        className={[
+          'border-edge bg-surf-2 text-muted hover:border-edge-strong hover:text-ink',
+          'flex h-8 w-8 items-center justify-center rounded-full border transition-colors',
+          // Desktop: in-flow at top-right; Mobile: absolute so it overlays the compact header
+          'm-4 shrink-0 self-end',
+          'max-[640px]:absolute max-[640px]:top-0 max-[640px]:right-0 max-[640px]:z-10 max-[640px]:m-3',
+        ].join(' ')}
+      >
+        <X aria-hidden size={16} />
+      </button>
 
       {open && match && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <MatchDetailHeader match={match} groups={groups} detail={detail} />
-          {status === 'loading' && <PanelSkeleton />}
-          {status === 'error' && <PanelError />}
-          {status === 'unavailable' && <PanelEmpty />}
+        /*
+          Three-region flex column (mobile):
+          1. Sticky compact header (shrinks scores on mobile)
+          2. Sticky tabs row (always visible while scrolling)
+          3. Scrollable content region (flex-1 overflow-y-auto)
+
+          Desktop inherits the same structure but the panel is already full-height
+          and scrolls fine because the drawer has enough space.
+        */
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* Region 1: Sticky header — compact on mobile */}
+          <div className="shrink-0 px-6 pt-2 pb-3 max-[640px]:pt-10 max-[640px]:pb-2">
+            <MatchDetailHeader match={match} groups={groups} detail={detail} />
+          </div>
+          {/* Regions 2 + 3 live inside MatchDetailTabs (sticky tabs + scroll content) */}
+          {status === 'loading' && (
+            <div className="px-6 pb-6">
+              <PanelSkeleton />
+            </div>
+          )}
+          {status === 'error' && (
+            <div className="px-6 pb-6">
+              <PanelError />
+            </div>
+          )}
+          {status === 'unavailable' && (
+            <div className="px-6 pb-6">
+              <PanelEmpty />
+            </div>
+          )}
           {status === 'ready' && detail && (
             <MatchDetailTabs
               detail={detail}
@@ -167,7 +205,7 @@ export function MatchDetailPanel({
       )}
 
       {open && !match && placeholder && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 pb-6 max-[640px]:pt-10">
           <BracketPlaceholderHeader placeholder={placeholder} />
           <PanelEmpty
             title="Matchup not yet decided"
@@ -177,7 +215,12 @@ export function MatchDetailPanel({
       )}
 
       {open && !match && !placeholder && (
-        <PanelEmpty title="Fixture to be confirmed" body="This matchup hasn’t been decided yet." />
+        <div className="px-6 pb-6 max-[640px]:pt-10">
+          <PanelEmpty
+            title="Fixture to be confirmed"
+            body="This matchup hasn't been decided yet."
+          />
+        </div>
       )}
     </aside>
   );

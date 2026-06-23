@@ -26,7 +26,7 @@ function TeamColumn({
 }): ReactElement {
   const resolved = team.kind === 'team';
   return (
-    <div className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+    <div className="flex min-w-0 flex-col items-center gap-1 text-center">
       <Flag
         code={resolved ? team.team.code : null}
         url={resolved ? team.team.flagUrl : null}
@@ -34,9 +34,12 @@ function TeamColumn({
       />
       <span className="text-ink truncate text-[0.82rem] font-semibold">{refLabel(team)}</span>
       {standing && <span className="text-dim text-[0.68rem] font-semibold">{standing}</span>}
-      <span className="font-display text-ink text-[2rem] font-extrabold tabular-nums">
+      {/* Desktop: 2rem score; Mobile: shrink to 1.4rem to reclaim vertical space */}
+      <span className="font-display text-ink text-[2rem] font-extrabold tabular-nums max-[640px]:text-[1.4rem]">
         {goals ?? '–'}
-        {pens != null && <small className="text-muted text-[0.9rem]"> ({pens})</small>}
+        {pens != null && (
+          <small className="text-muted text-[0.9rem] max-[640px]:text-[0.72rem]"> ({pens})</small>
+        )}
       </span>
     </div>
   );
@@ -73,7 +76,7 @@ export function MatchDetailHeader({ match, groups, detail }: MatchDetailHeaderPr
         </span>
       </div>
 
-      <div className="border-edge bg-surf-1 grid grid-cols-[1fr_auto_1fr] items-start gap-3 rounded-[20px] border px-4 py-5">
+      <div className="border-edge bg-surf-1 grid grid-cols-[1fr_auto_1fr] items-start gap-3 rounded-[20px] border px-4 py-5 max-[640px]:py-3">
         <TeamColumn
           team={match.home}
           standing={homeStanding}
@@ -97,7 +100,8 @@ export function MatchDetailHeader({ match, groups, detail }: MatchDetailHeaderPr
       {scorers.length > 0 && (
         <p className="text-muted m-0 flex items-start gap-2 text-[0.76rem]">
           <Goal aria-hidden size={14} className="text-accent mt-0.5 shrink-0" />
-          <span>
+          {/* Mobile: single-line truncated so scorers don't push tabs below fold */}
+          <span className="max-[640px]:truncate max-[640px]:leading-tight">
             {scorers
               .map((s) => `${s.playerName} ${s.minutes.map((m) => `${m}'`).join(', ')}`)
               .join(' · ')}

@@ -82,17 +82,32 @@ export function MatchDetailTabs({
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <SegmentedControl
-        options={TABS}
-        value={active}
-        onChange={setActive}
-        ariaLabel="Match detail sections"
-        getOptionId={tabId}
-        getControlsId={panelId}
-        onKeyDown={onKeyDown}
-      />
+    /*
+      Three-region layout (Region 2 + 3 of the panel's flex column):
+      - The SegmentedControl (tabs row) is sticky so it stays visible while the
+        content region scrolls — critical for mobile where the sheet is near-full-height.
+      - Each tabpanel is the scrollable content region (flex-1 overflow-y-auto).
+        On desktop the parent drawer is already full-height so this scroll region
+        absorbs all remaining space; on mobile it fills the sheet below the sticky tab row.
+
+      px-6 / pb-safe mirrors the old panel padding but now lives here so the sticky
+      tab bar can reach the panel edges while the content gets proper inset.
+    */
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Region 2: Sticky tabs row — never scrolls out of view */}
+      <div className="border-edge/40 bg-glass shrink-0 border-b px-6 py-2 backdrop-blur-[12px]">
+        <SegmentedControl
+          options={TABS}
+          value={active}
+          onChange={setActive}
+          ariaLabel="Match detail sections"
+          getOptionId={tabId}
+          getControlsId={panelId}
+          onKeyDown={onKeyDown}
+        />
+      </div>
       {/*
+        Region 3: Scrollable content.
         Render one tabpanel per tab so every tab's `aria-controls` resolves to a
         present element (no dangling reference — CR-3 / WAI-ARIA tab pattern).
         Inactive panels carry `hidden`, removing them from the a11y tree and the
@@ -108,7 +123,7 @@ export function MatchDetailTabs({
             aria-labelledby={tabId(value)}
             hidden={!isActive}
             tabIndex={isActive ? 0 : -1}
-            className="min-h-0 flex-1 overflow-y-auto"
+            className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-[env(safe-area-inset-bottom,1rem)]"
           >
             {isActive && renderPanelBody(value)}
           </div>
