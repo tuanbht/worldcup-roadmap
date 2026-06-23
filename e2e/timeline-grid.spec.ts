@@ -92,3 +92,164 @@ test.describe('timeline-grid canvas', () => {
     });
   });
 });
+
+/** Center Y of a locator's bounding box (the vertical centerline of an element). */
+async function centerY(loc: ReturnType<Page['locator']>): Promise<number> {
+  const box = await loc.boundingBox();
+  if (!box) throw new Error('element has no bounding box');
+  return box.y + box.height / 2;
+}
+
+// --- Item 1: date-rail markers centered on their row's cards [Acceptance #1] --
+test.describe('date-rail alignment', () => {
+  test('a day-marker shares a center line with its row card (±6px)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // The first day's Group A · MD1 card and the 11 Jun marker share a row.
+    const card = page.locator('article', { hasText: /Group A · MD1/ }).first();
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    const marker = page.locator('time', { hasText: '11 Jun' }).first();
+    await expect(marker).toBeVisible({ timeout: 10_000 });
+
+    const cardCenter = await centerY(card);
+    const markerCenter = await centerY(marker);
+    // The bug put the pill ~40px above the card center; the fix centers them.
+    expect(Math.abs(cardCenter - markerCenter)).toBeLessThanOrEqual(6);
+  });
+});
+
+// --- Item 2: always-on standings table under each group header [Acceptance #2] -
+test.describe('always-on standings table', () => {
+  test('a group-standings table renders under each group header', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // GroupTableNode renders a <section aria-label="Group X standings">; one per
+    // group is now always present in the canvas (not just the on-demand overlay).
+    const tables = page.locator('section[aria-label$="standings"]');
+    await expect(tables.first()).toBeAttached({ timeout: 10_000 });
+    // 12 groups -> at least the always-on tables are present (>= 12).
+    await expect(async () => {
+      expect(await tables.count()).toBeGreaterThanOrEqual(12);
+    }).toPass({ timeout: 10_000 });
+
+    // The table shows the Pts column header (the emphasized stat).
+    await expect(page.getByText('Pts').first()).toBeAttached({ timeout: 10_000 });
+  });
+});
+
+// --- Item 3: focus a team's path via its flag, no relayout [Acceptance #5-7] ---
+//
+// The standings flags live in the top band of the continuous canvas, which the
+// initial fitView frames at a tiny zoom (a flag's box is ~3px, often above the
+// viewport top). A mouse `.click()` is therefore non-deterministic. The flags are
+// real <button>s, so we activate them by KEYBOARD (`.focus()` + Enter) — the
+// requirement's own a11y path — which is reliable regardless of canvas transform
+// and never depends on the node being scrolled into the visible pane.
+const STANDINGS_FLAG = 'section[aria-label$="standings"] button';
+
+/** The first standings flag and the team name from its accessible label. */
+async function firstFlag(page: Page) {
+  const flag = page.locator(STANDINGS_FLAG).first();
+  await expect(flag).toBeAttached({ timeout: 10_000 });
+  const label = (await flag.getAttribute('aria-label')) ?? '';
+  const teamName = label.replace(/^Show matches for /, '');
+  expect(teamName, 'flag should name a team').not.toBe('');
+  return { flag, teamName };
+}
+
+/** Keyboard-activate a flag (deterministic for off-viewport canvas nodes). */
+async function activateByKeyboard(flag: ReturnType<Page['locator']>): Promise<void> {
+  await flag.focus();
+  await expect(flag).toBeFocused();
+  await flag.press('Enter');
+}
+
+test.describe('team focus highlight', () => {
+  test('focusing a team highlights its matches and dims the rest, with no node move', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // Sample a stable node's transform BEFORE focusing, to prove no relayout.
+    const sampleNode = page.locator('.react-flow__node').first();
+    const beforeTransform = await sampleNode.evaluate((el) => (el as HTMLElement).style.transform);
+
+    const { flag } = await firstFlag(page);
+    await activateByKeyboard(flag);
+
+    // Some match cards become focused (data-focus="on") and others dim.
+    await expect(page.locator('[data-focus="on"]').first()).toBeAttached({ timeout: 10_000 });
+    await expect(page.locator('[data-focus="dim"]').first()).toBeAttached({ timeout: 10_000 });
+
+    // No relayout: the sampled node's transform is unchanged.
+    const afterTransform = await sampleNode.evaluate((el) => (el as HTMLElement).style.transform);
+    expect(afterTransform).toBe(beforeTransform);
+  });
+
+  test('Esc clears an active focus [Acceptance #6]', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    const { flag } = await firstFlag(page);
+    await activateByKeyboard(flag);
+    await expect(page.locator('[data-focus="on"]').first()).toBeAttached({ timeout: 10_000 });
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-focus="on"]')).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.locator('[data-focus="dim"]')).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test('clicking the empty pane clears an active focus [Acceptance #6]', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    const { flag } = await firstFlag(page);
+    await activateByKeyboard(flag);
+    await expect(page.locator('[data-focus="on"]').first()).toBeAttached({ timeout: 10_000 });
+
+    // Click the pane's own centre (its default click target) — a genuinely empty
+    // background spot BELOW the app toolbar, so React Flow's onPaneClick fires and
+    // clears the focus. (A page-absolute corner like (5,5) would hit the toolbar.)
+    await page.locator('.react-flow__pane').click();
+    await expect(page.locator('[data-focus="on"]')).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test('re-activating the same flag toggles focus off [Acceptance #6]', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    const { flag } = await firstFlag(page);
+    await activateByKeyboard(flag);
+    await expect(page.locator('[data-focus="on"]').first()).toBeAttached({ timeout: 10_000 });
+
+    // Re-activating the SAME flag clears it (the toggle path, no Esc/pane needed).
+    await activateByKeyboard(flag);
+    await expect(page.locator('[data-focus="on"]')).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test('announces "Showing matches for {team}" via aria-live, cleared on Esc [Acceptance #8]', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // The team name comes from the flag's own accessible name, so the assertion
+    // stays honest if the fixture roster changes.
+    const { flag, teamName } = await firstFlag(page);
+
+    // Before focusing, the polite status region is empty (no stale announcement).
+    const status = page.locator('[role="status"][aria-live="polite"]');
+    await expect(status).toHaveText('', { timeout: 10_000 });
+
+    await activateByKeyboard(flag);
+    // The screen-reader announcement names exactly the focused team.
+    await expect(status).toHaveText(`Showing matches for ${teamName}`, { timeout: 10_000 });
+
+    // Esc clears the announcement (and the focus) so SR users hear it reset.
+    await page.keyboard.press('Escape');
+    await expect(status).toHaveText('', { timeout: 10_000 });
+  });
+});

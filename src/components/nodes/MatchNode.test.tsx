@@ -12,10 +12,11 @@
 // Every badge assertion is scoped to the stable `[data-nearest-badge]` hook via
 // `within(...)` so the StatusPill's own sr-only "Live" text and `.animate-livepulse`
 // dot (present on ANY live card) can never false-positive a badge-variant check.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ReactFlowProvider, Position } from '@xyflow/react';
-import { teamRef, EMPTY_SCORE } from '@/domain/types';
+import { teamRef, placeholderRef, EMPTY_SCORE } from '@/domain/types';
 import type { Team } from '@/domain/types';
 import type { MatchNodeData } from '@/features/roadmap/graph-model';
 import { MatchNode } from './MatchNode';
@@ -317,5 +318,95 @@ describe('MatchNode — badge above the LOD fade (Acceptance #5, L2)', () => {
   it('does not carry data-lod-detail so it stays visible at low zoom', () => {
     const { container } = renderNode(makeData({ isNearest: true }));
     expect(getBadge(container).hasAttribute('data-lod-detail')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Team focus (requirement item 3; plan Test Strategy 14 / Acceptance #5, #7, #8).
+// `data.focusState` -> `data-focus="on|dim"` on the <article> (display-layer only,
+// no layout change); clicking/keyboard-activating a RESOLVED team's flag calls
+// `data.onFocusTeam(teamId)`. A placeholder slot's flag is never a focus trigger.
+// RED until MatchNode reads focusState and threads onFocusTeam to its flags.
+// ---------------------------------------------------------------------------
+describe('MatchNode — team focus state attribute [Acceptance #5, #7]', () => {
+  it('mirrors focusState "on" to data-focus="on"', () => {
+    const { container } = renderNode(makeData({ focusState: 'on' }));
+    expect(getArticle(container).getAttribute('data-focus')).toBe('on');
+  });
+
+  it('mirrors focusState "dim" to data-focus="dim"', () => {
+    const { container } = renderNode(makeData({ focusState: 'dim' }));
+    expect(getArticle(container).getAttribute('data-focus')).toBe('dim');
+  });
+
+  it('omits data-focus entirely when no team is focused (focusState absent)', () => {
+    const { container } = renderNode(makeData({}));
+    expect(getArticle(container).hasAttribute('data-focus')).toBe(false);
+  });
+
+  it('keeps the fixed 260x108 geometry when focused (no relayout)', () => {
+    const { container } = renderNode(makeData({ focusState: 'on' }));
+    const article = getArticle(container);
+    expect(article.className).toContain('h-[108px]');
+    expect(article.className).toContain('w-[260px]');
+  });
+});
+
+describe('MatchNode — flag click sets the focused team [Acceptance #5, #8]', () => {
+  it('calls onFocusTeam(team.id) when a resolved team flag is activated', async () => {
+    const onFocusTeam = vi.fn();
+    const user = userEvent.setup();
+    renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
+    // Each resolved team's flag is a focusable button labelled by the team.
+    const argFlag = screen.getByRole('button', { name: /Argentina/ });
+    await user.click(argFlag);
+    expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
+  });
+
+  it('activates the flag by keyboard (Enter) for keyboard users', async () => {
+    const onFocusTeam = vi.fn();
+    const user = userEvent.setup();
+    renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
+    const fraFlag = screen.getByRole('button', { name: /France/ });
+    fraFlag.focus();
+    await user.keyboard('{Enter}');
+    expect(onFocusTeam).toHaveBeenCalledWith('team-fra');
+  });
+
+  it('renders no focus button for an unresolved (placeholder) slot', () => {
+    renderNode(
+      makeData({
+        stage: 'ROUND_OF_32',
+        roundLabel: 'Round of 32',
+        group: null,
+        matchday: null,
+        home: teamRef(ARG),
+        away: placeholderRef('Runner-up B'),
+        onFocusTeam: vi.fn(),
+      }),
+    );
+    // Only the resolved team (Argentina) exposes a focus button; the placeholder does not.
+    expect(screen.queryByRole('button', { name: /Runner-up B/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Argentina/ })).toBeInTheDocument();
+  });
+
+  it('renders no focus buttons at all when onFocusTeam is absent (overlay / read-only path)', () => {
+    // The same card shipped WITHOUT a focus handler (e.g. outside the focus-enabled
+    // canvas) keeps both flags decorative — no button, no accidental focus trigger.
+    renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA) }));
+    expect(screen.queryByRole('button', { name: /Show matches for/ })).toBeNull();
+  });
+
+  it('still threads onFocusTeam on a card that is itself focused (focusState + handler coexist)', async () => {
+    // The canvas injects onFocusTeam AND stamps focusState together; clicking a
+    // flag on an already-dimmed/lit card must re-target focus, not be inert.
+    const onFocusTeam = vi.fn();
+    const user = userEvent.setup();
+    const { container } = renderNode(
+      makeData({ home: teamRef(ARG), away: teamRef(FRA), focusState: 'dim', onFocusTeam }),
+    );
+    expect(getArticle(container).getAttribute('data-focus')).toBe('dim');
+    await user.click(screen.getByRole('button', { name: /France/ }));
+    expect(onFocusTeam).toHaveBeenCalledWith('team-fra');
   });
 });

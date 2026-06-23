@@ -9,9 +9,23 @@ interface TeamRowProps {
   isWinner: boolean;
   dim: boolean;
   showScore: boolean;
+  /**
+   * When given AND the ref is a resolved team, the flag becomes a focusable
+   * button that sets the focused team (item 3). Absent / placeholder → the flag
+   * stays the decorative `aria-hidden` span.
+   */
+  onFocusTeam?: (teamId: string) => void;
 }
 
-export function TeamRow({ team, goals, penalty, isWinner, dim, showScore }: TeamRowProps) {
+export function TeamRow({
+  team,
+  goals,
+  penalty,
+  isWinner,
+  dim,
+  showScore,
+  onFocusTeam,
+}: TeamRowProps) {
   const resolved = team.kind === 'team';
   const code = resolved ? team.team.code : null;
   const url = resolved ? team.team.flagUrl : null;
@@ -24,9 +38,26 @@ export function TeamRow({ team, goals, penalty, isWinner, dim, showScore }: Team
         ? 'font-bold text-ink'
         : 'font-semibold text-ink';
 
+  const flag = <Flag code={code} url={url} />;
+
   return (
     <div className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2">
-      <Flag code={code} url={url} />
+      {resolved && onFocusTeam ? (
+        <button
+          type="button"
+          className="nopan shrink-0 rounded-[3px] focus-visible:shadow-[var(--glow-accent)] focus-visible:outline-none"
+          aria-label={`Show matches for ${team.team.name}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onFocusTeam(team.team.id);
+          }}
+        >
+          {flag}
+        </button>
+      ) : (
+        flag
+      )}
       <span className={`truncate text-[0.98rem] ${nameTone}`} title={refLabel(team)}>
         {refLabel(team)}
       </span>

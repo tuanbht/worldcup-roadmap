@@ -70,7 +70,18 @@ function ariaLabel(data: MatchFlowNode['data']): string {
 }
 
 function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
-  const { home, away, score, status, isFinal, isThirdPlace, group, isNearest } = data;
+  const {
+    home,
+    away,
+    score,
+    status,
+    isFinal,
+    isThirdPlace,
+    group,
+    isNearest,
+    focusState,
+    onFocusTeam,
+  } = data;
   const showScore = status !== 'scheduled';
   const finished = status === 'finished';
   const homeWin = score.winner === 'home';
@@ -88,6 +99,7 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
       data-group={isGroup}
       data-selected={selected}
       data-nearest={isNearest ? 'true' : undefined}
+      data-focus={focusState}
       tabIndex={0}
       aria-label={ariaLabel(data)}
     >
@@ -113,6 +125,7 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
           isWinner={homeWin}
           dim={finished && awayWin}
           showScore={showScore}
+          onFocusTeam={onFocusTeam}
         />
         <TeamRow
           team={away}
@@ -121,6 +134,7 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
           isWinner={awayWin}
           dim={finished && homeWin}
           showScore={showScore}
+          onFocusTeam={onFocusTeam}
         />
       </div>
 

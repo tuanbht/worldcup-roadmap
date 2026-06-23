@@ -125,6 +125,21 @@
   [data-lod='titles'] [data-lod-detail] {
     opacity: 0;
   }
+
+  /* ---- Team-focus card dim (item 3) ----
+     A focused team's cards keep `data-focus="on"` (full brightness); every other
+     card gets `data-focus="dim"` and fades. Compositor-only (opacity) — the card's
+     own border/shadow transition is untouched, so dimming never triggers relayout
+     and a dimmed card retains its nearest/selected affordances underneath. The
+     0.32 floor keeps the card border ≥3:1 vs. the canvas background. */
+  [data-focus='on'] {
+    opacity: 1;
+    transition: opacity var(--duration-normal, 300ms) ease;
+  }
+  [data-focus='dim'] {
+    opacity: 0.32;
+    transition: opacity var(--duration-normal, 300ms) ease;
+  }
 }
 
 /* ---- React Flow advance edges (SVG paths, styled by className) ---- */
@@ -148,6 +163,19 @@
   stroke-dasharray: 6 5;
   filter: drop-shadow(0 0 5px rgb(255 77 94 / 0.4));
   animation: var(--animate-edgeflow);
+}
+
+/* ---- Team-focus highlight/dim (item 3) ----
+   Pure compositor-only opacity/filter toggles — geometry never changes, so React
+   Flow positions stay put (no relayout). `--focus-on` keeps the path bright;
+   `--focus-dim` fades it with a 0.45 opacity floor so an already-low-alpha dashed
+   edge stays ≥3:1 against the canvas. Disabled (snap) under reduced-motion below. */
+.advance-edge--focus-on {
+  opacity: 1;
+}
+.advance-edge--focus-dim {
+  filter: opacity(0.45);
+  transition: filter var(--duration-normal, 300ms) ease;
 }
 
 /* ---- React Flow chrome theming ---- */
@@ -179,7 +207,10 @@
   .animate-livepulse {
     animation: none !important;
   }
-  [data-lod] [data-lod-detail] {
+  [data-lod] [data-lod-detail],
+  [data-focus='on'],
+  [data-focus='dim'],
+  .advance-edge--focus-dim {
     transition: none !important;
   }
 }

@@ -1,4 +1,4 @@
-import type { BracketNode, Match, Tournament } from '@/domain/types';
+import type { BracketNode, Group, Match, Tournament } from '@/domain/types';
 import { EMPTY_SCORE } from '@/domain/types';
 import { STAGE_LABELS } from '@/domain/bracket/stage-order';
 import { R32_SEEDING } from '@/domain/bracket/seeding';
@@ -6,11 +6,12 @@ import { formatDate, resolveTimeZone } from '@/lib/datetime';
 import { computeGroupGridLayout } from './layout/group-layout';
 import { computeKnockoutFunnelLayout } from './layout/bracket-layout';
 import { computeDayIndex, dayKey, orderedDays } from './layout/day-axis';
-import { CX, DAY_ROW_PITCH, HEADER_H, type XY } from './layout/layout-constants';
+import { CX, DAY_ROW_PITCH, HEADER_H, STANDINGS_Y, type XY } from './layout/layout-constants';
 import type {
   AdvanceEdgeState,
   DayMarkerFlowNode,
   GroupHeaderFlowNode,
+  GroupStandingsFlowNode,
   MatchFlowNode,
   MatchNodeData,
   RoadmapEdge,
@@ -111,6 +112,22 @@ function groupHeaderNode(name: string, position: XY): GroupHeaderFlowNode {
     type: 'group-header',
     position,
     data: { group: name },
+  };
+}
+
+/**
+ * Always-on standings table node, anchored directly under its `group-header` in
+ * the (grown) header band. Shares the header's column `x` and sits at the band's
+ * standings anchor `STANDINGS_Y`, so its `GROUP_TABLE_H`-tall box clears day-row 0
+ * at `HEADER_H` (the relation locked in layout-constants). Carries the live
+ * `Group` (with `table`) so the renderer reuses `GroupTableNode`.
+ */
+function groupStandingsNode(group: Group, headerXY: XY): GroupStandingsFlowNode {
+  return {
+    id: `group-standings-${group.name}`,
+    type: 'group-standings',
+    position: { x: headerXY.x, y: STANDINGS_Y },
+    data: { group },
   };
 }
 
@@ -240,8 +257,11 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
   orderedDays(tournament.matches, zone).forEach((day, index) => {
     nodes.push(dayMarkerNode(day, index, formatDate(isoByDay.get(day) ?? null, zone)));
   });
+  const groupByName = new Map(tournament.groups.map((g) => [g.name, g]));
   for (const [name, position] of groupGrid.headers) {
     nodes.push(groupHeaderNode(name, position));
+    const group = groupByName.get(name);
+    if (group) nodes.push(groupStandingsNode(group, position));
   }
 
   // --- Group cards: one per GROUP_STAGE match at its column×day cell. ---------

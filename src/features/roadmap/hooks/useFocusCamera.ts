@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
-import { useReactFlow, type Rect } from '@xyflow/react';
+import { useReactFlow, type ReactFlowInstance, type Rect } from '@xyflow/react';
 import { NODE_W, NODE_H } from '../layout/layout-constants';
 import type { RoadmapFocus, RoadmapNode } from '../graph-model';
 
 const PADDING = 0.16;
 const DURATION = 500;
+/** Fraction of the pane reserved as breathing room around the framed content. */
+const FRAME_PAD = 0.12;
+/** Zoom clamps — must mirror the canvas's `minZoom`/`maxZoom` so framing sticks. */
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 1.8;
 
 /** Footprint of a node by type (guides are roughly card-width / small). */
 export function footprintOf(node: RoadmapNode): { w: number; h: number } {
@@ -44,18 +49,59 @@ export function boundsOf(nodes: RoadmapNode[]): Rect | null {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/** Pixel size of the React Flow pane, or null when it is not mounted yet. */
+function paneSize(): { width: number; height: number } | null {
+  if (typeof document === 'undefined') return null;
+  const el = document.querySelector('.react-flow');
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null;
+  return { width: rect.width, height: rect.height };
+}
+
+/**
+ * Frame `bounds` TOP-aligned: fit to width, pin the content's top edge near the
+ * pane top (with breathing room). The roadmap is far taller than it is wide, so a
+ * centered `fitView` clamps at `minZoom` and pushes the top band (group headers +
+ * standings) ABOVE the viewport. Top-aligning keeps that band — and the first
+ * day-row — reachable, while the knockout funnel stays below the fold (pannable).
+ * Returns false when the pane is not measurable yet (caller falls back to fitView).
+ */
+export function frameTopAligned(
+  rf: Pick<ReactFlowInstance, 'setViewport'>,
+  bounds: Rect,
+  duration: number,
+): boolean {
+  const pane = paneSize();
+  if (!pane || bounds.width === 0) return false;
+  const usableW = pane.width * (1 - 2 * FRAME_PAD);
+  const usableH = pane.height * (1 - 2 * FRAME_PAD);
+  const fitZoom = Math.min(usableW / bounds.width, usableH / bounds.height);
+  const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
+  // Center horizontally; pin the top edge with FRAME_PAD of clear air above it.
+  const x = (pane.width - bounds.width * zoom) / 2 - bounds.x * zoom;
+  const y = pane.height * FRAME_PAD - bounds.y * zoom;
+  void rf.setViewport({ x, y, zoom }, { duration });
+  return true;
+}
+
 /**
  * Move the camera when `focus` changes. Focus never alters the graph — `all`
- * frames everything, `groups` frames the header columns + group cards,
- * `knockout` frames the funnel.
+ * frames everything TOP-aligned (so the standings band stays in view on the tall
+ * canvas), `groups` frames the header columns + group cards, `knockout` frames
+ * the funnel.
  */
 export function useFocusCamera(focus: RoadmapFocus, nodes: RoadmapNode[]): void {
-  const { fitView, fitBounds } = useReactFlow();
+  const rf = useReactFlow();
+  const { fitView, fitBounds } = rf;
   useEffect(() => {
     if (nodes.length === 0) return;
     const id = window.setTimeout(() => {
       if (focus === 'all') {
-        void fitView({ padding: 0.12, duration: DURATION });
+        const bounds = boundsOf(nodes);
+        if (!bounds || !frameTopAligned(rf, bounds, DURATION)) {
+          void fitView({ padding: 0.12, duration: DURATION });
+        }
         return;
       }
       const subset = nodes.filter((n) =>
@@ -65,5 +111,5 @@ export function useFocusCamera(focus: RoadmapFocus, nodes: RoadmapNode[]): void 
       if (bounds) void fitBounds(bounds, { padding: PADDING, duration: DURATION });
     }, 40);
     return () => window.clearTimeout(id);
-  }, [focus, nodes, fitView, fitBounds]);
+  }, [focus, nodes, rf, fitView, fitBounds]);
 }

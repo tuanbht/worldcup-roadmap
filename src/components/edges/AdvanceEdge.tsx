@@ -23,13 +23,17 @@ function AdvanceEdgeImpl({
     curvature: 0.35,
   });
   const state = data?.state ?? 'undecided';
+  // Team-focus modifier (item 3): bright `--focus-on` for an edge on the focused
+  // team's path, `--focus-dim` for the rest, absent when no team is focused. It
+  // is APPENDED alongside the state class so geometry is unchanged.
+  const focusClass = data?.focusState ? ` advance-edge--focus-${data.focusState}` : '';
 
   return (
     <BaseEdge
       id={id}
       path={path}
       markerEnd={markerEnd}
-      className={`advance-edge advance-edge--${state}`}
+      className={`advance-edge advance-edge--${state}${focusClass}`}
     />
   );
 }

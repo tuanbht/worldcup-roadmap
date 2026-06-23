@@ -3,9 +3,16 @@ import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { buildRoadmapGraph } from './build-graph';
 import { formatDate } from '@/lib/datetime';
-import { DAY_ROW_PITCH, HEADER_H, RAIL_W } from './layout/layout-constants';
+import {
+  DAY_ROW_PITCH,
+  GROUP_TABLE_H,
+  HEADER_H,
+  HEADER_TOP,
+  RAIL_W,
+} from './layout/layout-constants';
 import type {
   DayMarkerFlowNode,
+  GroupStandingsFlowNode,
   MatchFlowNode,
   MatchNodeData,
   RoadmapGraph,
@@ -105,6 +112,75 @@ describe('buildRoadmapGraph — guide nodes [Acceptance #5/#6]', () => {
     expect(headers).toHaveLength(groupCount);
     for (const header of headers) {
       expect(header.position.y).toBeLessThan(HEADER_H);
+    }
+  });
+});
+
+// --- Item 2: always-on standings table under each group header --------------
+//
+// build-graph must emit ONE `group-standings` node per group, anchored directly
+// under its group-header in the (grown) header band, carrying that group's full
+// `Group` (with `table`) so the renderer reuses GroupTableNode. The band must NOT
+// overlap day-row 0: a standings node sits in `[HEADER_TOP, HEADER_H)`, i.e. its
+// top is >= HEADER_TOP and its reserved box (top + GROUP_TABLE_H) clears HEADER_H.
+// Plan Test Strategy 5-6 / Acceptance #2, #3, #4. RED until build-graph emits the
+// node + layout-constants grows HEADER_H (today no `group-standings` node exists).
+describe('buildRoadmapGraph — group-standings table [Acceptance #2/#4]', () => {
+  const isStandings = (n: RoadmapNode): n is GroupStandingsFlowNode => n.type === 'group-standings';
+  const standings = () => graph().nodes.filter(isStandings);
+
+  it('emits exactly one group-standings node per group (12, fixture-derived)', () => {
+    const nodes = standings();
+    expect(nodes).toHaveLength(groupCount);
+    // One per distinct group, no dupes, covering every A..L group.
+    const groupsCovered = new Set(nodes.map((n) => n.data.group.name));
+    expect(groupsCovered.size).toBe(groupCount);
+    expect(new Set(tournament.groups.map((g) => g.name))).toEqual(groupsCovered);
+  });
+
+  it('carries each group with its live standings table (StandingRow[]) for the renderer', () => {
+    const byGroup = new Map(standings().map((n) => [n.data.group.name, n]));
+    for (const group of tournament.groups) {
+      const node = byGroup.get(group.name);
+      expect(node, `standings node for group ${group.name}`).toBeDefined();
+      expect(node!.data.group.table).toEqual(group.table);
+      expect(node!.data.group.table.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('anchors each standings node at its header column x, strictly below the header pill', () => {
+    const headers = new Map(
+      nodesOfType('group-header').map((h) => [h.id.replace('group-header-', ''), h]),
+    );
+    expect(standings().length).toBeGreaterThan(0); // guard: not vacuous
+    for (const node of standings()) {
+      const header = headers.get(node.data.group.name);
+      expect(header, `header for group ${node.data.group.name}`).toBeDefined();
+      // Same column x as its header (anchored under it).
+      expect(node.position.x).toBe(header!.position.x);
+      // STRICTLY below the header pill (the table renders under the column title),
+      // and the pill itself sits at/above the standings anchor HEADER_TOP.
+      expect(node.position.y).toBeGreaterThan(header!.position.y);
+      expect(header!.position.y).toBeLessThanOrEqual(HEADER_TOP);
+    }
+  });
+
+  it('keeps every standings node inside the header band [HEADER_TOP, HEADER_H) above row 0', () => {
+    const nodes = standings();
+    expect(nodes.length).toBeGreaterThan(0); // guard: not vacuous
+    for (const node of nodes) {
+      expect(node.position.y).toBeGreaterThanOrEqual(HEADER_TOP);
+      // The reserved box must clear day-row 0 (which starts at HEADER_H).
+      expect(node.position.y + GROUP_TABLE_H).toBeLessThanOrEqual(HEADER_H);
+    }
+  });
+
+  it('grew HEADER_H beyond 96 so the table never overlaps the first day-row', () => {
+    // The growth is the mechanism that pushes ALL day-rows down by the table
+    // height; every group/KO card must still land at or below HEADER_H.
+    expect(HEADER_H).toBeGreaterThan(96);
+    for (const n of [...groupCards(), ...koCards()]) {
+      expect(n.position.y).toBeGreaterThanOrEqual(HEADER_H);
     }
   });
 });

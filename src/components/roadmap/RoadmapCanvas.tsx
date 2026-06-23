@@ -26,6 +26,8 @@ import { useInteractionMode } from '@/features/roadmap/hooks/useInteractionMode'
 import { interactionFlowProps } from '@/features/roadmap/interaction-mode';
 import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
+import { useFocusedTeam } from '@/features/roadmap/hooks/useFocusedTeam';
+import { selectTeamFocus, applyTeamFocus } from '@/features/roadmap/team-focus';
 import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
 import { InteractionModeToggle } from './InteractionModeToggle';
@@ -76,6 +78,24 @@ function CanvasInner() {
   const { lod } = useZoomLevel();
   const [selected, setSelected] = useState<string | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const {
+    teamId: focusedTeamId,
+    setFocusedTeam,
+    clear: clearFocusedTeam,
+  } = useFocusedTeam(tournament ?? null);
+
+  // The focused team's match-node + edge id set, re-derived only when the team or
+  // the tournament changes. Null when nothing is focused (no dimming).
+  const focusSet = useMemo(
+    () => (tournament && focusedTeamId ? selectTeamFocus(tournament, focusedTeamId) : null),
+    [tournament, focusedTeamId],
+  );
+
+  // The focused team's display name for the aria-live announcement.
+  const focusedTeamName = useMemo(
+    () => tournament?.teams.find((t) => t.id === focusedTeamId)?.name ?? null,
+    [tournament, focusedTeamId],
+  );
 
   // Resolve the "current" match (live if any, else nearest upcoming) at render
   // time from a fresh `Date.now()`. TanStack Query refetches every 45s, so a
@@ -87,19 +107,34 @@ function CanvasInner() {
     return { id, isLive };
   }, [tournament]);
 
-  // Build the display graph from the pure memoized graph: inject the
-  // standings-overlay opener into each group-header, then flag the single nearest
-  // match card (same id the focus button targets) — both immutable display copies,
-  // never mutating the memoized graph. The badge re-resolves whenever
-  // `focusTarget.id` changes, matching the focus-button cadence.
+  // Build the display graph from the pure memoized graph in one composed pass:
+  //   opener injection -> onFocusTeam injection (match + group-standings) ->
+  //   applyNearestFlag -> applyTeamFocus (dim).
+  // All immutable display copies; the memoized graph is never mutated. Team-focus
+  // dimming runs LAST so a focused-but-dimmed card keeps its nearest/selected
+  // affordances underneath. Positions are untouched (no relayout).
   const displayNodes = useMemo<RoadmapNode[]>(() => {
-    const withOpeners = nodes.map((node) =>
-      node.type === 'group-header'
-        ? { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } }
-        : node,
-    );
-    return applyNearestFlag(withOpeners, focusTarget.id);
-  }, [nodes, focusTarget.id]);
+    const withHandlers = nodes.map<RoadmapNode>((node) => {
+      if (node.type === 'group-header') {
+        return { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } };
+      }
+      if (node.type === 'match') {
+        return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
+      }
+      if (node.type === 'group-standings') {
+        return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
+      }
+      return node;
+    });
+    const withNearest = applyNearestFlag(withHandlers, focusTarget.id);
+    return applyTeamFocus(withNearest, [], focusSet).nodes;
+  }, [nodes, focusTarget.id, focusSet, setFocusedTeam]);
+
+  // Sibling display copy of the edges: dim those off the focused team's path.
+  const displayEdges = useMemo<RoadmapEdge[]>(
+    () => applyTeamFocus([], edges, focusSet).edges,
+    [edges, focusSet],
+  );
 
   const openGroupData = useMemo(
     () => tournament?.groups.find((g) => g.name === openGroup) ?? null,
@@ -121,9 +156,15 @@ function CanvasInner() {
     });
   }, []);
 
-  useFitOnChange(nodes.length);
+  useFitOnChange(nodes.length, displayNodes);
   useFocusCamera(focus, displayNodes);
-  useBracketKeyboard(useCallback(() => setSelected(null), []));
+  // Esc clears both the selected match AND the focused team (independent setters).
+  // The overlay shields its own Esc with stopPropagation while open.
+  const onEscape = useCallback(() => {
+    setSelected(null);
+    clearFocusedTeam();
+  }, [clearFocusedTeam]);
+  useBracketKeyboard(onEscape);
 
   const flowInteraction = useMemo(() => interactionFlowProps(mode), [mode]);
 
@@ -135,7 +176,7 @@ function CanvasInner() {
     <div className="pitch-grid relative h-full w-full" data-lod={lod}>
       <ReactFlow<RoadmapNode, RoadmapEdge>
         nodes={displayNodes}
-        edges={edges}
+        edges={displayEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -145,7 +186,10 @@ function CanvasInner() {
         nodesConnectable={false}
         edgesFocusable={false}
         onNodeClick={onNodeClick}
-        onPaneClick={() => setSelected(null)}
+        onPaneClick={() => {
+          setSelected(null);
+          clearFocusedTeam();
+        }}
         proOptions={{ hideAttribution: false }}
         {...flowInteraction}
       >
@@ -182,6 +226,10 @@ function CanvasInner() {
       />
 
       <StandingsOverlay group={openGroupData} onClose={closeStandings} />
+
+      <div className="sr-only" role="status" aria-live="polite">
+        {focusedTeamName ? `Showing matches for ${focusedTeamName}` : ''}
+      </div>
 
       {loading && !tournament && (
         <div className="bg-bg/60 absolute inset-0 grid place-items-center backdrop-blur-sm">
