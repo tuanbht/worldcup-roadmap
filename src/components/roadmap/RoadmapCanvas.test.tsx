@@ -35,8 +35,10 @@ vi.mock('@xyflow/react', () => {
     );
   };
   const Background = () => <div data-testid="rf-background" className="react-flow__background" />;
-  const Panel = ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="rf-panel">{children}</div>
+  const Panel = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid="rf-panel" className={className ?? ''}>
+      {children}
+    </div>
   );
   const BackgroundVariant = { Dots: 'dots' };
   return { ReactFlowProvider, ReactFlow, Background, Panel, BackgroundVariant };
@@ -184,5 +186,29 @@ describe('RoadmapCanvas — fitView on load is preserved', () => {
   it('passes fitView=true to ReactFlow', () => {
     render(<RoadmapCanvas />);
     expect(capturedFlowProps.fitView).toBe(true);
+  });
+});
+
+// ============================================================================
+// Legend placement — desktop-only floating Panel
+// ============================================================================
+
+describe('RoadmapCanvas — Legend is desktop-only in the floating Panel', () => {
+  it('renders the legend panel with a sm:block class (hidden on mobile)', () => {
+    render(<RoadmapCanvas />);
+    // The Panel wrapping the Legend must carry "hidden sm:block" so it is
+    // invisible on small screens (the legend is relocated to App.tsx header).
+    const panels = screen.getAllByTestId('rf-panel');
+    const legendPanel = panels.find((el) => el.className.includes('hidden'));
+    expect(legendPanel).toBeDefined();
+    expect(legendPanel?.className).toContain('sm:block');
+  });
+
+  it('renders the legend chip labels (Live, Finished, Upcoming) inside the canvas panel', () => {
+    render(<RoadmapCanvas />);
+    // Labels must still be in the DOM (just hidden via CSS on mobile)
+    expect(screen.getAllByText('Live').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Finished').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Upcoming').length).toBeGreaterThan(0);
   });
 });

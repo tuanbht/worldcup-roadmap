@@ -17,6 +17,8 @@ const VIEWPORT = '.react-flow__viewport';
 
 const BREAKPOINTS = [
   { label: '320', width: 320, height: 720 },
+  { label: '375', width: 375, height: 812 },
+  { label: '640', width: 640, height: 900 },
   { label: '768', width: 768, height: 1024 },
   { label: '1024', width: 1024, height: 768 },
   { label: '1440', width: 1440, height: 900 },

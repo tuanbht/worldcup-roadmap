@@ -27,31 +27,7 @@ import { selectTeamFocus, applyTeamFocus } from '@/features/roadmap/team-focus';
 import type { RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
 import { FocusMatchButton } from './FocusMatchButton';
-
-function Legend({ provider }: { provider: string | null }) {
-  const dots: Array<[string, string]> = [
-    ['Live', 'bg-live'],
-    ['Finished', 'bg-accent'],
-    ['Upcoming', 'bg-dim'],
-  ];
-  return (
-    <div className="border-edge bg-surf-1/80 flex flex-col gap-2 rounded-xl border px-3 py-2.5 text-[0.72rem] backdrop-blur">
-      <div className="flex items-center gap-3">
-        {dots.map(([label, dot]) => (
-          <span key={label} className="text-muted flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${dot}`} />
-            {label}
-          </span>
-        ))}
-      </div>
-      {provider && (
-        <span className="text-dim">
-          {provider === 'fifa' ? 'Live data · FIFA' : 'Demo data · offline fixture'}
-        </span>
-      )}
-    </div>
-  );
-}
+import { Legend } from './Legend';
 
 function CanvasInner() {
   const { data: tournament, loading } = useTournamentQuery();
@@ -187,7 +163,8 @@ function CanvasInner() {
           isLive={focusTarget.isLive}
           onActivate={onFocusCurrentMatch}
         />
-        <Panel position="top-right">
+        {/* Desktop-only floating legend — hidden on small screens (legend lives in App header below sm) */}
+        <Panel position="top-right" className="hidden sm:block">
           <Legend provider={tournament?.meta.provider ?? null} />
         </Panel>
       </ReactFlow>
