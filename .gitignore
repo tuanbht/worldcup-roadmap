@@ -45,3 +45,6 @@ yarn-error.log*
 # stale Next.js build cache (migrated away; never track)
 /.next/
 /out/
+
+/.req-runs
+/docs
