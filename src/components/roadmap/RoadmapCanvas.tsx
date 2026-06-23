@@ -2,8 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -28,22 +26,10 @@ import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
 import { useFocusedTeam } from '@/features/roadmap/hooks/useFocusedTeam';
 import { selectTeamFocus, applyTeamFocus } from '@/features/roadmap/team-focus';
-import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
+import type { RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
 import { InteractionModeToggle } from './InteractionModeToggle';
 import { FocusMatchButton } from './FocusMatchButton';
-
-const STATUS_COLOR: Record<string, string> = {
-  live: '#ff4d5e',
-  finished: '#3ddc97',
-  scheduled: '#5c6779',
-};
-
-function nodeColor(node: RoadmapNode): string {
-  if (node.type === 'match') return STATUS_COLOR[(node.data as MatchNodeData).status] ?? '#5c6779';
-  if (node.type === 'group-header') return '#3b82f6';
-  return '#2a3547';
-}
 
 function Legend({ provider }: { provider: string | null }) {
   const dots: Array<[string, string]> = [
@@ -199,14 +185,6 @@ function CanvasInner() {
           size={1}
           color="rgba(148,163,184,0.10)"
         />
-        <MiniMap
-          pannable
-          zoomable
-          nodeColor={nodeColor}
-          maskColor="rgba(6,9,16,0.72)"
-          bgColor="#0a0e14"
-        />
-        <Controls showInteractive={false} />
         <StageToggle focus={focus} onChange={setFocus} />
         <InteractionModeToggle mode={mode} onChange={setMode} />
         <FocusMatchButton
