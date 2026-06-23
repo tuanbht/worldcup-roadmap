@@ -44,12 +44,14 @@ describe('layout-constants — header band growth [item 2, Acceptance #3]', () =
     expect(HEADER_H).toBeGreaterThan(96);
   });
 
-  it('reserves a positive, ordered band: 0 < HEADER_TOP < HEADER_TOP+GROUP_TABLE_H < HEADER_H', () => {
-    expect(HEADER_TOP).toBeGreaterThan(0);
+  it('reserves an ordered band: 0 <= HEADER_TOP, HEADER_TOP+GROUP_TABLE_H <= HEADER_H', () => {
+    // With the pill removed, the table sits flush at the top, so HEADER_TOP may
+    // shrink to a small top inset OR zero (relaxed from the old `> 0`).
+    expect(HEADER_TOP).toBeGreaterThanOrEqual(0);
     expect(GROUP_TABLE_H).toBeGreaterThan(0);
     expect(HEADER_GAP).toBeGreaterThanOrEqual(0);
-    // The standings band [HEADER_TOP, HEADER_TOP+GROUP_TABLE_H) sits strictly
-    // inside the header band, with clear air (HEADER_GAP) before row 0.
+    // The standings band [HEADER_TOP, HEADER_TOP+GROUP_TABLE_H) sits inside the
+    // header band, with clear air (HEADER_GAP) before row 0.
     expect(HEADER_TOP + GROUP_TABLE_H).toBeLessThanOrEqual(HEADER_H);
   });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { buildRoadmapGraph } from './build-graph';
+import { computeGroupGridLayout } from './layout/group-layout';
+import { computeDayIndex } from './layout/day-axis';
 import { formatDate } from '@/lib/datetime';
 import {
   DAY_ROW_PITCH,
@@ -9,6 +11,7 @@ import {
   HEADER_H,
   HEADER_TOP,
   RAIL_W,
+  STANDINGS_Y,
 } from './layout/layout-constants';
 import type {
   DayMarkerFlowNode,
@@ -35,9 +38,10 @@ import { EMPTY_SCORE } from '@/domain/types';
 /**
  * Spec for the timeline-grid `buildRoadmapGraph(tournament, tz?)` transform: ONE
  * immutable graph composing the group grid + knockout funnel onto a shared day
- * axis, plus `day-marker` rail guides and `group-header` column guides, with
- * feeder (group-header -> seeded R32) + downward advance edges. Plan Test
- * Strategy 9-12 / Acceptance #1, #2, #3, #6.
+ * axis, plus `day-marker` rail guides and the always-on `group-standings` table
+ * (the single per-column header — the `group-header` pill is REMOVED), with
+ * feeder (group exit -> seeded R32), downward advance, and dashed `member`
+ * (standings -> in-group match) edges. Plan Test Strategy / Acceptance #1-#6.
  *
  * DETERMINISM: structural assertions that compare against `fixtureDayKey` (a UTC
  * ISO slice) pin `tz:'UTC'` so they hold on ANY machine zone. The new bug
@@ -107,12 +111,11 @@ describe('buildRoadmapGraph — guide nodes [Acceptance #5/#6]', () => {
     expect(new Set(ys).size).toBe(ys.length); // distinct row per distinct day
   });
 
-  it('emits exactly one group-header per group (12), in the top band (y < HEADER_H)', () => {
-    const headers = nodesOfType('group-header');
-    expect(headers).toHaveLength(groupCount);
-    for (const header of headers) {
-      expect(header.position.y).toBeLessThan(HEADER_H);
-    }
+  it('emits NO group-header node (the pill is removed; the standings table is the header) [Acceptance #1]', () => {
+    // The redundant column-title pill is gone end-to-end: the always-on
+    // group-standings table is now the SINGLE per-column header. RED until
+    // build-graph stops emitting the `group-header` node.
+    expect(nodesOfType('group-header')).toHaveLength(0);
   });
 });
 
@@ -148,24 +151,28 @@ describe('buildRoadmapGraph — group-standings table [Acceptance #2/#4]', () =>
     }
   });
 
-  it('anchors each standings node at its header column x, strictly below the header pill', () => {
-    const headers = new Map(
-      nodesOfType('group-header').map((h) => [h.id.replace('group-header-', ''), h]),
-    );
-    expect(standings().length).toBeGreaterThan(0); // guard: not vacuous
-    for (const node of standings()) {
-      const header = headers.get(node.data.group.name);
-      expect(header, `header for group ${node.data.group.name}`).toBeDefined();
-      // Same column x as its header (anchored under it).
-      expect(node.position.x).toBe(header!.position.x);
-      // STRICTLY below the header pill (the table renders under the column title),
-      // and the pill itself sits at/above the standings anchor HEADER_TOP.
-      expect(node.position.y).toBeGreaterThan(header!.position.y);
-      expect(header!.position.y).toBeLessThanOrEqual(HEADER_TOP);
+  it('anchors each standings node at its own group column x (the groupGrid header column) [H2/Acceptance #4]', () => {
+    // H2: self-contained positive assertion — no vacuous loop over the now-empty
+    // group-header set. Recompute the grid layout the builder uses and assert each
+    // standings node's x === its group's `groupGrid.headers` column x, and that
+    // its y sits in the standings sub-band [STANDINGS_Y, HEADER_H - GROUP_TABLE_H].
+    const dayIndex = computeDayIndex(tournament.matches, 'UTC');
+    const groupGrid = computeGroupGridLayout(tournament, dayIndex, 'UTC');
+    const nodes = standings();
+    expect(nodes.length).toBe(groupCount); // guard: not vacuous
+    for (const node of nodes) {
+      const headerCol = groupGrid.headers.get(node.data.group.name);
+      expect(headerCol, `groupGrid header column for ${node.data.group.name}`).toBeDefined();
+      // Same column x as its group's header column (anchored under the title).
+      expect(node.position.x).toBe(headerCol!.x);
+      // The standings anchor lives in the top sub-band, never below where its box
+      // would breach day-row 0 at HEADER_H.
+      expect(node.position.y).toBeGreaterThanOrEqual(STANDINGS_Y);
+      expect(node.position.y).toBeLessThanOrEqual(HEADER_H - GROUP_TABLE_H);
     }
   });
 
-  it('keeps every standings node inside the header band [HEADER_TOP, HEADER_H) above row 0', () => {
+  it('keeps every standings node inside the header band [HEADER_TOP, HEADER_H) above row 0 [Acceptance #4]', () => {
     const nodes = standings();
     expect(nodes.length).toBeGreaterThan(0); // guard: not vacuous
     for (const node of nodes) {
@@ -255,6 +262,114 @@ describe('buildRoadmapGraph — edges [Acceptance #9]', () => {
       const tgt = posById.get(edge.target)!;
       // source = the earlier/upper child; target = the later/lower parent.
       expect(tgt.y, `advance edge ${edge.id} must flow downward`).toBeGreaterThan(src.y);
+    }
+  });
+});
+
+// --- Item 2: dashed membership edges (standings table -> its matches) -------
+//
+// One `member-<group>-<matchId>` edge per (group, group-stage match in that
+// group): source = `group-standings-<group>`, target = the in-group match node,
+// handles `b` -> `t`, type `member`, data.group always populated. The total
+// equals the group-stage match count (72 in the fixture). Plan Test Strategy
+// "Membership edges (unit)" / Acceptance #5. RED until build-graph emits them.
+describe('buildRoadmapGraph — membership edges [Acceptance #5]', () => {
+  const memberEdges = () => graph().edges.filter((e) => e.id.startsWith('member-'));
+  /** Group-stage match -> its group letter, the independent oracle. */
+  const groupOfMatch = new Map(groupMatches.map((m) => [m.id, m.group]));
+
+  it('emits exactly one member edge per group-stage match (== group-stage match count, 72)', () => {
+    expect(groupMatches.length).toBe(72); // fixture self-check
+    expect(memberEdges()).toHaveLength(groupMatches.length);
+  });
+
+  it('connects group-standings-<g> -> each in-group match with b->t handles, type member, data.group set', () => {
+    const g = graph();
+    const nodeIds = new Set(g.nodes.map((n) => n.id));
+    const edges = memberEdges();
+    expect(edges.length).toBeGreaterThan(0); // guard: not vacuous
+    for (const edge of edges) {
+      // Id grammar: member-<group>-<matchId>.
+      const m = edge.id.match(/^member-([A-Z])-(.+)$/);
+      expect(m, `member edge id grammar for ${edge.id}`).not.toBeNull();
+      const [, group, matchId] = m!;
+      // Source is THIS group's standings node; target is an in-group match.
+      expect(edge.source).toBe(`group-standings-${group}`);
+      expect(edge.target).toBe(matchId);
+      expect(groupOfMatch.get(matchId), `target ${matchId} is an in-group match`).toBe(group);
+      // Bottom -> top handles (downward, like every other edge).
+      expect(edge.sourceHandle).toBe('b');
+      expect(edge.targetHandle).toBe('t');
+      expect(edge.type).toBe('member');
+      // data.group is ALWAYS populated and matches the id grammar (M2 invariant).
+      expect((edge.data as { group?: string }).group).toBe(group);
+      // Both endpoints resolve to real nodes in the graph.
+      expect(nodeIds.has(edge.source)).toBe(true);
+      expect(nodeIds.has(edge.target)).toBe(true);
+    }
+  });
+
+  it('covers EVERY group-stage match exactly once (a member edge per in-group match)', () => {
+    const targets = memberEdges().map((e) => e.target);
+    expect(new Set(targets).size).toBe(groupMatches.length); // no dupes, full cover
+    expect(new Set(targets)).toEqual(groupMatchIds);
+  });
+
+  it('originates a member edge from every group-standings node (one fan per group)', () => {
+    const bySource = new Map<string, number>();
+    for (const e of memberEdges()) bySource.set(e.source, (bySource.get(e.source) ?? 0) + 1);
+    // 12 standings sources, each fanning to its 6 group matches in the fixture.
+    expect(bySource.size).toBe(groupCount);
+    for (const group of tournament.groups) {
+      expect(bySource.get(`group-standings-${group.name}`)).toBe(6);
+    }
+  });
+
+  it('carries member data of exactly { group } — no advance `state` field at the source [M2]', () => {
+    // M2 invariant at the BUILDER level: a member edge's data is always populated
+    // and is the membership shape, never the advance-edge `{ state }` shape. This
+    // is what lets applyTeamFocus spread `{ ...data, focusState }` without ever
+    // injecting a `state` (the team-focus test pins the same after stamping).
+    const edges = memberEdges();
+    expect(edges.length).toBeGreaterThan(0); // guard: not vacuous
+    for (const edge of edges) {
+      const data = edge.data as Record<string, unknown>;
+      const group = edge.id.match(/^member-([A-Z])-/)?.[1];
+      expect(data).toEqual({ group });
+      expect('state' in data).toBe(false);
+    }
+  });
+});
+
+// Regression guard: removing the pill + adding member edges must NOT perturb the
+// feeder/advance edge families. Their counts AND id-sets stay byte-for-byte, and
+// no member id collides with a feed-/adv- id. Plan Acceptance #6.
+describe('buildRoadmapGraph — feeder/advance unchanged by the new edges [Acceptance #6]', () => {
+  it('keeps the feeder + advance counts exactly as the bracket derives them', () => {
+    const edges = graph().edges;
+    const feed = edges.filter((e) => e.id.startsWith('feed-'));
+    const adv = edges.filter((e) => e.id.startsWith('adv-'));
+    expect(feed).toHaveLength(expectedFeederCount(tournament));
+    expect(adv).toHaveLength(expectedAdvanceEdgeCount(tournament));
+  });
+
+  it('introduces no id collision between member edges and feeder/advance edges', () => {
+    const edges = graph().edges;
+    const feedAdvIds = new Set(
+      edges.filter((e) => e.id.startsWith('feed-') || e.id.startsWith('adv-')).map((e) => e.id),
+    );
+    const memberIds = edges.filter((e) => e.id.startsWith('member-')).map((e) => e.id);
+    for (const id of memberIds) expect(feedAdvIds.has(id)).toBe(false);
+  });
+
+  it('classifies every edge into exactly one of feed-/adv-/member- (no stray families)', () => {
+    for (const e of graph().edges) {
+      const fams = [
+        e.id.startsWith('feed-'),
+        e.id.startsWith('adv-'),
+        e.id.startsWith('member-'),
+      ].filter(Boolean);
+      expect(fams.length, `edge ${e.id} belongs to exactly one family`).toBe(1);
     }
   });
 });

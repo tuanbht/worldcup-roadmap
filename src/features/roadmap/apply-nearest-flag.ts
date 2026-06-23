@@ -12,7 +12,7 @@ import type { RoadmapNode } from './graph-model';
  * Immutably flag the single MATCH node whose id === `nearestId` with
  * `data.isNearest = true`. The `node.type === 'match'` guard confines the field
  * to `MatchNodeData` by construction, so a non-match node (day-marker /
- * group-header) sharing an id can never be flagged. `nearestId === null` (all
+ * group-standings) sharing an id can never be flagged. `nearestId === null` (all
  * matches ended) or an id that matches no match node → nothing flagged.
  *
  * Pure: returns a NEW array; non-flagged nodes pass through as the same object

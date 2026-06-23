@@ -3,9 +3,11 @@
 //
 //   - selectTeamFocus(tournament, teamId): the set of match-node ids the team
 //     plays in (group home/away + KNOCKOUT matches whose RESOLVED home/away is
-//     that team) and the edge ids on its path — the team's group feeders plus the
-//     advance edges whose BOTH endpoints are focused matches — reconstructed from
-//     the edge-id grammar in build-graph.ts (`feed-<G>-<r32>`, `adv-<src>-<tgt>`).
+//     that team) and the edge ids on its path — the team's group feeders, the
+//     advance edges whose BOTH endpoints are focused matches, AND the team's OWN
+//     membership edges (one per in-group match it plays) — reconstructed from the
+//     edge-id grammar in build-graph.ts (`feed-<G>-<r32>`, `adv-<src>-<tgt>`,
+//     `member-<G>-<matchId>`).
 //   - applyTeamFocus(nodes, edges, focus): immutable display copies stamping
 //     `focusState:'on'` on focused nodes/edges and `'dim'` on the rest; the input
 //     is returned unchanged when focus is null; never mutates the input graph.
@@ -17,7 +19,7 @@ export interface TeamFocus {
   readonly teamId: string;
   /** Match-node ids the team plays in (== Match.id / BracketNode.matchId). */
   readonly matchNodeIds: ReadonlySet<string>;
-  /** Feeder + advance edge ids on the team's path. */
+  /** Feeder + advance + own membership edge ids on the team's path. */
   readonly edgeIds: ReadonlySet<string>;
 }
 
@@ -89,6 +91,20 @@ function advanceEdgeIds(tournament: Tournament, matchNodeIds: ReadonlySet<string
   return ids;
 }
 
+/**
+ * Every `member-<group>-<matchId>` id for a group-stage match the team itself
+ * plays — its OWN membership links, not its whole group's (M3). The id grammar
+ * mirrors build-graph.memberEdges so the selector and builder stay in lockstep.
+ */
+function memberEdgeIds(tournament: Tournament, matchNodeIds: ReadonlySet<string>): Set<string> {
+  const ids = new Set<string>();
+  for (const match of tournament.matches) {
+    if (match.stage !== 'GROUP_STAGE' || match.group === null) continue;
+    if (matchNodeIds.has(match.id)) ids.add(`member-${match.group}-${match.id}`);
+  }
+  return ids;
+}
+
 export function selectTeamFocus(tournament: Tournament, teamId: string): TeamFocus {
   const matchNodeIds = new Set<string>();
   for (const match of tournament.matches) {
@@ -98,6 +114,7 @@ export function selectTeamFocus(tournament: Tournament, teamId: string): TeamFoc
   const edgeIds = new Set<string>([
     ...feederEdgeIds(tournament, groups),
     ...advanceEdgeIds(tournament, matchNodeIds),
+    ...memberEdgeIds(tournament, matchNodeIds),
   ]);
   return { teamId, matchNodeIds, edgeIds };
 }

@@ -178,6 +178,39 @@
   transition: filter var(--duration-normal, 300ms) ease;
 }
 
+/* ---- React Flow membership edges (standings table -> its matches, item 2) ----
+   A low-emphasis dashed GROUPING line, visually distinct from the solid/feeder
+   advance edges: a finer dash, thinner stroke, and a distinct GOLD hue (NOT the
+   green advancement accent) so a focused team's group links read as their own
+   indicator rather than another advance edge — at a base opacity below the
+   advance edges so the board reads "these matches belong to this group" without
+   competing with the advancement flow. No arrow marker. */
+.member-edge {
+  fill: none;
+  stroke: var(--color-gold);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-dasharray: 2 5;
+  opacity: 0.32;
+}
+
+/* Team-focus highlight/dim — composes with the card/edge focus (item 3). A
+   focused team's own membership links brighten; the rest fade. Compositor-only. */
+.member-edge--focus-on {
+  stroke: var(--color-gold);
+  stroke-width: 1.75;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgb(245 196 81 / 0.55));
+  transition:
+    opacity var(--duration-normal, 300ms) ease,
+    stroke-width var(--duration-normal, 300ms) ease,
+    filter var(--duration-normal, 300ms) ease;
+}
+.member-edge--focus-dim {
+  opacity: 0.1;
+  transition: opacity var(--duration-normal, 300ms) ease;
+}
+
 /* ---- React Flow chrome theming ---- */
 .react-flow__attribution {
   background: transparent !important;
@@ -192,7 +225,9 @@
   [data-lod] [data-lod-detail],
   [data-focus='on'],
   [data-focus='dim'],
-  .advance-edge--focus-dim {
+  .advance-edge--focus-dim,
+  .member-edge--focus-on,
+  .member-edge--focus-dim {
     transition: none !important;
   }
 }

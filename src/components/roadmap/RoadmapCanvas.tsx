@@ -73,14 +73,14 @@ function CanvasInner() {
   // affordances underneath. Positions are untouched (no relayout).
   const displayNodes = useMemo<RoadmapNode[]>(() => {
     const withHandlers = nodes.map<RoadmapNode>((node) => {
-      if (node.type === 'group-header') {
-        return { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } };
-      }
       if (node.type === 'match') {
         return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
       }
       if (node.type === 'group-standings') {
-        return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
+        return {
+          ...node,
+          data: { ...node.data, onFocusTeam: setFocusedTeam, onOpenStandings: setOpenGroup },
+        };
       }
       return node;
     });

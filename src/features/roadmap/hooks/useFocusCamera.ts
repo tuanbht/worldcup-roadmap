@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useReactFlow, type ReactFlowInstance, type Rect } from '@xyflow/react';
-import { NODE_W, NODE_H } from '../layout/layout-constants';
+import { NODE_W, NODE_H, STANDINGS_W, GROUP_TABLE_H } from '../layout/layout-constants';
 import type { RoadmapFocus, RoadmapNode } from '../graph-model';
 
 const PADDING = 0.16;
@@ -14,16 +14,17 @@ const MAX_ZOOM = 1.8;
 /** Footprint of a node by type (guides are roughly card-width / small). */
 export function footprintOf(node: RoadmapNode): { w: number; h: number } {
   if (node.type === 'day-marker') return { w: 96, h: 32 };
-  if (node.type === 'group-header') return { w: NODE_W, h: 44 };
+  if (node.type === 'group-standings') return { w: STANDINGS_W, h: GROUP_TABLE_H };
   return { w: NODE_W, h: NODE_H };
 }
 
 /**
- * True for the group zone: the column headers PLUS the group-stage match cards.
- * Guaranteed non-empty so the "Groups" tab frames a real subset.
+ * True for the group zone: the always-on standings tables (the per-column
+ * headers) PLUS the group-stage match cards. Guaranteed non-empty so the
+ * "Groups" tab frames a real subset.
  */
 export function isGroupZoneNode(node: RoadmapNode): boolean {
-  if (node.type === 'group-header') return true;
+  if (node.type === 'group-standings') return true;
   return node.type === 'match' && node.data.stage === 'GROUP_STAGE';
 }
 

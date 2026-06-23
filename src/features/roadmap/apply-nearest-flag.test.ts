@@ -6,17 +6,23 @@
 //
 // RED until `applyNearestFlag` is implemented — today the stub throws
 // "not implemented", so every assertion fails for the right (missing-logic)
-// reason rather than a typo or a passing implementation. The M1 guard case
+// reason rather than a typo or a passing implementation. The M1/H1 guard case
 // deliberately constructs a NON-match node whose id collides with `nearestId`,
 // proving selection turns on the `node.type === 'match'` guard rather than
 // id-namespace luck; the knockout case proves a KO `match` node (group === null)
 // is flagged exactly like a group `match` node.
+//
+// H1: the guide-node fixtures are RETARGETED off the removed `group-header` pill
+// onto the always-on `group-standings` table node — the behavioral guard
+// (a non-match node sharing the nearest id is never flagged) is PRESERVED, not
+// dropped, exactly as the plan requires.
 import { describe, expect, it } from 'vitest';
 import { teamRef, EMPTY_SCORE } from '@/domain/types';
+import type { Group } from '@/domain/types';
 import { applyNearestFlag } from './apply-nearest-flag';
 import type {
   DayMarkerFlowNode,
-  GroupHeaderFlowNode,
+  GroupStandingsFlowNode,
   MatchFlowNode,
   MatchNodeData,
   RoadmapNode,
@@ -74,15 +80,17 @@ function dayMarkerNode(id: string): DayMarkerFlowNode {
   };
 }
 
-function groupHeaderNode(id: string, group: string): GroupHeaderFlowNode {
-  return { id, type: 'group-header', position: { x: 0, y: 0 }, data: { group } };
+/** The always-on standings table guide (replaces the removed group-header pill). */
+function groupStandingsNode(id: string, name: string): GroupStandingsFlowNode {
+  const group: Group = { name, table: [] };
+  return { id, type: 'group-standings', position: { x: 0, y: 0 }, data: { group } };
 }
 
-/** A mixed graph: 3 match cards interleaved with non-match rail/header guides. */
+/** A mixed graph: 3 match cards interleaved with non-match rail/standings guides. */
 function sampleNodes(): RoadmapNode[] {
   return [
     dayMarkerNode('day-marker-2026-06-02'),
-    groupHeaderNode('group-header-A', 'A'),
+    groupStandingsNode('group-standings-A', 'A'),
     matchNode('m1'),
     matchNode('m2'),
     matchNode('m3'),
@@ -142,13 +150,15 @@ describe('applyNearestFlag — null / no-match (Acceptance #2)', () => {
   });
 });
 
-describe('applyNearestFlag — type guard (M1)', () => {
+describe('applyNearestFlag — type guard (M1/H1)', () => {
   it('never flags a non-match node even when its id collides with nearestId', () => {
-    // A day-marker whose id is exactly the nearestId: only the `node.type ===
-    // "match"` guard (not the id check) keeps it un-flagged.
+    // A day-marker AND a group-standings node whose ids are exactly the
+    // nearestId: only the `node.type === "match"` guard (not the id check) keeps
+    // them un-flagged. H1: the guide retargeted from group-header to
+    // group-standings, the assertion preserved.
     const colliding: RoadmapNode[] = [
       dayMarkerNode('collide'),
-      groupHeaderNode('collide', 'A'),
+      groupStandingsNode('collide', 'A'),
       matchNode('m1'),
     ];
     const result = applyNearestFlag(colliding, 'collide');
@@ -156,9 +166,9 @@ describe('applyNearestFlag — type guard (M1)', () => {
     expect(flaggedIds(result)).toEqual([]);
     // The non-match nodes must not have grown an `isNearest` field at all.
     const dayMarker = result.find((n) => n.type === 'day-marker')!;
-    const header = result.find((n) => n.type === 'group-header')!;
+    const standings = result.find((n) => n.type === 'group-standings')!;
     expect('isNearest' in dayMarker.data).toBe(false);
-    expect('isNearest' in header.data).toBe(false);
+    expect('isNearest' in standings.data).toBe(false);
   });
 });
 

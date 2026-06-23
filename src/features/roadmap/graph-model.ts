@@ -62,6 +62,11 @@ export type GroupTableProps = {
   group: Group;
   /** Set the focused team when a resolved row's flag is activated. */
   onFocusTeam?: (teamId: string) => void;
+  /**
+   * When supplied, the table header renders as a button that opens the standings
+   * overlay for this group (re-homed from the deleted column-title pill).
+   */
+  onOpenStandings?: (group: string) => void;
 };
 
 /** Left date-rail guide: one per distinct match-day. No edge endpoint. */
@@ -72,40 +77,32 @@ export type DayMarkerNodeData = {
 };
 
 /**
- * Top column guide: one per group A..L. Originates feeder edges (bottom source
- * handle) and opens the standings overlay when clicked.
- */
-export type GroupHeaderNodeData = {
-  group: string;
-  /** Open the standings overlay for this group (wired by the canvas). */
-  onOpenStandings?: (group: string) => void;
-};
-
-/**
- * Always-on standings table guide: one per group A..L, anchored directly under
- * its `group-header` in the (grown) header band. Carries the full `Group` so the
- * renderer reuses `GroupTableNode`; no edge endpoints (a guide, not a card).
+ * Always-on standings table guide: one per group A..L, sitting at the top of its
+ * column as the single per-column header (the old column-title pill is gone).
+ * Carries the full `Group` so the renderer reuses `GroupTableNode`, and exposes a
+ * bottom source handle so the dashed membership edges fan out of it.
  */
 export type GroupStandingsNodeData = {
   group: Group;
   /** Injected by the canvas: a row's flag click sets the focused team. */
   onFocusTeam?: (teamId: string) => void;
+  /**
+   * Re-homed overlay opener (test-writer type surface): the table header button
+   * opens the StandingsOverlay for this group. Injected by the canvas, absent in
+   * the pure graph. Implemented by the GREEN stage.
+   */
+  onOpenStandings?: (group: string) => void;
 };
 
 export type MatchFlowNode = Node<MatchNodeData, 'match'>;
 export type DayMarkerFlowNode = Node<DayMarkerNodeData, 'day-marker'>;
-export type GroupHeaderFlowNode = Node<GroupHeaderNodeData, 'group-header'>;
 export type GroupStandingsFlowNode = Node<GroupStandingsNodeData, 'group-standings'>;
 /**
  * Timeline-grid graph nodes: one `match` card per match, a `day-marker` per
- * distinct day on the left rail, a `group-header` per column, and a
- * `group-standings` table under each header (the always-on Google-style table).
+ * distinct day on the left rail, and a `group-standings` table at the top of each
+ * column (the always-on Google-style table — the single per-column header).
  */
-export type RoadmapNode =
-  | MatchFlowNode
-  | DayMarkerFlowNode
-  | GroupHeaderFlowNode
-  | GroupStandingsFlowNode;
+export type RoadmapNode = MatchFlowNode | DayMarkerFlowNode | GroupStandingsFlowNode;
 
 export type AdvanceEdgeState = 'decided' | 'undecided' | 'live';
 export type AdvanceEdgeData = {
@@ -113,7 +110,22 @@ export type AdvanceEdgeData = {
   /** Team-focus mark, stamped ONLY by `applyTeamFocus` (display layer). */
   focusState?: FocusState;
 };
-export type RoadmapEdge = Edge<AdvanceEdgeData>;
+/**
+ * Dashed "membership" link from a group's standings table to each of its
+ * group-stage matches (`member-<group>-<matchId>`). Carries the group letter
+ * (always populated — mirrors the id grammar) and the optional display-layer
+ * `focusState` so the single `applyTeamFocus` stamper handles it like an advance
+ * edge. Type surface only here; the GREEN stage emits the edges.
+ */
+export type MemberEdgeData = {
+  /** Group letter this membership link belongs to. */
+  group: string;
+  /** Team-focus mark, stamped ONLY by `applyTeamFocus` (display layer). */
+  focusState?: FocusState;
+};
+/** Either an advance/feeder edge OR a dashed membership edge. */
+export type RoadmapEdgeData = AdvanceEdgeData | MemberEdgeData;
+export type RoadmapEdge = Edge<RoadmapEdgeData>;
 
 export interface RoadmapGraph {
   readonly nodes: RoadmapNode[];

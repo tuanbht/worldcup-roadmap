@@ -20,86 +20,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactFlowProvider } from '@xyflow/react';
-import type { Group, StandingRow, Team } from '@/domain/types';
 import type { GroupStandingsNodeData } from '@/features/roadmap/graph-model';
 import { GroupStandingsNode } from './GroupStandingsNode';
+import { FULL_TABLE, GROUP_A, GROUP_A_EMPTY } from './__test-support__/standings-fixtures';
 
-const ARG: Team = { id: 'team-arg', name: 'Argentina', code: 'ARG', flagUrl: null };
-const POL: Team = { id: 'team-pol', name: 'Poland', code: 'POL', flagUrl: null };
-const MEX: Team = { id: 'team-mex', name: 'Mexico', code: 'MEX', flagUrl: null };
-const KSA: Team = { id: 'team-ksa', name: 'Saudi Arabia', code: 'KSA', flagUrl: null };
-
-function row(team: Team, overrides: Partial<StandingRow>): StandingRow {
-  return {
-    position: 1,
-    team,
-    played: 3,
-    won: 0,
-    draw: 0,
-    lost: 0,
-    goalsFor: 0,
-    goalsAgainst: 0,
-    goalDifference: 0,
-    points: 0,
-    form: [],
-    qualified: false,
-    ...overrides,
-  };
-}
-
-// Distinct, unambiguous numbers per column so a mislabeled column is caught.
-// Supplied OUT of order (pos 3,1,4,2) to prove the node sorts by `position`.
-const TABLE: StandingRow[] = [
-  row(MEX, {
-    position: 3,
-    won: 1,
-    draw: 1,
-    lost: 1,
-    goalsFor: 4,
-    goalsAgainst: 5,
-    goalDifference: -1,
-    points: 4,
-    qualified: false,
-  }),
-  row(ARG, {
-    position: 1,
-    won: 3,
-    draw: 0,
-    lost: 0,
-    goalsFor: 7,
-    goalsAgainst: 1,
-    goalDifference: 6,
-    points: 9,
-    qualified: true,
-  }),
-  row(KSA, {
-    position: 4,
-    won: 0,
-    draw: 1,
-    lost: 2,
-    goalsFor: 2,
-    goalsAgainst: 8,
-    goalDifference: -6,
-    points: 1,
-    qualified: false,
-  }),
-  row(POL, {
-    position: 2,
-    won: 2,
-    draw: 0,
-    lost: 1,
-    goalsFor: 5,
-    goalsAgainst: 3,
-    goalDifference: 2,
-    points: 6,
-    qualified: true,
-  }),
-];
-
-const GROUP: Group = { name: 'A', table: TABLE };
+// Shared fixture: 4 teams, column-distinct stats, supplied OUT of position order
+// (3,1,4,2) so the node must sort by `position`. Argentina(1) & Poland(2) are
+// qualified; Mexico(3) & Saudi Arabia(4) are not.
+const TABLE = FULL_TABLE;
 
 function makeData(overrides: Partial<GroupStandingsNodeData> = {}): GroupStandingsNodeData {
-  return { group: GROUP, ...overrides };
+  return { group: GROUP_A, ...overrides };
 }
 
 function renderNode(data: GroupStandingsNodeData) {
@@ -217,13 +148,68 @@ describe('GroupStandingsNode — flag focus button [Acceptance #5]', () => {
   });
 });
 
+describe('GroupStandingsNode — membership source handle [Acceptance #7]', () => {
+  it('exposes exactly one bottom source handle (id="b") and no top handle', () => {
+    // The deleted group-header pill held the bottom `id="b"` source handle that
+    // edges originate from; it moves here so the dashed membership edges fan out
+    // of the standings table. No top handle — nothing routes INTO the table.
+    const { container } = renderNode(makeData());
+    expect(container.querySelectorAll('.react-flow__handle')).toHaveLength(1);
+    expect(container.querySelectorAll('.react-flow__handle-bottom')).toHaveLength(1);
+    expect(container.querySelectorAll('.react-flow__handle-top')).toHaveLength(0);
+  });
+});
+
+describe('GroupStandingsNode — overlay opener threading [C1 / Acceptance #12]', () => {
+  it('threads onOpenStandings into the table header button (calls it with the group name)', async () => {
+    const onOpenStandings = vi.fn();
+    const user = userEvent.setup();
+    renderNode(makeData({ onOpenStandings }));
+    // The table header becomes the "Open Group A standings" button when the node
+    // data carries an opener; activating it opens the overlay for THIS group.
+    const opener = screen.getByRole('button', { name: 'Open Group A standings' });
+    await user.click(opener);
+    expect(onOpenStandings).toHaveBeenCalledTimes(1);
+    expect(onOpenStandings).toHaveBeenCalledWith('A');
+  });
+
+  it('activates the threaded opener by keyboard (Enter) for accessibility [Acceptance #8]', async () => {
+    // The opener is the re-homed pill button; keyboard users must reach the
+    // overlay through the standings node exactly as the deleted pill allowed.
+    const onOpenStandings = vi.fn();
+    const user = userEvent.setup();
+    renderNode(makeData({ onOpenStandings }));
+    screen.getByRole('button', { name: 'Open Group A standings' }).focus();
+    await user.keyboard('{Enter}');
+    expect(onOpenStandings).toHaveBeenCalledWith('A');
+  });
+
+  it('a row flag click sets the focused team WITHOUT opening the overlay (stopPropagation)', async () => {
+    const onOpenStandings = vi.fn();
+    const onFocusTeam = vi.fn();
+    const user = userEvent.setup();
+    renderNode(makeData({ onOpenStandings, onFocusTeam }));
+
+    const argRow = screen.getByText('Argentina').closest('tr')!;
+    const flag = within(argRow).getByRole('button', { name: 'Show matches for Argentina' });
+    await user.click(flag);
+
+    expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
+    expect(onOpenStandings).not.toHaveBeenCalled();
+  });
+
+  it('renders no header opener button when onOpenStandings is absent', () => {
+    renderNode(makeData());
+    expect(screen.queryByRole('button', { name: /Open Group .* standings/ })).toBeNull();
+  });
+});
+
 describe('GroupStandingsNode — empty / placeholder group (boundary)', () => {
   it('renders the labelled table header with no body rows when standings are empty', () => {
     // Early in the tournament a group can have an empty `table` (no results yet).
     // The node must still render its labelled standings shell + header row — never
     // throw or collapse — so the always-on column reads as "Group X, no rows yet".
-    const empty: Group = { name: 'A', table: [] };
-    renderNode(makeData({ group: empty }));
+    renderNode(makeData({ group: GROUP_A_EMPTY }));
 
     // The standings section is present and labelled (the e2e/overlay hook).
     expect(screen.getByRole('table')).toBeInTheDocument();

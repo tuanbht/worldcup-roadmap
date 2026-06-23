@@ -10,7 +10,6 @@ import { CX, DAY_ROW_PITCH, HEADER_H, STANDINGS_Y, type XY } from './layout/layo
 import type {
   AdvanceEdgeState,
   DayMarkerFlowNode,
-  GroupHeaderFlowNode,
   GroupStandingsFlowNode,
   MatchFlowNode,
   MatchNodeData,
@@ -106,21 +105,12 @@ function dayMarkerNode(day: string, index: number, label: string): DayMarkerFlow
   };
 }
 
-function groupHeaderNode(name: string, position: XY): GroupHeaderFlowNode {
-  return {
-    id: `group-header-${name}`,
-    type: 'group-header',
-    position,
-    data: { group: name },
-  };
-}
-
 /**
- * Always-on standings table node, anchored directly under its `group-header` in
- * the (grown) header band. Shares the header's column `x` and sits at the band's
- * standings anchor `STANDINGS_Y`, so its `GROUP_TABLE_H`-tall box clears day-row 0
- * at `HEADER_H` (the relation locked in layout-constants). Carries the live
- * `Group` (with `table`) so the renderer reuses `GroupTableNode`.
+ * Always-on standings table node — the SINGLE per-column header (the redundant
+ * column-title pill is removed). Shares its group column `x` and sits flush at
+ * the band's standings anchor `STANDINGS_Y`, so its `GROUP_TABLE_H`-tall box
+ * clears day-row 0 at `HEADER_H` (the relation locked in layout-constants).
+ * Carries the live `Group` (with `table`) so the renderer reuses `GroupTableNode`.
  */
 function groupStandingsNode(group: Group, headerXY: XY): GroupStandingsFlowNode {
   return {
@@ -146,7 +136,7 @@ function edgeState(status: Match['status']): AdvanceEdgeState {
  * A group's "exit" match — its latest-kickoff game, which sits at the bottom of
  * the group's column (closest to the knockout). Feeder edges originate here so
  * each line is a short "final group match -> R32" connector instead of a
- * full-canvas diagonal that starts at the group-header far up top.
+ * full-canvas diagonal that starts at the top of the column.
  */
 function groupExitMatchId(matches: readonly Match[], groupName: string): string | null {
   let exit: Match | null = null;
@@ -220,13 +210,41 @@ function advanceEdges(tournament: Tournament): RoadmapEdge[] {
   return edges;
 }
 
+/** Dashed membership edge: a group's standings table -> one of its matches. */
+function memberEdge(groupName: string, matchId: string): RoadmapEdge {
+  return {
+    id: `member-${groupName}-${matchId}`,
+    source: `group-standings-${groupName}`,
+    target: matchId,
+    type: 'member',
+    data: { group: groupName },
+    ...HANDLES,
+  };
+}
+
+/**
+ * One dashed membership edge per (group, in-group match): from
+ * `group-standings-<group>` down to each group-stage match of that group. These
+ * read as grouping links (a fan from the table to its matches), visually distinct
+ * from the solid advance/feeder edges. Total == the group-stage match count.
+ */
+function memberEdges(tournament: Tournament): RoadmapEdge[] {
+  const edges: RoadmapEdge[] = [];
+  for (const match of tournament.matches) {
+    if (match.stage !== 'GROUP_STAGE' || match.group === null) continue;
+    edges.push(memberEdge(match.group, match.id));
+  }
+  return edges;
+}
+
 /**
  * Immutable transform: `Tournament` -> one timeline-grid React Flow graph.
  *  - one `match` node per match (group grid column×day + centered knockout funnel),
  *  - one `day-marker` rail guide per distinct match-day,
- *  - one `group-header` column guide per group A..L,
- *  - feeder edges (group-header -> seeded R32) + downward advance edges,
- *    all flowing downward with `sourceHandle:'b'` / `targetHandle:'t'`.
+ *  - one `group-standings` table per group A..L at the top of its column,
+ *  - feeder edges (group exit match -> seeded R32) + downward advance edges +
+ *    dashed `member` edges (standings table -> each in-group match), all flowing
+ *    downward with `sourceHandle:'b'` / `targetHandle:'t'`.
  *
  * Composes the pure day-axis + group + knockout passes; never mutates the input.
  */
@@ -248,7 +266,7 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
 
   const nodes: RoadmapNode[] = [];
 
-  // --- Guide nodes: left date rail + top group-header columns. ----------------
+  // --- Guide nodes: left date rail + top group-standings header columns. ------
   const isoByDay = new Map<string, string>();
   for (const match of tournament.matches) {
     const key = dayKey(match.kickoff, zone);
@@ -259,7 +277,6 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
   });
   const groupByName = new Map(tournament.groups.map((g) => [g.name, g]));
   for (const [name, position] of groupGrid.headers) {
-    nodes.push(groupHeaderNode(name, position));
     const group = groupByName.get(name);
     if (group) nodes.push(groupStandingsNode(group, position));
   }
@@ -280,7 +297,11 @@ export function buildRoadmapGraph(tournament: Tournament, tz?: string): RoadmapG
     }
   }
 
-  const edges: RoadmapEdge[] = [...feederEdges(tournament), ...advanceEdges(tournament)];
+  const edges: RoadmapEdge[] = [
+    ...feederEdges(tournament),
+    ...advanceEdges(tournament),
+    ...memberEdges(tournament),
+  ];
 
   return { nodes, edges };
 }

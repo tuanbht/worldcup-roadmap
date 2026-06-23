@@ -22,7 +22,10 @@ function AdvanceEdgeImpl({
     targetPosition,
     curvature: 0.35,
   });
-  const state = data?.state ?? 'undecided';
+  // The edge-data union now includes the membership edge (no `state`), so narrow
+  // by checking for the field before reading it — AdvanceEdge only renders
+  // advance/feeder edges, which always carry a `state`.
+  const state = data && 'state' in data ? data.state : 'undecided';
   // Team-focus modifier (item 3): bright `--focus-on` for an edge on the focused
   // team's path, `--focus-dim` for the rest, absent when no team is focused. It
   // is APPENDED alongside the state class so geometry is unchanged.

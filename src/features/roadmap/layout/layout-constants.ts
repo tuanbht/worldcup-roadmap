@@ -19,20 +19,22 @@ export const NODE_H = 108;
 export const DAY_MARKER_H = NODE_H;
 
 /**
- * Header-band sub-bands (item 2). The always-on standings table lives under each
- * group-header in `[HEADER_TOP, HEADER_TOP + GROUP_TABLE_H)`, with `HEADER_GAP`
- * of clear air before day-row 0 at `HEADER_H`.
+ * Header-band sub-bands (item 2). With the redundant column-title pill removed,
+ * the always-on standings table is the SINGLE per-column header and sits flush at
+ * the top of the band in `[HEADER_TOP, HEADER_TOP + GROUP_TABLE_H)`, with
+ * `HEADER_GAP` of clear air before day-row 0 at `HEADER_H`.
  *
- * `HEADER_TOP` reserves the column-title pill at the top of the band; the
- * standings table is anchored at `HEADER_TOP` (directly under the pill) and its
- * `GROUP_TABLE_H`-tall box plus `HEADER_GAP` of breathing room must clear
- * `HEADER_H` (= day-row 0). `HEADER_H` is DERIVED from these three sub-bands so
- * growing the table grows the whole header band and pushes every day-row (group
- * and knockout, both rooted at `HEADER_H`) down uniformly.
+ * `HEADER_TOP` is now just a small top inset (no pill to reserve); the standings
+ * table is anchored at `HEADER_TOP` and its `GROUP_TABLE_H`-tall box plus
+ * `HEADER_GAP` of breathing room must clear `HEADER_H` (= day-row 0). `HEADER_H`
+ * is DERIVED from these three sub-bands so growing the table grows the whole
+ * header band and pushes every day-row (group and knockout, both rooted at
+ * `HEADER_H`) down uniformly — no gap left by the removed pill, no overlap with
+ * the first match row.
  */
-export const HEADER_TOP = 56;
+export const HEADER_TOP = 16;
 export const GROUP_TABLE_H = 196;
-export const HEADER_GAP = 24;
+export const HEADER_GAP = 40;
 
 /** Vertical pixels between adjacent day-rows on the shared axis. */
 export const DAY_ROW_PITCH = NODE_H + 92;
@@ -52,7 +54,7 @@ export const RAIL_W = 120;
  * Top header-band height; day-row 0 starts at y = HEADER_H. Derived from the
  * three sub-bands (item 2) so the always-on standings table [HEADER_TOP,
  * HEADER_TOP + GROUP_TABLE_H) fits with `HEADER_GAP` of clear air before row 0.
- * `HEADER_TOP + GROUP_TABLE_H + HEADER_GAP === 276` (> the old flat 96).
+ * `HEADER_TOP + GROUP_TABLE_H + HEADER_GAP === 252` (> the old flat 96).
  */
 export const HEADER_H = HEADER_TOP + GROUP_TABLE_H + HEADER_GAP;
 /** Vertical anchor of the always-on standings table inside the header band. */

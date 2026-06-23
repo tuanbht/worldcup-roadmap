@@ -65,8 +65,10 @@ const ARG_MATCHES = new Set([...ARG_GROUP, ...ARG_KO]);
 
 /**
  * Single oracle for the edge ids on a team's path, reconstructed from the REAL
- * graph (never hardcoded): the group's feeder edges PLUS every advance edge whose
- * BOTH endpoints are in the team's match set. Reused by every edge assertion + the
+ * graph (never hardcoded): the group's feeder edges, every advance edge whose
+ * BOTH endpoints are in the team's match set, PLUS the team's OWN membership
+ * edges (`member-<group>-<matchId>` for each of its in-group matches — M3 scope:
+ * the team's links, not its whole group's). Reused by every edge assertion + the
  * `applyTeamFocus` fixture so the selector and the stamper are checked against one
  * source of truth, in lockstep with build-graph's edge-id grammar.
  */
@@ -75,9 +77,34 @@ function oracleEdgeIds(g: RoadmapGraph, group: string, matchSet: ReadonlySet<str
     .filter(
       (e) =>
         e.id.startsWith(`feed-${group}-`) ||
-        (e.id.startsWith('adv-') && matchSet.has(e.source) && matchSet.has(e.target)),
+        (e.id.startsWith('adv-') && matchSet.has(e.source) && matchSet.has(e.target)) ||
+        // Membership edge id grammar: member-<group>-<matchId>. On the team's
+        // path only when its TARGET match is one the team itself plays (M3).
+        (e.id.startsWith(`member-${group}-`) && matchSet.has(e.target)),
     )
     .map((e) => e.id);
+}
+
+/** ARG's OWN membership edge ids (member-A-<each ARG group match>) — its links. */
+const ownMemberIds = ARG_GROUP.map((id) => `member-A-${id}`);
+
+/**
+ * A group-A membership edge whose target is a group-A match ARG does NOT play
+ * (the "same group, other team" case — must DIM under M3). Single source of
+ * truth so the selector and stamper tests agree; fails loud if the fixture drops
+ * it rather than passing vacuously.
+ */
+function sameGroupOtherMemberEdge(g: RoadmapGraph) {
+  const edge = g.edges.find((e) => e.id.startsWith('member-A-') && !ARG_MATCHES.has(e.target));
+  expect(edge, 'fixture: a non-ARG group-A member edge must exist').toBeDefined();
+  return edge!;
+}
+
+/** An unrelated group's membership edge (member-B-*) — must DIM under M3. */
+function unrelatedGroupMemberEdge(g: RoadmapGraph) {
+  const edge = g.edges.find((e) => e.id.startsWith('member-B-'));
+  expect(edge, 'fixture: a group-B member edge must exist').toBeDefined();
+  return edge!;
 }
 
 describe('teamIdOfRef', () => {
@@ -212,6 +239,32 @@ describe('selectTeamFocus — edge ids [Acceptance #5]', () => {
   });
 });
 
+describe("selectTeamFocus — membership edges follow the team's OWN matches [M3 / Acceptance #9]", () => {
+  it("includes the team's OWN member edges (member-A-<each ARG group match>)", () => {
+    const focus = selectTeamFocus(tournament, ARG);
+    // ARG plays 3 group-A matches; its membership links are exactly those three.
+    expect(ownMemberIds.length).toBe(3); // guard: not vacuous
+    for (const id of ownMemberIds) {
+      // The id must be a real edge in the graph AND in the focus set.
+      expect(
+        graph.edges.some((e) => e.id === id),
+        `graph has ${id}`,
+      ).toBe(true);
+      expect(focus.edgeIds.has(id), `focus includes own member edge ${id}`).toBe(true);
+    }
+  });
+
+  it('EXCLUDES a same-group-but-other-team member edge (its links, not its group)', () => {
+    const focus = selectTeamFocus(tournament, ARG);
+    expect(focus.edgeIds.has(sameGroupOtherMemberEdge(graph).id)).toBe(false);
+  });
+
+  it('EXCLUDES an unrelated group member edge (member-B-*)', () => {
+    const focus = selectTeamFocus(tournament, ARG);
+    expect(focus.edgeIds.has(unrelatedGroupMemberEdge(graph).id)).toBe(false);
+  });
+});
+
 describe('applyTeamFocus — immutable stamping [Acceptance #5, #7]', () => {
   // Built from the SAME oracle the selector tests use, so the stamper is exercised
   // against the real graph's edge ids (no separate hand-maintained set to drift).
@@ -244,6 +297,38 @@ describe('applyTeamFocus — immutable stamping [Acceptance #5, #7]', () => {
     }
     const unrelated = graph.edges.find((e) => !focus.edgeIds.has(e.id))!;
     expect(byId.get(unrelated.id)?.data?.focusState).toBe('dim');
+  });
+
+  it("stamps 'on' on the team's OWN member edges and 'dim' on the rest [M3 / Acceptance #10]", () => {
+    const { edges } = applyTeamFocus(graph.nodes, graph.edges, focus);
+    const byId = new Map(edges.map((e) => [e.id, e]));
+    // ARG's own membership links light up.
+    for (const id of ownMemberIds) {
+      expect(byId.get(id)?.data?.focusState, `own member ${id} is on`).toBe('on');
+    }
+    // A same-group-other-team member edge dims (not in the focus set), and so
+    // does an unrelated group's member edge — pinning the "its links, not its
+    // group's links" scope (shared oracle with the selector tests).
+    expect(byId.get(sameGroupOtherMemberEdge(graph).id)?.data?.focusState).toBe('dim');
+    expect(byId.get(unrelatedGroupMemberEdge(graph).id)?.data?.focusState).toBe('dim');
+  });
+
+  it('a stamped member edge KEEPS its group and never gains a state field [M2 / Acceptance #10]', () => {
+    const { edges } = applyTeamFocus(graph.nodes, graph.edges, focus);
+    const memberEdges = edges.filter((e) => e.id.startsWith('member-'));
+    expect(memberEdges.length).toBeGreaterThan(0); // guard: not vacuous
+    for (const e of memberEdges) {
+      const data = e.data as { group?: string; state?: unknown; focusState?: unknown };
+      // group survives the immutable stamp (mirrors the id's group letter).
+      const expectedGroup = e.id.match(/^member-([A-Z])-/)?.[1];
+      expect(data.group, `member ${e.id} keeps its group`).toBe(expectedGroup);
+      // The stamper must NOT inject an advance `state` onto a member edge (M2:
+      // member data is always present, so the `{ state:'undecided' }` default
+      // branch never fires).
+      expect('state' in data, `member ${e.id} gains no state field`).toBe(false);
+      // It still carries a focus mark ('on' or 'dim') from the stamp.
+      expect(data.focusState === 'on' || data.focusState === 'dim').toBe(true);
+    }
   });
 
   it('leaves a group-standings node UN-dimmed (always-on reference, never recedes)', () => {

@@ -11,7 +11,8 @@ interface StandingsOverlayProps {
 }
 
 /**
- * On-demand standings panel opened from a `group-header`. A `role="dialog"`
+ * On-demand standings panel opened from a group's standings-table header button.
+ * A `role="dialog"`
  * overlay that:
  *  - moves focus to the close button on open,
  *  - owns Esc ONLY while open and `stopPropagation()`s it, so the canvas's

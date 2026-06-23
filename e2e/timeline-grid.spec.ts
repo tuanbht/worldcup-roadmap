@@ -147,7 +147,10 @@ test.describe('always-on standings table', () => {
 // real <button>s, so we activate them by KEYBOARD (`.focus()` + Enter) — the
 // requirement's own a11y path — which is reliable regardless of canvas transform
 // and never depends on the node being scrolled into the visible pane.
-const STANDINGS_FLAG = 'section[aria-label$="standings"] button';
+// Match the team flag by its precise "Show matches for …" label so it never
+// collides with the table header opener button that also lives inside the
+// standings <section> (mirrors the membership-edges block's TEAM_FLAG).
+const STANDINGS_FLAG = 'section[aria-label$="standings"] button[aria-label^="Show matches for"]';
 
 /** The first standings flag and the team name from its accessible label. */
 async function firstFlag(page: Page) {
@@ -251,5 +254,61 @@ test.describe('team focus highlight', () => {
     // Esc clears the announcement (and the focus) so SR users hear it reset.
     await page.keyboard.press('Escape');
     await expect(status).toHaveText('', { timeout: 10_000 });
+  });
+});
+
+// --- Item 2: dashed membership edges (standings table -> its matches) --------
+//
+// The new `member` edge family renders as dashed `.member-edge` SVG paths from
+// each group's standings table down to its match cards. They compose with the
+// team-focus interaction (item 3): focusing a team toggles `member-edge--focus-on`
+// on its links and `member-edge--focus-dim` on the rest, with NO node relayout.
+// Plan Acceptance #8, #9, #11. RED until build-graph emits member edges + the
+// MemberEdge renderer + CSS land. The team flag is matched by its precise
+// "Show matches for …" label so it never collides with the table header opener
+// button that now also lives inside the standings <section>.
+const TEAM_FLAG = 'section[aria-label$="standings"] button[aria-label^="Show matches for"]';
+
+test.describe('membership edges', () => {
+  test('at least one dashed .member-edge path is attached to the canvas [Acceptance #8]', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    await expect(page.locator('path.member-edge').first()).toBeAttached({ timeout: 10_000 });
+    await expect(async () => {
+      // 12 groups each fan to their in-group matches, so there are many links.
+      expect(await page.locator('path.member-edge').count()).toBeGreaterThan(0);
+    }).toPass({ timeout: 10_000 });
+  });
+
+  test('focusing a team highlights its membership links and dims the rest, no node move [Acceptance #9, #11]', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+
+    // Sample a stable node's transform BEFORE focusing, to prove no relayout.
+    const sampleNode = page.locator('.react-flow__node').first();
+    const beforeTransform = await sampleNode.evaluate((el) => (el as HTMLElement).style.transform);
+
+    const flag = page.locator(TEAM_FLAG).first();
+    await expect(flag).toBeAttached({ timeout: 10_000 });
+    await flag.focus();
+    await expect(flag).toBeFocused();
+    await flag.press('Enter');
+
+    // Some membership links light up (focus-on) and others dim (focus-dim).
+    await expect(page.locator('path.member-edge--focus-on').first()).toBeAttached({
+      timeout: 10_000,
+    });
+    await expect(page.locator('path.member-edge--focus-dim').first()).toBeAttached({
+      timeout: 10_000,
+    });
+
+    // No relayout: the sampled node's transform is unchanged.
+    const afterTransform = await sampleNode.evaluate((el) => (el as HTMLElement).style.transform);
+    expect(afterTransform).toBe(beforeTransform);
   });
 });

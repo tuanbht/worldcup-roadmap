@@ -8,7 +8,7 @@ const FIT_PADDING = 0.12;
 
 /**
  * Re-frame the viewport whenever `key` changes (data arrival, node-count change).
- * TOP-aligns the content (so the group-header + standings band stays in view on
+ * TOP-aligns the content (so the group-standings header band stays in view on
  * the tall canvas), falling back to a centered `fitView` before the pane is
  * measurable.
  */

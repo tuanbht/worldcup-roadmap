@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SCORE, teamRef } from '@/domain/types';
-import type { Stage } from '@/domain/types';
-import { NODE_W, NODE_H } from '../layout/layout-constants';
+import type { Group, Stage } from '@/domain/types';
+import { NODE_W, NODE_H, STANDINGS_W, GROUP_TABLE_H } from '../layout/layout-constants';
 import type {
   DayMarkerFlowNode,
-  GroupHeaderFlowNode,
+  GroupStandingsFlowNode,
   MatchFlowNode,
   RoadmapNode,
 } from '../graph-model';
@@ -18,8 +18,14 @@ import { boundsOf, footprintOf, isGroupZoneNode, isKnockoutNode } from './useFoc
  * React renderer / `useReactFlow` machinery. Node env (no DOM).
  *
  * The expected envelope is derived from `NODE_W`/`NODE_H` (and the known guide
- * footprints 96x32 / NODE_Wx44), never restated as magic numbers, so it tracks
- * the constants if the design tokens change.
+ * footprints 96x32 / STANDINGS_W x GROUP_TABLE_H), never restated as magic
+ * numbers, so it tracks the constants if the design tokens change.
+ *
+ * H3: the guide-node fixtures + assertions are RETARGETED off the removed
+ * `group-header` pill onto the always-on `group-standings` table — its footprint
+ * is the table box (STANDINGS_W x GROUP_TABLE_H) and it is a group-zone node, so
+ * "groups"/"all" framing still includes the top band. The mutual-exclusivity and
+ * zone-classification coverage is preserved, not dropped.
  */
 
 const HOME = teamRef({ id: 't-h', name: 'Home', code: 'HOM', flagUrl: null });
@@ -72,12 +78,13 @@ function dayMarkerNode(p: { id: string; x: number; y: number }): DayMarkerFlowNo
   };
 }
 
-function groupHeaderNode(p: { id: string; x: number; y: number }): GroupHeaderFlowNode {
+function groupStandingsNode(p: { id: string; x: number; y: number }): GroupStandingsFlowNode {
+  const group: Group = { name: 'A', table: [] };
   return {
     id: p.id,
-    type: 'group-header',
+    type: 'group-standings',
     position: { x: p.x, y: p.y },
-    data: { group: 'A' },
+    data: { group },
   };
 }
 
@@ -91,8 +98,11 @@ describe('footprintOf', () => {
     expect(footprintOf(dayMarkerNode({ id: 'd', x: 0, y: 0 }))).toEqual({ w: 96, h: 32 });
   });
 
-  it('returns a card-wide, short footprint (NODE_W x 44) for a group-header', () => {
-    expect(footprintOf(groupHeaderNode({ id: 'g', x: 0, y: 0 }))).toEqual({ w: NODE_W, h: 44 });
+  it('returns the standings-table box (STANDINGS_W x GROUP_TABLE_H) for a group-standings node [H3]', () => {
+    expect(footprintOf(groupStandingsNode({ id: 'g', x: 0, y: 0 }))).toEqual({
+      w: STANDINGS_W,
+      h: GROUP_TABLE_H,
+    });
   });
 });
 
@@ -124,17 +134,20 @@ describe('boundsOf', () => {
     });
   });
 
-  it('applies type-specific footprints per node (day-marker vs group-header vs card)', () => {
-    // A day-marker at the origin (96x32) and a group-header far right (NODE_W x 44).
+  it('applies type-specific footprints per node (day-marker vs group-standings vs card) [H3]', () => {
+    // A day-marker at the origin (96x32) and a group-standings table far right
+    // (STANDINGS_W x GROUP_TABLE_H). The envelope spans to the standings box,
+    // which is far taller/wider than the marker — so it dominates both axes.
     const marker = dayMarkerNode({ id: 'd', x: 0, y: 0 });
-    const header = groupHeaderNode({ id: 'g', x: 400, y: 10 });
-    const bounds = boundsOf([marker, header]);
+    const standings = groupStandingsNode({ id: 'g', x: 400, y: 10 });
+    const bounds = boundsOf([marker, standings]);
     expect(bounds).toEqual({
       x: 0,
       y: 0,
-      // maxX = 400 + NODE_W (header) ; maxY = 10 + 44 (header) vs 0 + 32 (marker) → 54.
-      width: 400 + NODE_W,
-      height: 54,
+      // maxX = 400 + STANDINGS_W (standings) ; maxY = 10 + GROUP_TABLE_H (standings)
+      // vs 0 + 32 (marker) → 10 + GROUP_TABLE_H dominates.
+      width: 400 + STANDINGS_W,
+      height: 10 + GROUP_TABLE_H,
     });
   });
 
@@ -165,8 +178,8 @@ describe('boundsOf', () => {
 });
 
 describe('isGroupZoneNode', () => {
-  it('is true for a group-header node', () => {
-    expect(isGroupZoneNode(groupHeaderNode({ id: 'g', x: 0, y: 0 }))).toBe(true);
+  it('is true for a group-standings node [H3]', () => {
+    expect(isGroupZoneNode(groupStandingsNode({ id: 'g', x: 0, y: 0 }))).toBe(true);
   });
 
   it('is true for a GROUP_STAGE match', () => {
@@ -193,8 +206,8 @@ describe('isKnockoutNode', () => {
     expect(isKnockoutNode(matchNode({ id: 'm', x: 0, y: 0, stage: 'GROUP_STAGE' }))).toBe(false);
   });
 
-  it('is false for a group-header node', () => {
-    expect(isKnockoutNode(groupHeaderNode({ id: 'g', x: 0, y: 0 }))).toBe(false);
+  it('is false for a group-standings node [H3]', () => {
+    expect(isKnockoutNode(groupStandingsNode({ id: 'g', x: 0, y: 0 }))).toBe(false);
   });
 
   it('is false for a day-marker node', () => {
@@ -211,8 +224,16 @@ describe('predicate mutual-exclusivity', () => {
 
   it.each<RoadmapNode>([
     dayMarkerNode({ id: 'd', x: 0, y: 0 }),
-    groupHeaderNode({ id: 'g', x: 0, y: 0 }),
+    groupStandingsNode({ id: 'g', x: 0, y: 0 }),
   ])('never marks a non-match guide node as knockout (type: $type)', (guide) => {
     expect(isKnockoutNode(guide)).toBe(false);
+  });
+
+  it('marks the group-standings guide as a group-zone node, not knockout [H3]', () => {
+    // The standings table is part of the group band, so "groups"/"all" framing
+    // includes it: group-zone true, knockout false (never both/neither for a guide).
+    const standings = groupStandingsNode({ id: 'g', x: 0, y: 0 });
+    expect(isGroupZoneNode(standings)).toBe(true);
+    expect(isKnockoutNode(standings)).toBe(false);
   });
 });
