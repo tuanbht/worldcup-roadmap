@@ -25,8 +25,12 @@ interface InteractionModeToggleProps {
  * scroll pans; ⌘/Ctrl+scroll and pinch zoom). The active affordance is described
  * in a short hint line so users know how to zoom in the current mode.
  *
- * Keyboard + ARIA come from the reused accessible `SegmentedControl` (tablist of
- * tabs); the hint is exposed to assistive tech via `aria-describedby`.
+ * AF-5: This is a mode switch with no associated tabpanels, so it uses
+ * `variant="radiogroup"` on SegmentedControl (role=radiogroup / role=radio /
+ * aria-checked) rather than the tablist/tab/aria-selected pattern.
+ * The roving tabindex + ArrowLeft/Right/Home/End keyboard nav (CR-4) is kept.
+ *
+ * The hint is exposed to assistive tech via `aria-describedby`.
  */
 export function InteractionModeToggle({ mode, onChange }: InteractionModeToggleProps) {
   const hintId = 'interaction-mode-hint';
@@ -72,6 +76,7 @@ export function InteractionModeToggle({ mode, onChange }: InteractionModeToggleP
             value={mode}
             onChange={onChange}
             ariaLabel="Canvas scroll behavior"
+            variant="radiogroup"
             getOptionId={optionId}
             onKeyDown={onKeyDown}
           />
