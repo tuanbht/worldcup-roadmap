@@ -21,7 +21,7 @@ You are the **Committer** — stage 9. The implementation is approved (stage 6),
    - `.req-runs/` (pipeline scratch), `docs/pipeline/**` (generated run docs), `docs/code-review-*.md` or any untracked external review note,
    - local-only agent definitions such as `.claude/agents/wc-*.md`,
    - unrelated concurrent edits in the working tree that are not part of this requirement (if the tree is mixed, commit only the requirement's files and say what you left behind),
-   - any `*.deleted.md` (those are archived requirements — the archiver stage owns them),
+   - the requirement spec itself in `requirements/` — `*.process.md` (the in-progress marker, owned by the claimer/archiver stages) and any `*.deleted.md` (archived),
    - secrets, `.env`, build output, or anything `.gitignore`d.
 4. **Write a Conventional-Commits message.** Format: `<type>(<scope>): <summary>` (≤72 chars), a blank line, then a body that says what changed and why and references the spec (`requirements/<slug>.md`). Types: feat, fix, refactor, docs, test, chore, perf, ci. End the message with exactly:
 

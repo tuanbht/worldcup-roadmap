@@ -1,11 +1,11 @@
 ---
-description: Run a requirement through the 10-stage gated TDD pipeline (plan → review → test → refactor test → implement → review → live verify → final review → commit → archive/soft-delete).
+description: Run a requirement through the gated TDD pipeline (claim → plan → review → test → refactor test → implement → review → live verify → final review → commit → archive/soft-delete).
 argument-hint: <requirement description, or path to a requirement file>
 ---
 
-You are the **orchestrator** of the requirement-implementation pipeline. Drive the ten `req-*` subagents in order, enforce the review gates, and loop back on rejection. Do the coordination yourself; delegate the actual work to the subagents via the Task tool.
+You are the **orchestrator** of the requirement-implementation pipeline. Drive the eleven `req-*` subagents in order (stage 0 claim → … → stage 10 archive), enforce the review gates, and loop back on rejection. Do the coordination yourself; delegate the actual work to the subagents via the Task tool.
 
-**Only ever implement ACTIVE requirements** — `requirements/*.md` that do NOT end in `.deleted.md`. A `*.deleted.md` file is a finished requirement that the archiver (stage 10) soft-deleted; it is kept for audit ONLY. When scanning `requirements/` to pick work, skip every `*.deleted.md`.
+**Requirements have a 3-state lifecycle** — `requirements/<slug>.md` (TODO, pickable) → `requirements/<slug>.process.md` (claimed/in-progress, by the claimer at stage 0) → `requirements/<slug>.deleted.md` (done, by the archiver at stage 10). **Only ever pick up ACTIVE requirements** — `*.md` that do NOT end in `.process.md` or `.deleted.md`. A `*.process.md` is already being worked by a pipeline run (skip it — it's claimed); a `*.deleted.md` is finished and audit-only (skip it). When scanning to pick new work, skip both.
 
 ## The requirement
 
@@ -15,11 +15,13 @@ If that is empty, ask the user for the requirement before proceeding. If it is a
 
 ## Setup
 
-1. Derive a short kebab-case `<slug>` from the requirement.
+1. Derive a `<slug>` from the requirement (when it is a `requirements/<slug>.md` file, the slug is its filename without the `.md`).
 2. Create the run folder `docs/pipeline/<slug>/` and write the requirement verbatim to `docs/pipeline/<slug>/requirement.md`.
 3. Use this folder for every artifact below. Always pass each subagent the **absolute paths** it needs (it does not share your context).
 
 ## Pipeline (run in order)
+
+**Stage 0 — Claim.** Dispatch `req-claimer`. It renames `requirements/<slug>.md` → `requirements/<slug>.process.md` and commits it, marking the requirement **in progress** so no concurrent scan/session/you picks it up while the pipeline works it. (Idempotent — if it is already `.process.md`/`.deleted.md`, it no-ops.)
 
 **Stage 1 — Plan.** Dispatch `req-planner` with `requirement.md` and the run folder. It writes `plan.md`.
 
@@ -43,7 +45,7 @@ If that is empty, ask the user for the requirement before proceeding. If it is a
 
 **Stage 9 — Commit.** Only if the stage-6 gate was APPROVED and stage 7 did not FAIL. Dispatch `req-committer`. It verifies all gates are green, then makes ONE Conventional-Commits commit of just this requirement's files (no push). If a gate is red, it does not commit — surface that instead of advancing.
 
-**Stage 10 — Archive (soft-delete).** Only after stage 9 commits. Dispatch `req-archiver`. It renames `requirements/<slug>.md` → `requirements/<slug>.deleted.md` (content preserved for audit) and commits the rename, so future scans skip this requirement.
+**Stage 10 — Archive (soft-delete).** Only after stage 9 commits. Dispatch `req-archiver`. It renames `requirements/<slug>.process.md` → `requirements/<slug>.deleted.md` (the claimer renamed it to `.process.md` at stage 0; content preserved for audit) and commits the rename, so future scans skip this requirement.
 
 ## Rules
 
@@ -62,8 +64,8 @@ A full pipeline run is long and **will** be compacted (the harness replaces the 
 When you find yourself resuming with only a summary (or are re-invoked and a run was clearly in progress):
 
 1. Re-read this command + `docs/pipeline/README.md` + `requirements/` (skip every `*.deleted.md` — those are finished).
-2. Process active requirements **oldest-first** by their `<YYYY-MM-DD-HHMM>-` filename prefix.
-3. For the in-flight requirement, infer the last completed stage from which artifacts exist in `docs/pipeline/<slug>/`, and resume at the **next** stage — do not redo finished stages:
+2. **A `requirements/<slug>.process.md` is the IN-FLIGHT requirement** — it was claimed (stage 0) but not yet archived. Resume THAT one FIRST (do not re-claim it; it is already `.process.md`). Only after no `.process.md` remains do you pick the next TODO (`*.md`, oldest-first by its `<YYYY-MM-DD-HHMM>-` prefix) and start it at Stage 0 (claim).
+3. For the in-flight requirement, infer the last completed stage from which artifacts exist in `docs/pipeline/<slug>/`, and resume at the **next** stage — do not redo finished stages (the claim is already done if the spec is `.process.md`):
    - only `requirement.md` → Stage 1 (plan)
    - `plan.md` present, no `plan-review.md` → Stage 2 (review plan)
    - `plan-review.md` APPROVED → Stage 3 (tests); `CHANGES_REQUESTED` → re-plan

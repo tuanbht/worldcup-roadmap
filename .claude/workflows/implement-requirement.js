@@ -1,10 +1,15 @@
 export const meta = {
   name: 'implement-requirement',
   description:
-    'Run a requirement through the 10-stage gated TDD pipeline using the req-* agents (all opus, xhigh effort): plan → review → test → refactor → implement → review → live-verify → final → commit → archive.',
+    'Run a requirement through the gated TDD pipeline using the req-* agents (all opus, xhigh effort): claim (.md→.process.md) → plan → review → test → refactor → implement → review → live-verify → final → commit → archive (.process.md→.deleted.md).',
   whenToUse:
-    'Fully-automated, background execution of plan → review → test → refactor → implement → review → live verify (Playwright) → final review → commit → soft-delete (archive) the requirement.',
+    'Fully-automated, background execution: claim the requirement (mark in-progress) → plan → review → test → refactor → implement → review → live verify (Playwright) → final review → commit → soft-delete (archive).',
   phases: [
+    {
+      title: 'Claim',
+      detail: 'mark in-progress: rename <slug>.md → <slug>.process.md',
+      model: 'sonnet',
+    },
     { title: 'Plan', detail: 'plan + gated plan review (loop up to 3x)', model: 'opus' },
     { title: 'Test', detail: 'write RED tests, then refactor them (still RED)', model: 'opus' },
     {
@@ -30,7 +35,7 @@ export const meta = {
     },
     {
       title: 'Archive',
-      detail: 'soft-delete the requirement: rename <slug>.md → <slug>.deleted.md',
+      detail: 'soft-delete the requirement: rename <slug>.process.md → <slug>.deleted.md',
       model: 'opus',
     },
   ],
@@ -71,6 +76,14 @@ const LIVE_SCHEMA = {
 
 const ctx = `Run folder (absolute): ${runDir}\nRequirement file: ${runDir}/requirement.md\nRequirement:\n${requirement}`;
 const MAX_ITERS = 3;
+
+// ---- Claim: mark the requirement in-progress so nothing else picks it up. ----
+phase('Claim');
+const claim = await agent(
+  `${ctx}\n\nClaim this requirement before planning starts: rename requirements/${slug}.md → requirements/${slug}.process.md (git mv, content unchanged) and commit it (chore(requirements): claim ${slug} — in progress (.process.md), no push). If it is already ${slug}.process.md or ${slug}.deleted.md, do nothing and report. Return the in-progress path and the claim commit hash.`,
+  { model: 'sonnet', effort: 'medium', agentType: 'req-claimer', phase: 'Claim', label: 'claim' },
+);
+log(`Claim: ${slug} marked in-progress (.process.md)`);
 
 // ---- Plan + gated review ----
 phase('Plan');
@@ -190,13 +203,13 @@ const liveBlocks = liveVerify?.verdict === 'FAIL';
 if (implApproved && !liveBlocks) {
   phase('Commit');
   commit = await agent(
-    `${ctx}\n\nThe implementation is APPROVED. Verify ALL gates green first (npm run typecheck, npm run test, npm run build, npx prettier --check .) — if any is red, do NOT commit, report what failed. Then stage ONLY this requirement's files (the plan's touched files + tests + any doc reconciliation; exclude .req-runs/, docs/pipeline/**, local .claude/agents/wc-*.md, *.deleted.md, and unrelated concurrent edits) and create ONE Conventional-Commits commit (no push, no --no-verify). Return the commit hash, subject, files committed, and anything left unstaged.`,
+    `${ctx}\n\nThe implementation is APPROVED. Verify ALL gates green first (npm run typecheck, npm run test, npm run build, npx prettier --check .) — if any is red, do NOT commit, report what failed. Then stage ONLY this requirement's files (the plan's touched files + tests + any doc reconciliation; exclude .req-runs/, docs/pipeline/**, local .claude/agents/wc-*.md, the requirement marker requirements/*.process.md and any *.deleted.md, and unrelated concurrent edits) and create ONE Conventional-Commits commit (no push, no --no-verify). Return the commit hash, subject, files committed, and anything left unstaged.`,
     { ...TIER, agentType: 'req-committer', phase: 'Commit', label: 'commit' },
   );
 
   phase('Archive');
   archive = await agent(
-    `${ctx}\n\nThe implementation is committed. Soft-delete this requirement so future scans skip it: rename requirements/${slug}.md → requirements/${slug}.deleted.md (git mv, content preserved for audit) and commit that rename (chore(requirements): archive ${slug} — soft-delete (audit-only), no push). If requirements/${slug}.md does not exist or is already archived, report and stop cleanly. Return the archived path and the rename commit hash.`,
+    `${ctx}\n\nThe implementation is committed. Soft-delete this requirement so future scans skip it: rename requirements/${slug}.process.md → requirements/${slug}.deleted.md (the claimer renamed it to .process.md at stage 0; git mv, content preserved for audit) and commit that rename (chore(requirements): archive ${slug} — soft-delete (audit-only), no push). If only requirements/${slug}.md exists, archive that instead; if neither exists or it is already .deleted.md, report and stop cleanly. Return the archived path and the rename commit hash.`,
     { ...TIER, agentType: 'req-archiver', phase: 'Archive', label: 'archive' },
   );
 } else {
@@ -210,6 +223,7 @@ if (implApproved && !liveBlocks) {
 return {
   slug,
   runDir,
+  claim,
   planIters,
   implIters,
   planApproved,
