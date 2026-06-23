@@ -1,9 +1,9 @@
 export const meta = {
   name: 'implement-requirement',
   description:
-    'Run a requirement through the 7-stage gated TDD pipeline using the req-* agents (all opus, xhigh effort).',
+    'Run a requirement through the 10-stage gated TDD pipeline using the req-* agents (all opus, xhigh effort): plan → review → test → refactor → implement → review → live-verify → final → commit → archive.',
   whenToUse:
-    'Fully-automated, background execution of plan → review → test → refactor → implement → review → final review.',
+    'Fully-automated, background execution of plan → review → test → refactor → implement → review → live verify (Playwright) → final review → commit → soft-delete (archive) the requirement.',
   phases: [
     { title: 'Plan', detail: 'plan + gated plan review (loop up to 3x)', model: 'opus' },
     { title: 'Test', detail: 'write RED tests, then refactor them (still RED)', model: 'opus' },
@@ -13,8 +13,24 @@ export const meta = {
       model: 'opus',
     },
     {
+      title: 'Live verify',
+      detail:
+        'demonstrate the acceptance criteria in the running app (Playwright): PASS/FAIL/SKIPPED',
+      model: 'opus',
+    },
+    {
       title: 'Final',
       detail: 'holistic review: tradeoffs, debt, risks, follow-ups',
+      model: 'opus',
+    },
+    {
+      title: 'Commit',
+      detail: 'verify gates green, then one Conventional-Commits commit (no push)',
+      model: 'opus',
+    },
+    {
+      title: 'Archive',
+      detail: 'soft-delete the requirement: rename <slug>.md → <slug>.deleted.md',
       model: 'opus',
     },
   ],
@@ -40,6 +56,17 @@ const REVIEW_SCHEMA = {
     requiredChanges: { type: 'array', items: { type: 'string' } },
   },
   required: ['verdict', 'summary', 'requiredChanges'],
+};
+
+const LIVE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    verdict: { type: 'string', enum: ['PASS', 'FAIL', 'SKIPPED'] },
+    summary: { type: 'string' },
+    evidence: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['verdict', 'summary', 'evidence'],
 };
 
 const ctx = `Run folder (absolute): ${runDir}\nRequirement file: ${runDir}/requirement.md\nRequirement:\n${requirement}`;
@@ -129,12 +156,56 @@ log(
   `Implementation stage: ${implApproved ? 'APPROVED' : 'NOT APPROVED'} after ${implIters} iteration(s)`,
 );
 
+// ---- Live verification: demonstrate the requirement in the running app
+// (Playwright). Only runs on an approved implementation; PASS/FAIL/SKIPPED. ----
+let liveVerify = null;
+if (implApproved) {
+  phase('Live verify');
+  liveVerify = await agent(
+    `${ctx}\n\nThe implementation is APPROVED and unit-green. Demonstrate the requirement's UI-observable acceptance criteria in the REAL running app at http://localhost:3217 with Playwright (start the dev server only if it is not already up; stop it after if you started it). Capture screenshots into ${runDir}/evidence/ and assert against the LIVE DOM. Return PASS (all UI criteria demonstrated), FAIL (a criterion is broken in the running app — blocks commit), or SKIPPED (could not run / no UI surface), with evidence paths.`,
+    {
+      ...TIER,
+      agentType: 'req-live-verifier',
+      phase: 'Live verify',
+      label: 'live-verify',
+      schema: LIVE_SCHEMA,
+    },
+  );
+  log(`Live verify: ${liveVerify?.verdict ?? 'UNKNOWN'} — ${liveVerify?.summary ?? ''}`);
+}
+
 // ---- Final holistic review (always runs; reports honestly even if a gate failed) ----
 phase('Final');
 const finalReview = await agent(
-  `${ctx}\n\nProduce the holistic final review of the whole effort (requirement satisfaction, tradeoffs, tech debt, risks, test posture, prioritized follow-ups). Implementation gate result: ${implApproved ? 'APPROVED' : 'NOT APPROVED after ' + implIters + ' iterations'}. Write ${runDir}/final-review.md and return an executive summary with an overall verdict.`,
+  `${ctx}\n\nProduce the holistic final review of the whole effort (requirement satisfaction, tradeoffs, tech debt, risks, test posture, prioritized follow-ups). Implementation gate result: ${implApproved ? 'APPROVED' : 'NOT APPROVED after ' + implIters + ' iterations'}. Live verification: ${liveVerify ? liveVerify.verdict + ' — ' + liveVerify.summary : 'not run'}. Factor the live result into your verdict. Write ${runDir}/final-review.md and return an executive summary with an overall verdict.`,
   { ...TIER, agentType: 'req-final-reviewer', phase: 'Final', label: 'final-review' },
 );
+
+// ---- Commit + Archive: only when the implementation passed its gate AND live
+// verification did not FAIL. We never commit a red tree, a feature broken in the
+// running app, or archive an unimplemented requirement. (SKIPPED does not block.) ----
+let commit = null;
+let archive = null;
+const liveBlocks = liveVerify?.verdict === 'FAIL';
+if (implApproved && !liveBlocks) {
+  phase('Commit');
+  commit = await agent(
+    `${ctx}\n\nThe implementation is APPROVED. Verify ALL gates green first (npm run typecheck, npm run test, npm run build, npx prettier --check .) — if any is red, do NOT commit, report what failed. Then stage ONLY this requirement's files (the plan's touched files + tests + any doc reconciliation; exclude .req-runs/, docs/pipeline/**, local .claude/agents/wc-*.md, *.deleted.md, and unrelated concurrent edits) and create ONE Conventional-Commits commit (no push, no --no-verify). Return the commit hash, subject, files committed, and anything left unstaged.`,
+    { ...TIER, agentType: 'req-committer', phase: 'Commit', label: 'commit' },
+  );
+
+  phase('Archive');
+  archive = await agent(
+    `${ctx}\n\nThe implementation is committed. Soft-delete this requirement so future scans skip it: rename requirements/${slug}.md → requirements/${slug}.deleted.md (git mv, content preserved for audit) and commit that rename (chore(requirements): archive ${slug} — soft-delete (audit-only), no push). If requirements/${slug}.md does not exist or is already archived, report and stop cleanly. Return the archived path and the rename commit hash.`,
+    { ...TIER, agentType: 'req-archiver', phase: 'Archive', label: 'archive' },
+  );
+} else {
+  log(
+    liveBlocks
+      ? 'Skipping Commit + Archive: live verification FAILED in the running app (nothing is committed or archived).'
+      : 'Skipping Commit + Archive: implementation gate not approved (nothing is committed or archived).',
+  );
+}
 
 return {
   slug,
@@ -145,5 +216,8 @@ return {
   implApproved,
   testWrite,
   testRefactor,
+  liveVerify,
   finalReview,
+  commit,
+  archive,
 };
