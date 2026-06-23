@@ -41,10 +41,3 @@ export class UpstreamTimeoutError extends RepositoryError {
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected error';
 }
-
-export function toApiError(error: unknown): { code: string; message: string; http: number } {
-  if (error instanceof RepositoryError) {
-    return { code: error.code, message: error.message, http: error.httpStatus };
-  }
-  return { code: 'INTERNAL', message: getErrorMessage(error), http: 500 };
-}

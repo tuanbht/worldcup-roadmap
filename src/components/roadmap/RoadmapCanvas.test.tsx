@@ -16,6 +16,7 @@
 // forwarded to the <ReactFlow> mock and on what is/isn't in the DOM.
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // ---- Mock @xyflow/react so jsdom doesn't need a real RF engine -------------
@@ -45,8 +46,27 @@ vi.mock('@xyflow/react', () => {
 });
 
 // ---- Mock feature hooks ----------------------------------------------------
+// The tournament-query result is now configurable per-test so the fetch-error
+// state (R1: error && !tournament → visible alert + Retry) can be driven without
+// real network. `refetch` is a spy so the Retry-click assertion can verify it is
+// invoked. Default mirrors the original `{ data: null, loading: false }` shape
+// (extended with `error: null` + `refetch`) so every pre-existing case stays green.
+interface MockTournamentQueryResult {
+  data: unknown;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+const refetchSpy = vi.fn();
+const DEFAULT_QUERY_RESULT: MockTournamentQueryResult = {
+  data: null,
+  loading: false,
+  error: null,
+  refetch: refetchSpy,
+};
+let tournamentQueryResult: MockTournamentQueryResult = { ...DEFAULT_QUERY_RESULT };
 vi.mock('@/features/roadmap/hooks/useTournamentQuery', () => ({
-  useTournamentQuery: () => ({ data: null, loading: false }),
+  useTournamentQuery: () => tournamentQueryResult,
 }));
 vi.mock('@/features/roadmap/hooks/useStageView', () => ({
   useStageView: () => ({ focus: 'all', setFocus: vi.fn() }),
@@ -84,10 +104,18 @@ vi.mock('@/features/roadmap/team-focus', () => ({
 }));
 
 // ---- Mock sibling components -----------------------------------------------
+// The MatchDetailPanel mock can be told to throw during render (per-test flag) so
+// the detail-panel ErrorBoundary wrapping (AC 2) can be exercised deterministically
+// — a thrown panel must surface its fallback, NOT blank the whole canvas.
+let detailPanelShouldThrow = false;
+const DETAIL_PANEL_CRASH = 'detail panel render exploded';
 vi.mock('@/components/nodes/node-types', () => ({ nodeTypes: {} }));
 vi.mock('@/components/edges/edge-types', () => ({ edgeTypes: {} }));
 vi.mock('@/components/panel/MatchDetailPanel', () => ({
-  MatchDetailPanel: () => <div data-testid="match-detail-panel" />,
+  MatchDetailPanel: () => {
+    if (detailPanelShouldThrow) throw new Error(DETAIL_PANEL_CRASH);
+    return <div data-testid="match-detail-panel" />;
+  },
 }));
 vi.mock('@/components/roadmap/StandingsOverlay', () => ({
   StandingsOverlay: () => <div data-testid="standings-overlay" />,
@@ -106,6 +134,11 @@ const { default: RoadmapCanvas } = await import('./RoadmapCanvas');
 afterEach(() => {
   cleanup();
   capturedFlowProps = {};
+  // Reset the per-test query result + the refetch spy so cases stay isolated.
+  tournamentQueryResult = { ...DEFAULT_QUERY_RESULT };
+  refetchSpy.mockReset();
+  // Reset the detail-panel throw flag so a boundary case can't leak into others.
+  detailPanelShouldThrow = false;
 });
 
 // ============================================================================
@@ -210,5 +243,83 @@ describe('RoadmapCanvas — Legend is desktop-only in the floating Panel', () =>
     expect(screen.getAllByText('Live').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Finished').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Upcoming').length).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// R1 · fetch-error UI (AC 7) — surface useTournamentQuery's swallowed error
+// ============================================================================
+// When the query returns a non-null `error` and there is no cached tournament,
+// RoadmapCanvas must render a visible error state (role="alert") with the
+// message and a Retry button that calls the query's `refetch` — never a silent
+// empty canvas. These cases are RED until stage 4 consumes `error`/`refetch`.
+
+describe('RoadmapCanvas — fetch-error state surfaces (no silent empty canvas)', () => {
+  const FETCH_ERROR = 'Upstream rate limit reached';
+
+  /** Drive the configurable query mock into the error-and-no-cache state, then render. */
+  function renderWithError(error: string = FETCH_ERROR) {
+    tournamentQueryResult = { data: null, loading: false, error, refetch: refetchSpy };
+    render(<RoadmapCanvas />);
+  }
+
+  it('renders a role="alert" error region carrying the exact error message', () => {
+    renderWithError();
+    const alert = screen.getByRole('alert');
+    expect(alert).toBeInTheDocument();
+    expect(alert).toHaveTextContent(FETCH_ERROR);
+  });
+
+  it('renders a Retry button that calls refetch exactly once per click', async () => {
+    const user = userEvent.setup();
+    renderWithError();
+
+    const retry = screen.getByRole('button', { name: /retry|try again/i });
+    await user.click(retry);
+
+    expect(refetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces the message verbatim for a different error (not a hardcoded string)', () => {
+    // Guards against the implementation rendering a fixed banner that ignores the
+    // hook's actual error — the message shown must be the one the hook reported.
+    renderWithError('FIFA upstream returned 503');
+    expect(screen.getByRole('alert')).toHaveTextContent('FIFA upstream returned 503');
+  });
+
+  it('renders NO error alert on a successful (error: null) load', () => {
+    // Default mock result has error: null — the success path must not show an alert.
+    render(<RoadmapCanvas />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+// ============================================================================
+// R1 · detail-panel ErrorBoundary isolation (AC 2) — a thrown MatchDetailPanel
+// degrades to a fallback WITHOUT blanking the whole canvas.
+// ============================================================================
+// The MatchDetailPanel is wrapped by an <ErrorBoundary>; a render throw inside it
+// must surface a role="alert" fallback while the surrounding canvas chrome (the
+// ReactFlow surface, Background, StageToggle) stays mounted. RED until stage 4
+// wraps the panel in RoadmapCanvas.tsx.
+describe('RoadmapCanvas — a thrown detail panel is isolated by an ErrorBoundary', () => {
+  it('shows a fallback alert and keeps the canvas mounted (no cascading blank page)', () => {
+    // React logs the caught render error to console.error; scope-spy it so a
+    // genuinely unexpected error would still be the only thing surfaced.
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      detailPanelShouldThrow = true;
+      render(<RoadmapCanvas />);
+
+      // The boundary catches the throw and renders a user-facing fallback…
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      // …while the surrounding canvas chrome survives (not a blank unmount).
+      expect(screen.getByTestId('rf-canvas')).toBeInTheDocument();
+      expect(screen.getByTestId('rf-background')).toBeInTheDocument();
+      // The crashing panel itself is replaced by the fallback, so its testid is gone.
+      expect(screen.queryByTestId('match-detail-panel')).toBeNull();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });

@@ -12,6 +12,8 @@ import { nodeTypes } from '@/components/nodes/node-types';
 import { edgeTypes } from '@/components/edges/edge-types';
 import { MatchDetailPanel } from '@/components/panel/MatchDetailPanel';
 import { StandingsOverlay } from '@/components/roadmap/StandingsOverlay';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
+import { ErrorFallback } from '@/components/error/ErrorFallback';
 import { useTournamentQuery } from '@/features/roadmap/hooks/useTournamentQuery';
 import { useStageView } from '@/features/roadmap/hooks/useStageView';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
@@ -30,7 +32,7 @@ import { FocusMatchButton } from './FocusMatchButton';
 import { Legend } from './Legend';
 
 function CanvasInner() {
-  const { data: tournament, loading } = useTournamentQuery();
+  const { data: tournament, loading, error, refetch } = useTournamentQuery();
   const { focus, setFocus } = useStageView();
   const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
@@ -128,6 +130,21 @@ function CanvasInner() {
     if (node.type === 'match') setSelected(node.id);
   }, []);
 
+  // R1c: a failed load with no cached tournament must surface a visible error +
+  // Retry, never a silent empty canvas. With `auto`→mock fallback this is rare,
+  // but a forced-`fifa` failure (or a mock builder throw) reaches here.
+  if (error && !tournament) {
+    return (
+      <div className="pitch-grid h-full w-full">
+        <ErrorFallback
+          title="Couldn’t load the roadmap"
+          error={new Error(error)}
+          onRetry={refetch}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="pitch-grid relative h-full w-full" data-lod={lod}>
       <ReactFlow<RoadmapNode, RoadmapEdge>
@@ -169,11 +186,16 @@ function CanvasInner() {
         </Panel>
       </ReactFlow>
 
-      <MatchDetailPanel
-        tournament={tournament}
-        matchId={selected}
-        onClose={() => setSelected(null)}
-      />
+      {/* A malformed match datum or a renderer null-deref in the detail panel
+          must not blank the whole canvas — isolate it behind its own boundary
+          with a panel-scoped fallback (R1a). */}
+      <ErrorBoundary title="This match panel hit a snag">
+        <MatchDetailPanel
+          tournament={tournament}
+          matchId={selected}
+          onClose={() => setSelected(null)}
+        />
+      </ErrorBoundary>
 
       <StandingsOverlay group={openGroupData} onClose={closeStandings} />
 
@@ -194,8 +216,10 @@ function CanvasInner() {
 
 export default function RoadmapCanvas() {
   return (
-    <ReactFlowProvider>
-      <CanvasInner />
-    </ReactFlowProvider>
+    <ErrorBoundary title="The roadmap couldn’t be displayed">
+      <ReactFlowProvider>
+        <CanvasInner />
+      </ReactFlowProvider>
+    </ErrorBoundary>
   );
 }

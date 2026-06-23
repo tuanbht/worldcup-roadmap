@@ -34,7 +34,6 @@ export function NearestBadge({ live }: NearestBadgeProps) {
         'pointer-events-none absolute -top-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1',
         'rounded-md border py-0.5 pr-3 pl-2 text-[0.62rem] font-semibold tracking-[0.1em] uppercase',
         'backdrop-blur-sm [clip-path:polygon(0_0,100%_0,calc(100%-7px)_50%,100%_100%,0_100%)]',
-        '[will-change:transform]',
         tone,
       ].join(' ')}
     >

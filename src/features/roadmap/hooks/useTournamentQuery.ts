@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import type { Tournament } from '@/domain/types';
 import { selectRepository } from '@/data/repository-factory';
 
-/** The call-site contract `RoadmapCanvas` destructures (`{ data, loading }`). */
+/** The call-site contract `RoadmapCanvas` destructures. */
 interface TournamentQueryResult {
   data: Tournament | null;
   loading: boolean;
   error: string | null;
+  /** Re-runs the query — wired to the fetch-error Retry action (R1c). */
+  refetch: () => void;
 }
 
 /**
@@ -19,7 +21,7 @@ interface TournamentQueryResult {
  * `meta.provider`.
  */
 export function useTournamentQuery(): TournamentQueryResult {
-  const { data, isPending, error } = useQuery({
+  const { data, isPending, error, refetch } = useQuery({
     queryKey: ['tournament'],
     queryFn: () => selectRepository().getTournament(),
   });
@@ -28,5 +30,8 @@ export function useTournamentQuery(): TournamentQueryResult {
     data: data ?? null,
     loading: isPending,
     error: error ? error.message : null,
+    refetch: () => {
+      void refetch();
+    },
   };
 }

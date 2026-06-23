@@ -10,6 +10,7 @@ import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
 import { queryClient } from './lib/queryClient';
+import { ErrorBoundary } from './components/error/ErrorBoundary';
 import App from './App';
 
 const rootElement = document.getElementById('root');
@@ -19,8 +20,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ErrorBoundary title="The page ran into a problem">
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

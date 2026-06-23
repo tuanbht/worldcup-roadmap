@@ -39,20 +39,6 @@ export const STAGE_TAG: Record<KnockoutStage, string> = {
   THIRD_PLACE: '3P',
 };
 
-const ORDER: readonly Stage[] = [
-  'GROUP_STAGE',
-  'ROUND_OF_32',
-  'ROUND_OF_16',
-  'QUARTER_FINALS',
-  'SEMI_FINALS',
-  'THIRD_PLACE',
-  'FINAL',
-];
-
-export function stageOrderIndex(stage: Stage): number {
-  return ORDER.indexOf(stage);
-}
-
 export function isKnockout(stage: Stage): stage is KnockoutStage {
   return stage !== 'GROUP_STAGE';
 }

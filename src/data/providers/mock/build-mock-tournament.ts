@@ -1,12 +1,10 @@
 import { computeGroups } from '@/domain/bracket/standings';
 import { buildBracket } from '@/domain/bracket/build-bracket';
-import { R32_SEEDING } from '@/domain/bracket/seeding';
+import { GROUP_LETTERS, R32_SEEDING } from '@/domain/bracket/seeding';
 import type { Group, Match, MatchStatus, Score, Stage, Team, Tournament } from '@/domain/types';
 import { teamRef } from '@/domain/types';
 import { fifaFlagUrl } from '@/data/flag-url';
 import { MOCK_NATIONS } from './teams';
-
-const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
 interface Seeded {
   readonly team: Team;

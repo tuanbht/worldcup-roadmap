@@ -90,14 +90,20 @@ export function buildBracket(matches: readonly Match[]): Bracket {
         const bottom = childNodes![slot * 2 + 1];
         homeSource = { kind: 'winnerOf', matchId: top.matchId };
         awaySource = { kind: 'winnerOf', matchId: bottom.matchId };
-        homeTeam = match
-          ? match.home
-          : (decidedTeam(top, matchById, 'winner') ??
-            placeholderRef(`Winner ${shortLabel(childStage!, slot * 2)}`));
-        awayTeam = match
-          ? match.away
-          : (decidedTeam(bottom, matchById, 'winner') ??
-            placeholderRef(`Winner ${shortLabel(childStage!, slot * 2 + 1)}`));
+        // A real later-round fixture can exist as a placeholder *shell*
+        // (PlaceHolderA/B, no IdTeam) before its feeder resolves. Only trust the
+        // fixture's own team when it is actually resolved; otherwise propagate the
+        // finished feeder's winner, falling back to a labelled placeholder.
+        homeTeam =
+          match && isResolved(match.home)
+            ? match.home
+            : (decidedTeam(top, matchById, 'winner') ??
+              placeholderRef(`Winner ${shortLabel(childStage!, slot * 2)}`));
+        awayTeam =
+          match && isResolved(match.away)
+            ? match.away
+            : (decidedTeam(bottom, matchById, 'winner') ??
+              placeholderRef(`Winner ${shortLabel(childStage!, slot * 2 + 1)}`));
       }
 
       nodes.push({
@@ -133,12 +139,17 @@ function buildThirdPlace(
   const real = (realByStage.get('THIRD_PLACE') ?? [])[0];
   const matchId = real ? real.id : syntheticId('THIRD_PLACE', 0);
 
-  const homeTeam: TeamRef = real
-    ? real.home
-    : (decidedTeam(sf[0], matchById, 'loser') ?? placeholderRef('Loser SF-1'));
-  const awayTeam: TeamRef = real
-    ? real.away
-    : (decidedTeam(sf[1], matchById, 'loser') ?? placeholderRef('Loser SF-2'));
+  // Same shell guard as the main rounds: a real third-place fixture may carry
+  // placeholder home/away until both semifinals resolve. Trust the fixture team
+  // only when resolved; otherwise propagate the semifinal losers.
+  const homeTeam: TeamRef =
+    real && isResolved(real.home)
+      ? real.home
+      : (decidedTeam(sf[0], matchById, 'loser') ?? placeholderRef('Loser SF-1'));
+  const awayTeam: TeamRef =
+    real && isResolved(real.away)
+      ? real.away
+      : (decidedTeam(sf[1], matchById, 'loser') ?? placeholderRef('Loser SF-2'));
 
   const node: BracketNode = {
     matchId,

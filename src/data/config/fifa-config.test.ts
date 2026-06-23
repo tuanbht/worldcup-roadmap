@@ -130,13 +130,101 @@ describe('fifaConfig — explicit empty country is opt-in omission (L2/L-B)', ()
   });
 });
 
-describe('fifaConfig — boundary / invalid input', () => {
-  it('falls back to the default provider when VITE_FIFA_PROVIDER is an unknown value', async () => {
-    // provider is an enum('auto'|'fifa'|'mock'); a junk value must not be honored
-    // verbatim. Either zod rejects it (and the module surfaces a clear error) or
-    // it resolves to a valid enum member — never the raw junk string.
+describe('fifaConfig — boundary / invalid input (fail-soft, never throws)', () => {
+  it('falls back to provider "auto" for an unknown VITE_FIFA_PROVIDER without throwing (R1)', async () => {
+    // R1 fail-soft: an invalid VITE_FIFA_PROVIDER (a build-time typo) must NOT
+    // throw a synchronous ZodError at module eval (which would blank the whole
+    // SPA before React mounts). Instead it resolves to the safe default 'auto'
+    // and the rest of the config stays valid.
     stubFifaEnv({ VITE_FIFA_PROVIDER: 'bogus-provider' });
-    await expect(loadConfig()).rejects.toBeInstanceOf(Error);
+
+    // Importing the module must RESOLVE (not reject) — the parse no longer throws.
+    const config = await loadConfig();
+
+    expect(config.provider).toBe('auto');
+    // The junk value must never be honored verbatim.
+    expect(config.provider).not.toBe('bogus-provider');
+    // The rest of the config still resolves to its defaults (not lost to the throw).
+    expect(config.competitionId).toBe('17');
+    expect(config.seasonId).toBe('285023');
+  });
+
+  it('does not reject at module eval for a bad provider (inverts the old throwing contract)', async () => {
+    stubFifaEnv({ VITE_FIFA_PROVIDER: 'bogus-provider' });
+    // Explicit RED-anchor: module import resolves to a config object, never rejects.
+    await expect(loadConfig()).resolves.toMatchObject({ provider: 'auto' });
+  });
+
+  it('falls back per-field: a non-URL VITE_FIFA_BASE_URL reverts to the default base while other valid overrides hold (R1 AC5)', async () => {
+    // Per-field .catch(): one bad field must NOT discard every other valid
+    // override. A junk baseUrl reverts to the FIFA v3 default, yet a valid
+    // competitionId/seasonId override is still honored.
+    stubFifaEnv({
+      VITE_FIFA_BASE_URL: 'not-a-valid-url',
+      VITE_FIFA_COMPETITION_ID: '999',
+      VITE_FIFA_SEASON_ID: '424242',
+    });
+
+    const config = await loadConfig();
+
+    expect(config.baseUrl).toBe('https://api.fifa.com/api/v3');
+    expect(config.competitionId).toBe('999');
+    expect(config.seasonId).toBe('424242');
+  });
+
+  it('repairs MULTIPLE bad fields independently while still honoring the valid ones (per-field isolation)', async () => {
+    // Two bad fields at once (bogus provider + non-URL base) must EACH fall back to
+    // their own default without taking down the other valid overrides — proving the
+    // .catch() is per-field, not an all-or-nothing parse.
+    stubFifaEnv({
+      VITE_FIFA_PROVIDER: 'bogus-provider',
+      VITE_FIFA_BASE_URL: 'not-a-valid-url',
+      VITE_FIFA_COMPETITION_ID: '999',
+      VITE_FIFA_COUNTRY: 'GB',
+    });
+
+    const config = await loadConfig();
+
+    expect(config.provider).toBe('auto'); // bad → default
+    expect(config.baseUrl).toBe('https://api.fifa.com/api/v3'); // bad → default
+    expect(config.competitionId).toBe('999'); // valid → honored
+    expect(config.country).toBe('GB'); // valid → honored
+    // Untouched field keeps its own default (not collapsed by the bad neighbours).
+    expect(config.seasonId).toBe('285023');
+  });
+
+  it('emits a dev-only console.warn naming the repaired field on fallback (AC4)', async () => {
+    // AC4: the fail-soft path must surface the misconfiguration in development
+    // (dev-gated warn) so a build-time typo is visible — but never throw. We spy on
+    // console.warn (restored in afterEach via restoreAllMocks-equivalent below) and
+    // assert it names the offending VITE_FIFA_PROVIDER and the value it repaired.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      stubFifaEnv({ VITE_FIFA_PROVIDER: 'bogus-provider' });
+      await loadConfig();
+
+      expect(warnSpy).toHaveBeenCalled();
+      const warned = warnSpy.mock.calls.flat().join(' ');
+      expect(warned).toContain('VITE_FIFA_PROVIDER');
+      expect(warned).toContain('bogus-provider');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('stays silent (no warn) when every present override is valid', async () => {
+    // The dev-warn must fire ONLY on a repaired field — a fully-valid config must
+    // not spam the console.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      stubFifaEnv({ VITE_FIFA_PROVIDER: 'fifa', VITE_FIFA_COMPETITION_ID: '999' });
+      const config = await loadConfig();
+
+      expect(config.provider).toBe('fifa');
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('re-parses per import: a second fresh import reflects the newly-stubbed env', async () => {
