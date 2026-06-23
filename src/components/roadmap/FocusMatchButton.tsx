@@ -22,6 +22,17 @@ const LABEL_CURRENT = 'Go to current match';
  * styling/tests via `data-live`. The button is `disabled` when there is no target
  * (every match has ended) so a dead click is impossible. Keyboard activation comes
  * free from the native button; focus state uses the design-token ring.
+ *
+ * Responsive shape (one `<button>`, one stable `aria-label`, class-only — no DOM
+ * swap): at `>= md` it is the top-center pill with its visible label; below `md`
+ * (< 768px) it collapses to a ~48px (`h-12 w-12`) bottom-right circular icon
+ * bubble. The text label is wrapped in a `max-md:sr-only` span (kept in the DOM
+ * for assistive tech, hidden-not-removed below `md`), the live pulse rides the
+ * icon's corner (`max-md:absolute`), and the panel flips to bottom-right with a
+ * safe-area inset so it clears the home indicator and the match-detail sheet. The
+ * `!` (Tailwind v4 important) overrides beat xyflow's `.top.center` selector; the
+ * pulse reuses `animate-livepulse` so the global reduced-motion guard still kills
+ * it (compositor-only transform/opacity motion).
  */
 export function FocusMatchButton({ targetMatchId, isLive, onActivate }: FocusMatchButtonProps) {
   const disabled = targetMatchId === null;
@@ -33,7 +44,18 @@ export function FocusMatchButton({ targetMatchId, isLive, onActivate }: FocusMat
   }
 
   return (
-    <Panel position="top-center" className="focus-match-control">
+    <Panel
+      position="top-center"
+      className={[
+        'max-md:!top-auto max-md:!right-0 max-md:!bottom-0 max-md:!left-auto',
+        // `!transform-none` (not `!translate-x-0`): xyflow positions the panel via the
+        // legacy `transform` property; Tailwind v4's translate utilities only zero the
+        // modern `translate` property, leaving xyflow's `translateX(-50%)` to drag the
+        // bubble off the corner. `transform: none !important` cancels it outright.
+        'max-md:!transform-none',
+        'max-md:pr-1 max-md:pb-[env(safe-area-inset-bottom)]',
+      ].join(' ')}
+    >
       <button
         type="button"
         disabled={disabled}
@@ -45,14 +67,18 @@ export function FocusMatchButton({ targetMatchId, isLive, onActivate }: FocusMat
           'px-3.5 py-1.5 text-[0.82rem] font-semibold backdrop-blur transition-colors',
           'focus-visible:ring-accent focus-visible:ring-2 focus-visible:outline-none',
           'disabled:cursor-not-allowed disabled:opacity-45',
+          'max-md:relative max-md:h-12 max-md:w-12 max-md:justify-center max-md:gap-0 max-md:p-0',
           live ? 'text-live hover:text-live border-live/40' : 'text-muted hover:text-ink',
         ].join(' ')}
       >
         {live && (
-          <span aria-hidden="true" className="bg-live animate-livepulse h-2 w-2 rounded-full" />
+          <span
+            aria-hidden="true"
+            className="bg-live animate-livepulse h-2 w-2 rounded-full max-md:absolute max-md:top-1 max-md:right-1"
+          />
         )}
         <LocateFixed aria-hidden="true" className="h-4 w-4" />
-        <span>{live ? 'Live match' : 'Current match'}</span>
+        <span className="max-md:sr-only">{live ? 'Live match' : 'Current match'}</span>
       </button>
     </Panel>
   );
