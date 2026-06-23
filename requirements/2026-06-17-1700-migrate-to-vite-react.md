@@ -1,8 +1,8 @@
 # Requirement: Migrate Next.js → Vite + React (keep a thin backend)
 
-> **Supersedes** the "Keep Next.js 15" decision in `library-first-stack-policy.md`.
+> **Supersedes** the "Keep Next.js 15" decision in `2026-06-17-1645-library-first-stack-policy.md`.
 >
-> **⚠️ BACKEND PART SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** keep the Vite + React
+> **⚠️ BACKEND PART SUPERSEDED by [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md):** keep the Vite + React
 > migration, but **remove the Hono backend** entirely — the SPA fetches FIFA directly. Ignore every "thin Hono
 > backend" / `server/` / `@hono/*` reference below; the Next→Vite/React parts still apply.
 
@@ -30,7 +30,7 @@ So this is **not** a pure-frontend app, and a straight "Next → SPA" drop would
 
 ## Target architecture (one repo, two processes)
 
-> **Reconciled (Batch G — `fix-direct-api-connection.md`):** the original plan had the
+> **Reconciled (Batch G — `2026-06-23-0923-fix-direct-api-connection.md`):** the original plan had the
 > SPA fetch a **relative** `/api/worldcup` resolved by the Vite dev proxy. That is
 > superseded: the SPA now connects to the Hono API **origin directly** via
 > `VITE_API_BASE_URL` (built through `src/lib/api.ts` → `apiUrl()`), so production
@@ -66,7 +66,7 @@ wc-roadmap/
 | `next/image` (flags)                  | plain `<img loading="lazy" width height>` (or keep `Flag.tsx`, drop next/image)                    |
 | `server-only` import in `env.ts`      | delete the import; keep the zod `process.env` validation (now plain Node env)                      |
 | `useStageView` `history.replaceState` | keep, or React Router (light — app is essentially single-page)                                     |
-| `useTournament` (fetch+setInterval)   | `useQuery(['tournament'], …)` — focus-only refetch, no interval (see `refetch-on-window-focus.md`) |
+| `useTournament` (fetch+setInterval)   | `useQuery(['tournament'], …)` — focus-only refetch, no interval (see `2026-06-23-0853-refetch-on-window-focus.md`) |
 
 ### Reused unchanged
 
@@ -97,7 +97,7 @@ The FIFA `User-Agent`/pagination logic now runs in the Hono server (still server
   `next.config.ts`, `next-env.d.ts`, or `src/app/`.
 - `vite build` succeeds; `GET /api/worldcup` (Hono) returns the **same** `ApiEnvelope<Tournament>` shape.
 - Frontend data comes through **TanStack Query** (no hand-rolled `setInterval` polling); refetch is focus-only
-  (see `refetch-on-window-focus.md`).
+  (see `2026-06-23-0853-refetch-on-window-focus.md`).
 - All existing **domain + data unit tests pass unchanged** (they're framework-agnostic); e2e updated to the new
   dev URL and green.
 - Live FIFA data still flows through the server proxy + cache (CORS-safe); dev runs `web` + `api` together.
@@ -117,5 +117,5 @@ unacceptable — but it loses the live FIFA feature.
 
 ## Doc reconciliation
 
-Update `library-first-stack-policy.md` bundler row: "Keep Next.js 15" → **superseded; Vite SPA + Hono API**.
-`zoomable-roadmap-graph.md`'s Vite mention is now the chosen path.
+Update `2026-06-17-1645-library-first-stack-policy.md` bundler row: "Keep Next.js 15" → **superseded; Vite SPA + Hono API**.
+`2026-06-17-1645-zoomable-roadmap-graph.md`'s Vite mention is now the chosen path.

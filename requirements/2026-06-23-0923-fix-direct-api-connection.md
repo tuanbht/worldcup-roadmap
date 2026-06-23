@@ -1,6 +1,6 @@
 # Requirement (bug fix): Connect the SPA directly to the API, not via internal/relative routes
 
-> **⚠️ SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md).** Decision is **no backend** — the
+> **⚠️ SUPERSEDED by [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md).** Decision is **no backend** — the
 > SPA fetches FIFA directly, so there is no internal/proxy API and no `VITE_API_BASE_URL` to point at. The
 > `apiUrl()` / base-URL work that shipped in commit `43ae7ea` should be **reverted** as part of removing
 > `server/`. Do not implement this doc.
@@ -41,7 +41,7 @@ internal `/api` proxy route.
 
 ## Reconcile other specs
 
-Supersedes the "SPA fetches a **RELATIVE** `/api/worldcup`" + dev-proxy note in `migrate-to-vite-react.md`:
+Supersedes the "SPA fetches a **RELATIVE** `/api/worldcup`" + dev-proxy note in `2026-06-17-1700-migrate-to-vite-react.md`:
 the SPA now connects to the API origin directly via `VITE_API_BASE_URL`.
 
 ## Acceptance criteria (testable)
@@ -58,5 +58,5 @@ the SPA now connects to the API origin directly via `VITE_API_BASE_URL`.
 
 - One base URL, shared by both endpoints. The Hono server stays the BFF (still proxies FIFA + caches
   server-side) — only the **client→API hop** changes from internal-proxy to direct.
-- This pairs with the focus-only refetch change (`refetch-on-window-focus.md`); both touch the same two query
+- This pairs with the focus-only refetch change (`2026-06-23-0853-refetch-on-window-focus.md`); both touch the same two query
   hooks, so implement together to avoid churn.

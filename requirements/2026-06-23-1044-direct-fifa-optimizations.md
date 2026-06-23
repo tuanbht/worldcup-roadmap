@@ -1,6 +1,6 @@
 # Requirement: Direct-FIFA pure-SPA optimizations
 
-> Companion to [direct-fifa-frontend.md](./direct-fifa-frontend.md) (the no-backend decision). Concrete,
+> Companion to [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md) (the no-backend decision). Concrete,
 > file-grounded optimization plan from a 5-dimension audit (network, bundle, deletion, resilience, deploy).
 
 ## Reality check (from the audit)
@@ -15,7 +15,7 @@ Rewrite both hooks to call the FIFA client / `FifaRepository` **in the browser**
 move `selectRepository`'s auto-with-mock-fallback into a **client factory**; swap server-only
 `src/data/config/env.ts` (asserts `!window`) for browser-safe `import.meta.env` via the existing
 `fifa-config.ts`; drop the `ApiEnvelope` unwrap (throw fetch errors straight to TanStack Query). **Everything
-below depends on this.** (This is the implementation of `direct-fifa-frontend.md`.)
+below depends on this.** (This is the implementation of `2026-06-23-0955-direct-fifa-frontend.md`.)
 
 ## 1. Quick wins (no backend change — ship in parallel)
 

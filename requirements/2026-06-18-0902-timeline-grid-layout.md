@@ -1,6 +1,6 @@
 # Requirement: Timeline-grid layout (date rail + group columns + knockout funnel)
 
-> **Supersedes the orientation/positioning** in `per-match-nodes-and-orientation.md` (the "1 node per match"
+> **Supersedes the orientation/positioning** in `2026-06-17-1645-per-match-nodes-and-orientation.md` (the "1 node per match"
 > decision is kept; the "horizontal lanes / vertical bracket" positioning is replaced by this).
 
 ## Context

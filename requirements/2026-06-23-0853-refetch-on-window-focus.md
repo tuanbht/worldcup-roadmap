@@ -31,7 +31,7 @@ Owner wants **no query intervals anywhere**; refresh data **only when the window
 
 ## Reconcile other specs
 
-- **`match-detail-panel.md`** previously planned a "short refetch interval while the match is live." That is
+- **`2026-06-18-1009-match-detail-panel.md`** previously planned a "short refetch interval while the match is live." That is
   **removed** — match detail is focus-only too. This requirement is the single source of truth for refetch
   behavior. (The match-detail spec's `useMatchDetailQuery` line is updated to match.)
 
@@ -66,4 +66,4 @@ is hidden or idle.
 
 - Built-in behavior — **no new dependency**.
 - (The server-side Hono TTL cache mentioned here is being **removed** with the backend per
-  [direct-fifa-frontend.md](./direct-fifa-frontend.md); it was never a client query interval anyway.)
+  [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md); it was never a client query interval anyway.)

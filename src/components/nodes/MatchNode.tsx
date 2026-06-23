@@ -92,17 +92,6 @@ function MatchNodeImpl({ data, selected }: NodeProps<MatchFlowNode>) {
       aria-label={ariaLabel(data)}
     >
       {isNearest && <NearestBadge live={status === 'live'} />}
-      {/* Nearest emphasis — cue 2: a distinct-shape top accent line flush at the
-          card's top edge (a shape the selected state never renders), so nearest
-          is unmistakable at a glance even before/independent of the ring glow. */}
-      {isNearest && (
-        <span
-          aria-hidden="true"
-          className={`absolute inset-x-3 top-0 h-[2px] rounded-full [will-change:transform] ${
-            isLiveNearest ? 'bg-live' : 'bg-accent'
-          }`}
-        />
-      )}
       <span
         aria-hidden="true"
         className="bg-edge-strong group-data-[status=live]:bg-live group-data-[final=true]:bg-gold group-data-[group=true]:bg-accent absolute inset-y-2.5 left-0 w-[3px] rounded-full"

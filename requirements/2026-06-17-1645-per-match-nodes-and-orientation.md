@@ -1,6 +1,6 @@
 # Requirement: Per-match nodes + phase-specific orientation
 
-> **⚠️ Orientation SUPERSEDED by [timeline-grid-layout.md](./timeline-grid-layout.md).** The "1 node per match"
+> **⚠️ Orientation SUPERSEDED by [2026-06-18-0902-timeline-grid-layout.md](./2026-06-18-0902-timeline-grid-layout.md).** The "1 node per match"
 > decision is kept; the horizontal-lanes / vertical-bracket positioning below is replaced by a date-rail ×
 > group-columns grid + center-converging knockout funnel on one daily timeline. Read this only for the retained
 > per-match-node rationale.
@@ -114,7 +114,7 @@ SECTION_GAP`); feeder edges connect each group to the R32 matches it seeds.
   together — update both or edges detach.
 - **Date order vs bracket order (KO)**: knockout x stays **structural** (slotIndex / fan-in); "order by date"
   is enforced for the **group lanes**. Note this explicitly so it isn't mistaken for a KO sort.
-- Reconcile with `library-first-stack-policy.md`: prefer `d3-hierarchy` for the KO tree.
+- Reconcile with `2026-06-17-1645-library-first-stack-policy.md`: prefer `d3-hierarchy` for the KO tree.
 
 ## Verification
 

@@ -8,7 +8,7 @@
 
 1. **Delete the backend.** Remove `server/` entirely (`index.ts`, `routes/*`, `cors.ts`, `deploy-runbook*`),
    drop deps `hono` + `@hono/node-server`, remove the Vite `/api` proxy, and remove the
-   `VITE_API_BASE_URL`/`apiUrl` indirection (supersedes `fix-direct-api-connection.md`).
+   `VITE_API_BASE_URL`/`apiUrl` indirection (supersedes `2026-06-23-0923-fix-direct-api-connection.md`).
 2. **Move the data layer into the browser.** The FIFA client, zod schemas, FIFA→domain mappers, and
    stats-derivation under `src/data/providers/fifa/*` are already framework-agnostic TS — run them client-side.
    - **Drop the spoofed `User-Agent`/`Accept-Language` headers** (forbidden in the browser and unnecessary —
@@ -19,8 +19,8 @@
 4. **TanStack Query, direct.**
    - `useTournamentQuery` → fetch `…/calendar/matches?...&count=500` directly, map → `Tournament`.
    - `useMatchDetailQuery` → fetch `…/live/football/…` + `…/timelines/…` directly, map → `MatchDetail`
-     (supersedes the `/api/worldcup/match/:id/detail` Hono endpoint in `match-detail-panel.md`).
-   - **Focus-only refetch** (per `refetch-on-window-focus.md`) + a per-client `staleTime` so a single user
+     (supersedes the `/api/worldcup/match/:id/detail` Hono endpoint in `2026-06-18-1009-match-detail-panel.md`).
+   - **Focus-only refetch** (per `2026-06-23-0853-refetch-on-window-focus.md`) + a per-client `staleTime` so a single user
      doesn't hammer FIFA. No `refetchInterval`.
 5. **Keep the mock provider as a fallback.** Preserve `buildMockTournament` and the `auto` behavior client-side:
    try FIFA, fall back to mock on failure (also powers offline/CI/tests). Drop the server TTL cache +
@@ -36,9 +36,9 @@ nothing to "run in parallel" — the SPA fetches FIFA directly from the user's b
 
 ## Supersedes
 
-- `migrate-to-vite-react.md` — keep Vite+React; **drop the "thin Hono backend"** part (no backend at all).
-- `fix-direct-api-connection.md` — no internal API to point at; the SPA calls FIFA directly.
-- `match-detail-panel.md` — match detail comes from FIFA `live`+`timelines` directly, not a Hono route.
+- `2026-06-17-1700-migrate-to-vite-react.md` — keep Vite+React; **drop the "thin Hono backend"** part (no backend at all).
+- `2026-06-23-0923-fix-direct-api-connection.md` — no internal API to point at; the SPA calls FIFA directly.
+- `2026-06-18-1009-match-detail-panel.md` — match detail comes from FIFA `live`+`timelines` directly, not a Hono route.
 
 ## Risks (the real ones — CORS is NOT one)
 

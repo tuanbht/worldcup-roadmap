@@ -1,6 +1,6 @@
 # Requirement: Library-first stack policy
 
-> **⚠️ Framework row UPDATED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** the stack is now
+> **⚠️ Framework row UPDATED by [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md):** the stack is now
 > **Vite + React SPA with NO backend** (no Hono API). The SPA fetches FIFA directly; the TanStack Query /
 > date-fns / Zod / etc. rows still apply.
 
@@ -19,7 +19,7 @@ Resolved with the requester:
   the deterministic simulator). See _Non-goals_.
 - **Strictness = strong default, justify exceptions.** Reach for the canonical library first; custom code
   is allowed when a library is genuinely overkill, but the deviation must be justified in review.
-- ~~**Bundler = Next.js 15 is kept.**~~ **SUPERSEDED by [migrate-to-vite-react.md](./migrate-to-vite-react.md):**
+- ~~**Bundler = Next.js 15 is kept.**~~ **SUPERSEDED by [2026-06-17-1700-migrate-to-vite-react.md](./2026-06-17-1700-migrate-to-vite-react.md):**
   the app migrates to a **Vite + React SPA + a thin Hono API**; Next.js is removed. (The original decision kept
   Next/Turbopack; the owner has since chosen plain React. TanStack Query stays — it now calls the Hono API.)
 
@@ -27,7 +27,7 @@ Resolved with the requester:
 
 | Concern                           | Library (pick)                                                       | Status                    | Notes                                                                                                                                                                                                                                                               |
 | --------------------------------- | -------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework / routing / bundler     | **Vite + React SPA + Hono API** (was Next.js 15)                     | ✅ migrated               | Per `migrate-to-vite-react.md`; Vite builds the SPA (`src/main.tsx`), Hono serves `/api/worldcup`. Next.js removed — no `'use client'`, no route handlers.                                                                                                          |
+| Framework / routing / bundler     | **Vite + React SPA + Hono API** (was Next.js 15)                     | ✅ migrated               | Per `2026-06-17-1700-migrate-to-vite-react.md`; Vite builds the SPA (`src/main.tsx`), Hono serves `/api/worldcup`. Next.js removed — no `'use client'`, no route handlers.                                                                                                          |
 | Language                          | **TypeScript 5**                                                     | ✅ in repo                | —                                                                                                                                                                                                                                                                   |
 | Styling                           | **Tailwind CSS v4**                                                  | ✅ in repo                | Single styling system; oklch design tokens live in `src/styles/global.css` via Tailwind v4 `@theme`. `prettier-plugin-tailwindcss` added for class order.                                                                                                           |
 | Accessible UI primitives          | **shadcn/ui** (Radix)                                                | ➕ add (optional)         | For dialogs/tabs/tooltip etc. Most popular, accessible-by-default.                                                                                                                                                                                                  |
@@ -36,7 +36,7 @@ Resolved with the requester:
 | URL state (filters / active view) | **nuqs**                                                             | ➕ add if needed          | Type-safe URL search-param state. Not added — `useStageView` already does URL state by hand correctly.                                                                                                                                                              |
 | Date/time + timezone              | **date-fns** + **date-fns-tz**                                       | ✅ in repo                | All kickoff rendering routes through `src/lib/datetime.ts` (`formatInTimeZone` + `parseISO`); `format.ts` re-exports it. No `Intl` date formatting remains. Single date lib (no Luxon/moment/dayjs).                                                                |
 | Validation                        | **Zod**                                                              | ✅ in repo                | The standard; already the data boundary (`parseTournament`, `env.ts`). Keep.                                                                                                                                                                                        |
-| Graph / zoomable canvas           | **React Flow** (`@xyflow/react`)                                     | ✅ in repo                | Smooth mouse-wheel zoom; owns graph motion. See `zoomable-roadmap-graph.md`.                                                                                                                                                                                        |
+| Graph / zoomable canvas           | **React Flow** (`@xyflow/react`)                                     | ✅ in repo                | Smooth mouse-wheel zoom; owns graph motion. See `2026-06-17-1645-zoomable-roadmap-graph.md`.                                                                                                                                                                                        |
 | Tree / bracket layout             | **d3-hierarchy**                                                     | ✅ in repo (dep)          | Added (+ `@types/d3-hierarchy`) with a smoke test; bracket→tree construction lands in req #2. A bracket is a binary tree → `d3.tree`/`d3.cluster`. **Supersedes Dagre** (never added; dagre/dagre-d3 deprecated). `elkjs` only if needed.                           |
 | Icons                             | **lucide-react**                                                     | ✅ in repo                | Most popular React icon set. The `MatchDetailPanel` close `✕` glyph is now an accessible `<X aria-hidden />`; no inline icon glyphs/SVGs remain in `src/`.                                                                                                          |
 | UI animation (non-graph)          | **Framer Motion** (`motion`)                                         | ⏸ deferred — no consumer | Not added (anti-bloat). The only non-graph motion is the `MatchDetailPanel` slide, already a compositor-only CSS `transition-transform`; React Flow owns graph motion. Revisit when a surface needs orchestrated enter/exit CSS can't express.                      |
@@ -90,5 +90,5 @@ Legend: ✅ already in place · ⚠️ partially present · ➕ to add.
 
 ## Follow-up: update the existing spec
 
-`requirements/zoomable-roadmap-graph.md` predates this policy — update it to: Dagre → **d3-hierarchy**,
+`requirements/2026-06-17-1645-zoomable-roadmap-graph.md` predates this policy — update it to: Dagre → **d3-hierarchy**,
 add **Tailwind** for styling, **TanStack Query** for any live data, and the **tz lib** for kickoff display.

@@ -21,7 +21,7 @@ family tree (hierarchical, branching, top-down) that the user can **pan and zoom
 
 - **Data:** roadmap / dependency items connected parent→child (a DAG — items may have cross-dependencies).
 - **Stack (locked):** **Vite + React SPA + TypeScript**, with a thin **Hono** API serving `/api/worldcup`
-  (per `migrate-to-vite-react.md`). Next.js is removed — there is no `'use client'` boundary; the SPA mounts in
+  (per `2026-06-17-1700-migrate-to-vite-react.md`). Next.js is removed — there is no `'use client'` boundary; the SPA mounts in
   `src/main.tsx`. Live tournament data is fetched/cached/polled with **TanStack Query**
   (`@tanstack/react-query`), not a hand-rolled fetch loop.
 - **Scale:** small, **< ~300 nodes** → SVG/DOM rendering is fine. No Canvas/WebGL/viewport-culling needed.

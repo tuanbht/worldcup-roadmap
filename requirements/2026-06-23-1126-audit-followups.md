@@ -6,11 +6,11 @@
 
 ## Pending features (have their own specs — build these first)
 
-- **`refetch-on-window-focus.md`** — still unimplemented. Code keeps `refetchInterval` in
+- **`2026-06-23-0853-refetch-on-window-focus.md`** — still unimplemented. Code keeps `refetchInterval` in
   `useTournamentQuery.ts:6,38` and `useMatchDetailQuery.ts:14,59`, and `queryClient.ts:16` has
   `refetchOnWindowFocus: false`. Implement per that spec (and update the stale `queryClient.ts:6` comment +
-  the `match-detail-panel.md` "short refetch interval while live" line it supersedes).
-- **`nearest-match-flag-badge.md`** — still unimplemented (no `isNearest` / `applyNearestFlag` / `data-nearest`
+  the `2026-06-18-1009-match-detail-panel.md` "short refetch interval while live" line it supersedes).
+- **`2026-06-23-0923-nearest-match-flag-badge.md`** — still unimplemented (no `isNearest` / `applyNearestFlag` / `data-nearest`
   in `src/`). Implement per that spec, reusing `pickFocusMatchId` from `focus-target.ts`.
 
 ## Hardening follow-ups (MEDIUM)
@@ -49,8 +49,8 @@
       throws early (use an explicit `AbortController` + `clearTimeout` if timer precision matters); and
       `match-detail-client.ts:52-57` `Promise.all` doesn't cross-cancel the sibling fetch on one timeout (only
       matters if an outer route deadline is added). Both optional.
-- [ ] **AF-10 · `prettier --check` fails on 2 requirement docs** — `requirements/refetch-on-window-focus.md` and
-      `requirements/nearest-match-flag-badge.md`. Run `npm run format` (code is otherwise prettier-clean).
+- [ ] **AF-10 · `prettier --check` fails on 2 requirement docs** — `requirements/2026-06-23-0853-refetch-on-window-focus.md` and
+      `requirements/2026-06-23-0923-nearest-match-flag-badge.md`. Run `npm run format` (code is otherwise prettier-clean).
 
 ## Acceptance
 

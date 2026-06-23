@@ -1,6 +1,6 @@
 # Requirement: Google-style match detail panel (Timeline / Lineups / Stats)
 
-> **⚠️ DATA-SOURCE SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** the panel UI
+> **⚠️ DATA-SOURCE SUPERSEDED by [2026-06-23-0955-direct-fifa-frontend.md](./2026-06-23-0955-direct-fifa-frontend.md):** the panel UI
 > (timeline / lineups / stats) stays exactly as specced, but match detail is fetched **directly from FIFA
 > `live` + `timelines` in the browser** — NOT via a Hono `/api/worldcup/match/:id/detail` route. Move the
 > mapper + stats-derivation client-side.
@@ -135,7 +135,7 @@ Nullable everywhere → graceful partial/empty data.
 
 - **`useMatchDetailQuery(matchId)`** (TanStack Query) — `enabled` only when a match is selected; lazy fetch of
   `/api/worldcup/match/:id/detail`. **No `refetchInterval`** — refetch on window focus only, per
-  `refetch-on-window-focus.md` (single source of truth for refetch behavior).
+  `2026-06-23-0853-refetch-on-window-focus.md` (single source of truth for refetch behavior).
 - **`MatchDetailPanel` redesign** (keep right slide-in, glass, `inert`/Escape/focus a11y, mobile bottom-sheet):
   - **Header:** competition ("FIFA World Cup 2026™"), status pill (Half-time / `{minute}'` / Full-time /
     Upcoming), both teams (flag, name, **group standing position** "1st/4th" from `tournament.groups`, score),
