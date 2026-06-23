@@ -1,6 +1,7 @@
 # Requirement: Remove duplicate group header + dash-link the standings table to its matches
 
 ## Bug + want
+
 Each group column renders **two** "Group F" headers (see screenshot): the small `group-header` pill
 (`GroupHeaderNodeImpl`) **and** the always-on `group-standings` table (`GroupStandingsNode` → `GroupTableNode`),
 which already shows its own "F · Group F" header above the table. Remove the pill; keep the expanded table as the
@@ -8,7 +9,9 @@ single per-column header. Then **draw a dashed line from each group's standings 
 belong to that group**.
 
 ## 1. Remove the `group-header` node (keep the expanded standings table)
+
 Delete the redundant pill node end-to-end:
+
 - `build-graph.ts` — drop `groupHeaderNode()` and its emission (the `for … groupGrid.headers → groupHeaderNode`
   loop, ~line 262). Keep `groupStandingsNode()`.
 - `graph-model.ts` — remove `GroupHeaderNodeData` / `GroupHeaderFlowNode` from the `RoadmapNode` union.
@@ -24,8 +27,10 @@ Delete the redundant pill node end-to-end:
 - Keep `StandingsOverlay` (on-demand dialog) and the `GroupTableNode`/`GroupStandingsNode` reuse intact.
 
 ## 2. Dashed links: group standings table → its matches
+
 Add a new set of **dashed** edges, one per (group, group-stage match): source = `group-standings-{group.name}`,
 target = each `match` node where `match.group === group.name`.
+
 - Give `GroupStandingsNode` a **bottom source handle** (the pill's old `id="b"` handle moves here); reuse each
   match card's existing top target handle (`'t'`).
 - Style them clearly as **membership** links, visually distinct from the solid `advance`/feeder edges: a dashed
@@ -37,6 +42,7 @@ target = each `match` node where `match.group === group.name`.
   unchanged.
 
 ## Acceptance criteria (testable)
+
 - Exactly **one** header per group column (the expanded standings table); **no** `group-header` pill renders;
   `group-header` is gone from `node-types`, `graph-model` union, and `build-graph`; `GroupHeaderNode.tsx` deleted;
   no dangling `group-header` references (`grep -r "group-header" src` is clean except removed). `typecheck`/`build` green.
@@ -48,6 +54,7 @@ target = each `match` node where `match.group === group.name`.
   visual snapshots updated.
 
 ## Files
+
 - `src/features/roadmap/build-graph.ts`, `graph-model.ts`, `layout/layout-constants.ts` (remove header node,
   reposition standings, add membership edges) → **wc-graph-engineer**.
 - `src/components/nodes/node-types.ts`, delete `GroupHeaderNode.tsx`, add source handle to `GroupStandingsNode.tsx`,
