@@ -65,4 +65,5 @@ is hidden or idle.
 ## Notes
 
 - Built-in behavior — **no new dependency**.
-- The server-side Hono TTL cache is unrelated and stays — it is not a client query interval.
+- (The server-side Hono TTL cache mentioned here is being **removed** with the backend per
+  [direct-fifa-frontend.md](./direct-fifa-frontend.md); it was never a client query interval anyway.)

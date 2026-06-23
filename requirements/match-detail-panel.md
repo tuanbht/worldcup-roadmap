@@ -1,5 +1,10 @@
 # Requirement: Google-style match detail panel (Timeline / Lineups / Stats)
 
+> **⚠️ DATA-SOURCE SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** the panel UI
+> (timeline / lineups / stats) stays exactly as specced, but match detail is fetched **directly from FIFA
+> `live` + `timelines` in the browser** — NOT via a Hono `/api/worldcup/match/:id/detail` route. Move the
+> mapper + stats-derivation client-side.
+
 > Selecting a match opens a rich right-side panel with three tabs, styled after Google's match card
 > (dark, right slide-in). Data comes from **real FIFA per-match endpoints** (owner's choice).
 

@@ -1,6 +1,10 @@
 # Requirement: Migrate Next.js → Vite + React (keep a thin backend)
 
 > **Supersedes** the "Keep Next.js 15" decision in `library-first-stack-policy.md`.
+>
+> **⚠️ BACKEND PART SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** keep the Vite + React
+> migration, but **remove the Hono backend** entirely — the SPA fetches FIFA directly. Ignore every "thin Hono
+> backend" / `server/` / `@hono/*` reference below; the Next→Vite/React parts still apply.
 
 ## Context
 

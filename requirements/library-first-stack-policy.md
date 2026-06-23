@@ -1,5 +1,9 @@
 # Requirement: Library-first stack policy
 
+> **⚠️ Framework row UPDATED by [direct-fifa-frontend.md](./direct-fifa-frontend.md):** the stack is now
+> **Vite + React SPA with NO backend** (no Hono API). The SPA fetches FIFA directly; the TanStack Query /
+> date-fns / Zod / etc. rows still apply.
+
 > **For planners, implementers, and reviewers.** Standing policy for the whole `wc-roadmap` codebase.
 
 ## Policy

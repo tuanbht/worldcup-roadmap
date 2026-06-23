@@ -1,5 +1,10 @@
 # Requirement (bug fix): Connect the SPA directly to the API, not via internal/relative routes
 
+> **⚠️ SUPERSEDED by [direct-fifa-frontend.md](./direct-fifa-frontend.md).** Decision is **no backend** — the
+> SPA fetches FIFA directly, so there is no internal/proxy API and no `VITE_API_BASE_URL` to point at. The
+> `apiUrl()` / base-URL work that shipped in commit `43ae7ea` should be **reverted** as part of removing
+> `server/`. Do not implement this doc.
+
 ## Bug
 
 The frontend fetches the API with **relative paths**:
