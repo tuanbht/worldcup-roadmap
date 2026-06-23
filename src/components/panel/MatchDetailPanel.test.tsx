@@ -18,6 +18,7 @@ import type { Bracket, BracketNode, Tournament, TournamentMeta } from '@/domain/
 import { EMPTY_MATCH_DETAIL, placeholderRef } from '@/domain/types';
 import { formatDateTime } from '@/features/roadmap/format';
 import { MatchDetailPanel } from '@/components/panel/MatchDetailPanel';
+import { expectCoarseHitArea } from '@/components/__test-support__/touch-target';
 import {
   ARGENTINA,
   FRANCE,
@@ -189,6 +190,17 @@ describe('MatchDetailPanel — close button (guard)', () => {
     expect(svg).not.toBeNull();
     expect(svg).toHaveAttribute('aria-hidden', 'true');
     expect(closeButton().textContent ?? '').not.toContain('✕');
+  });
+
+  // Touch target (requirement 1336, scope #5 / AC #5). The close button is 32px
+  // today (`h-8 w-8`); on a coarse pointer it must present a ≥44px hit area
+  // without changing the desktop visual size or the decorative SVG. jsdom can't
+  // measure layout, so we assert the coarse-pointer sizing hook is present.
+  // RED until MatchDetailPanel adds the coarse-pointer hit area.
+  it('grows to a ≥44px touch target on coarse pointers [Acceptance #5]', () => {
+    stubDetailReady(GROUP_MATCH.id);
+    renderPanel(GROUP_MATCH.id);
+    expectCoarseHitArea(closeButton());
   });
 });
 

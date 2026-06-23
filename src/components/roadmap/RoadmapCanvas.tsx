@@ -22,6 +22,8 @@ import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
 import { useFocusMatch } from '@/features/roadmap/hooks/useFocusMatch';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
+import { useMobileViewport } from '@/features/roadmap/hooks/useMobileViewport';
+import { DESKTOP_MIN_ZOOM, MOBILE_MIN_ZOOM } from '@/features/roadmap/responsive';
 import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
 import { useFocusedTeam } from '@/features/roadmap/hooks/useFocusedTeam';
@@ -36,6 +38,10 @@ function CanvasInner() {
   const { focus, setFocus } = useStageView();
   const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
+  // A single matchMedia read drives the mobile minZoom floor so a 296px standings
+  // card opens legibly on a phone instead of clamping to the desktop 0.2 floor.
+  const { isMobile } = useMobileViewport();
+  const minZoom = isMobile ? MOBILE_MIN_ZOOM : DESKTOP_MIN_ZOOM;
   const [selected, setSelected] = useState<string | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const {
@@ -117,7 +123,13 @@ function CanvasInner() {
   }, []);
 
   useFitOnChange(nodes.length, displayNodes);
-  useFocusCamera(focus, displayNodes);
+  // Frame off the RAW graph (stable positions), NOT `displayNodes`: opening the
+  // standings overlay, focusing a team, or the nearest-flag pass all mint a new
+  // `displayNodes` identity WITHOUT changing any node position. Keying the camera
+  // on `displayNodes` re-ran the 500ms re-frame on every such display-only change
+  // (a visible canvas pan behind the overlay — and a snapshot flake). `nodes` only
+  // changes on a real layout/data change, so the camera moves on `focus` alone.
+  useFocusCamera(focus, nodes);
   // Esc clears both the selected match AND the focused team (independent setters).
   // The overlay shields its own Esc with stopPropagation while open.
   const onEscape = useCallback(() => {
@@ -154,7 +166,7 @@ function CanvasInner() {
         edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.12 }}
-        minZoom={0.2}
+        minZoom={minZoom}
         maxZoom={1.8}
         nodesConnectable={false}
         edgesFocusable={false}
@@ -168,6 +180,9 @@ function CanvasInner() {
         zoomOnScroll
         panOnDrag
         zoomOnPinch
+        // Explicit page-scroll guard (belt-and-suspenders with the pane's built-in
+        // touch-action:none): the document never scrolls behind a wheel/touch pan.
+        preventScrolling={true}
       >
         <Background
           variant={BackgroundVariant.Dots}

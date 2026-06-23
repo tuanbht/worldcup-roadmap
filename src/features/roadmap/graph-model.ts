@@ -67,6 +67,12 @@ export type GroupTableProps = {
    * overlay for this group (re-homed from the deleted column-title pill).
    */
   onOpenStandings?: (group: string) => void;
+  /**
+   * Compact column set for the ≤640px overlay: the variable middle stat columns
+   * collapse to MP + GD only (`# / Team / MP / GD / Pts`). Default `false` — the
+   * always-on canvas node keeps the full 7-stat matrix.
+   */
+  compact?: boolean;
 };
 
 /** Left date-rail guide: one per distinct match-day. No edge endpoint. */

@@ -23,11 +23,18 @@ export function Legend({ provider }: { provider: string | null }) {
           </span>
         ))}
       </div>
-      {provider && (
-        <span className="text-dim">
-          {provider === 'fifa' ? 'Live data · FIFA' : 'Demo data · offline fixture'}
-        </span>
-      )}
+      {/* The provider line ALWAYS occupies its row (a non-breaking placeholder
+          before the async query resolves `provider`) so the legend — and the
+          header that hosts it on mobile — never changes height when the provider
+          loads. That layout stability keeps the vertically-centred standings
+          overlay and the header band deterministic (no CLS, no snapshot flake). */}
+      <span className="text-dim" aria-hidden={provider ? undefined : true}>
+        {provider === null
+          ? ' '
+          : provider === 'fifa'
+            ? 'Live data · FIFA'
+            : 'Demo data · offline fixture'}
+      </span>
     </div>
   );
 }

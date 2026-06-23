@@ -137,6 +137,10 @@ export function MatchDetailPanel({
         'max-[640px]:h-[88dvh] max-[640px]:max-h-[92dvh]',
         'max-[640px]:w-full max-[640px]:border-t max-[640px]:border-l-0',
         'max-[640px]:rounded-t-[20px]',
+        // Bottom safe-area floor on the sheet itself so EVERY branch (ready,
+        // skeleton, error, placeholder) clears the home indicator — the `ready`
+        // tab content adds its own scroll inset, but the non-ready cards bypass it.
+        'max-[640px]:pb-[env(safe-area-inset-bottom,0px)]',
         open
           ? 'translate-x-0 max-[640px]:translate-y-0'
           : 'pointer-events-none translate-x-full max-[640px]:translate-y-full',
@@ -155,9 +159,14 @@ export function MatchDetailPanel({
         className={[
           'border-edge bg-surf-2 text-muted hover:border-edge-strong hover:text-ink',
           'flex h-8 w-8 items-center justify-center rounded-full border transition-colors',
-          // Desktop: in-flow at top-right; Mobile: absolute so it overlays the compact header
+          // Touch (coarse pointer): grow the hit area to ≥44px without changing the
+          // 32px desktop visual size or the decorative SVG (WCAG 2.5.5).
+          'pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px]',
+          // Desktop: in-flow at top-right; Mobile: absolute so it overlays the
+          // compact header, offset below the top safe area (landscape notch).
           'm-4 shrink-0 self-end',
-          'max-[640px]:absolute max-[640px]:top-0 max-[640px]:right-0 max-[640px]:z-10 max-[640px]:m-3',
+          'max-[640px]:absolute max-[640px]:right-0 max-[640px]:z-10 max-[640px]:m-3',
+          'max-[640px]:top-[env(safe-area-inset-top,0px)]',
         ].join(' ')}
       >
         <X aria-hidden size={16} />
@@ -174,8 +183,9 @@ export function MatchDetailPanel({
           and scrolls fine because the drawer has enough space.
         */
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {/* Region 1: Sticky header — compact on mobile */}
-          <div className="shrink-0 px-6 pt-2 pb-3 max-[640px]:pt-10 max-[640px]:pb-2">
+          {/* Region 1: Sticky header — compact on mobile, padded for the top
+              safe area (landscape notch) so the title never sits under it. */}
+          <div className="shrink-0 px-6 pt-2 pb-3 max-[640px]:pt-[calc(2.5rem+env(safe-area-inset-top,0px))] max-[640px]:pb-2">
             <MatchDetailHeader match={match} groups={groups} detail={detail} />
           </div>
           {/* Regions 2 + 3 live inside MatchDetailTabs (sticky tabs + scroll content) */}
@@ -205,7 +215,7 @@ export function MatchDetailPanel({
       )}
 
       {open && !match && placeholder && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 pb-6 max-[640px]:pt-10">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 pb-6 max-[640px]:pt-[calc(2.5rem+env(safe-area-inset-top,0px))]">
           <BracketPlaceholderHeader placeholder={placeholder} />
           <PanelEmpty
             title="Matchup not yet decided"
@@ -215,7 +225,7 @@ export function MatchDetailPanel({
       )}
 
       {open && !match && !placeholder && (
-        <div className="px-6 pb-6 max-[640px]:pt-10">
+        <div className="px-6 pb-6 max-[640px]:pt-[calc(2.5rem+env(safe-area-inset-top,0px))]">
           <PanelEmpty
             title="Fixture to be confirmed"
             body="This matchup hasn't been decided yet."

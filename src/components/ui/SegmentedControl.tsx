@@ -51,7 +51,7 @@ export function SegmentedControl<T extends string>({
             tabIndex={getOptionId ? (active ? 0 : -1) : undefined}
             onClick={() => onChange(option.value)}
             onKeyDown={onKeyDown}
-            className={`rounded-full px-3.5 py-1.5 text-[0.82rem] font-semibold transition-colors ${
+            className={`rounded-full px-3.5 py-1.5 text-[0.82rem] font-semibold transition-colors pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center pointer-coarse:justify-center ${
               active ? 'bg-accent text-deep' : 'text-muted hover:text-ink'
             }`}
           >

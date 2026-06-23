@@ -80,6 +80,18 @@ vi.mock('@/features/roadmap/hooks/useZoomLevel', () => ({
 vi.mock('@/features/roadmap/hooks/useFitOnChange', () => ({
   useFitOnChange: () => undefined,
 }));
+// ---- Mock useMobileViewport (H1, mandatory regression guard) ----------------
+// requirement 2026-06-23-1336-mobile-friendly-small-screens. CanvasInner now
+// calls useMobileViewport() (which reads window.matchMedia) to drive the mobile
+// minZoom floor. jsdom does NOT provide matchMedia, so without this mock the real
+// hook would run and could crash ALL ~20 pre-existing cases in this file — not
+// just the new ones. The mock is per-test configurable and DEFAULTS to
+// { isMobile: false } so every existing case behaves exactly as before; the new
+// mobile cases toggle it to { isMobile: true } and afterEach resets it.
+let mockMobileViewport: { isMobile: boolean } = { isMobile: false };
+vi.mock('@/features/roadmap/hooks/useMobileViewport', () => ({
+  useMobileViewport: () => mockMobileViewport,
+}));
 vi.mock('@/features/roadmap/hooks/useFocusCamera', () => ({
   useFocusCamera: () => undefined,
 }));
@@ -131,6 +143,17 @@ vi.mock('@/components/roadmap/FocusMatchButton', () => ({
 // Dynamic import keeps the factory mocks in scope before the module executes.
 const { default: RoadmapCanvas } = await import('./RoadmapCanvas');
 
+// The shared mobile/desktop minZoom floors (requirement 1336). These literals
+// mirror `responsive.ts`'s pinned constants; the AUTHORITATIVE source-of-truth
+// assertions for those exact values live in responsive.test.ts. They are kept as
+// local literals HERE (not a static import of the not-yet-created responsive.ts)
+// so this file still COLLECTS and the ~20 pre-existing cases stay green — the new
+// cases below are RED because RoadmapCanvas.tsx doesn't yet wire the
+// useMobileViewport-driven minZoom / preventScrolling, NOT because of a missing
+// import that would take the whole suite down.
+const DESKTOP_MIN_ZOOM = 0.2;
+const MOBILE_MIN_ZOOM = 0.32;
+
 afterEach(() => {
   cleanup();
   capturedFlowProps = {};
@@ -139,6 +162,9 @@ afterEach(() => {
   refetchSpy.mockReset();
   // Reset the detail-panel throw flag so a boundary case can't leak into others.
   detailPanelShouldThrow = false;
+  // Reset the mobile-viewport mock to its desktop default so the next case is
+  // isolated (the ~20 pre-existing cases all assume isMobile:false).
+  mockMobileViewport = { isMobile: false };
 });
 
 // ============================================================================
@@ -208,6 +234,41 @@ describe('RoadmapCanvas — wheel-zoom, drag-pan, and pinch-zoom remain active',
   it('passes zoomOnPinch=true to ReactFlow', () => {
     render(<RoadmapCanvas />);
     expect(capturedFlowProps.zoomOnPinch).toBe(true);
+  });
+});
+
+// ============================================================================
+// Mobile touch-nav hardening + zoom floor (requirement 1336, scope #2 / AC #2)
+// ============================================================================
+// The page must never scroll behind a canvas pan (explicit `preventScrolling`,
+// belt-and-suspenders with the pane's built-in touch-action:none), and the
+// minZoom floor must come from the shared `responsive.ts` constants via the
+// mocked useMobileViewport: MOBILE_MIN_ZOOM on a phone, DESKTOP_MIN_ZOOM on a
+// desktop. RED until RoadmapCanvas wires `preventScrolling` + the
+// useMobileViewport-driven `minZoom`.
+describe('RoadmapCanvas — page never scrolls behind a canvas pan (preventScrolling)', () => {
+  it('passes preventScrolling=true to ReactFlow', () => {
+    render(<RoadmapCanvas />);
+    expect(capturedFlowProps.preventScrolling).toBe(true);
+  });
+});
+
+describe('RoadmapCanvas — minZoom floor follows useMobileViewport', () => {
+  it('uses MOBILE_MIN_ZOOM when the viewport is mobile (<=640px)', () => {
+    mockMobileViewport = { isMobile: true };
+    render(<RoadmapCanvas />);
+    expect(capturedFlowProps.minZoom).toBe(MOBILE_MIN_ZOOM);
+  });
+
+  it('uses DESKTOP_MIN_ZOOM when the viewport is desktop (default)', () => {
+    // Default mock is { isMobile: false } — the desktop floor must be unchanged.
+    render(<RoadmapCanvas />);
+    expect(capturedFlowProps.minZoom).toBe(DESKTOP_MIN_ZOOM);
+  });
+
+  it('raises the mobile floor strictly above the desktop floor (legible-on-open)', () => {
+    // Guards a future silent revert of the mobile floor back to the desktop 0.2.
+    expect(MOBILE_MIN_ZOOM).toBeGreaterThan(DESKTOP_MIN_ZOOM);
   });
 });
 

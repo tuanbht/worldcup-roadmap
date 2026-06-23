@@ -15,11 +15,26 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const VIEWPORT = '.react-flow__viewport';
 
+/**
+ * Mobile zoom floor (requirement 2026-06-23-1336). Mirrors `MOBILE_MIN_ZOOM` in
+ * `src/features/roadmap/responsive.ts`; the authoritative unit assertion of the
+ * exact constant lives in responsive.test.ts. ε absorbs sub-pixel transform noise.
+ */
+const MOBILE_MIN_ZOOM = 0.32;
+const ZOOM_FLOOR_EPSILON = 1e-3;
+
 /** Mobile widths named in the acceptance criteria. */
 const MOBILE_BREAKPOINTS = [
   { label: '320', width: 320, height: 720 },
   { label: '375', width: 375, height: 812 },
   { label: '390', width: 390, height: 844 },
+] as const;
+
+/** Widths for the standings-overlay 320px-fit checks (AC #4 — incl. tablet 768). */
+const STANDINGS_BREAKPOINTS = [
+  { label: '320', width: 320, height: 720 },
+  { label: '375', width: 375, height: 812 },
+  { label: '768', width: 768, height: 1024 },
 ] as const;
 
 const BREAKPOINTS = [
@@ -249,6 +264,121 @@ test.describe('mobile bottom-sheet open-panel layout', () => {
         fullPage: false,
         animations: 'disabled',
         mask: [page.locator('img'), ...content],
+        maxDiffPixelRatio: 0.02,
+      });
+    });
+  }
+});
+
+/**
+ * Viewport-scale floor (requirement 2026-06-23-1336, AC #2 / plan L2).
+ *
+ * Raising the canvas `minZoom` to MOBILE_MIN_ZOOM on ≤640px is what keeps the
+ * bracket legible (not unreadably tiny) on first-load framing at 320px. After
+ * the initial fit settles, the live `.react-flow__viewport` scale must therefore
+ * be at least the mobile floor (minus ε for sub-pixel transform noise). This is a
+ * deterministic CI guard against a future silent revert of the floor to 0.2 — it
+ * reuses the existing `readScale()`/`settle()` harness, so it adds no flake.
+ *
+ * RED until RoadmapCanvas wires `minZoom={mobileZoomFloor(...)}` from
+ * useMobileViewport: the current hardcoded `minZoom={0.2}` lets the fit clamp
+ * below the floor at 320px, so the post-settle scale stays under MOBILE_MIN_ZOOM.
+ */
+test.describe('mobile viewport-scale floor', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(
+      testInfo.project.name === 'mobile',
+      'self-driven viewport; mobile project pins its own viewport',
+    );
+  });
+
+  test('post-load canvas scale is at least MOBILE_MIN_ZOOM at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+    await settle(page);
+
+    const scale = await readScale(page);
+    expect(
+      scale,
+      `post-load canvas scale (${scale}) must be >= MOBILE_MIN_ZOOM (${MOBILE_MIN_ZOOM}) at 320px`,
+    ).toBeGreaterThanOrEqual(MOBILE_MIN_ZOOM - ZOOM_FLOOR_EPSILON);
+  });
+});
+
+/**
+ * Standings overlay fits a narrow viewport (requirement 2026-06-23-1336, AC #4).
+ *
+ * Determinism (plan L1): the `Open Group A standings` header button lives inside a
+ * virtualized React Flow node, so it can be offscreen at first-load framing. We
+ * mirror the hardened `panel-open` block: settle the RF transform, then assert the
+ * trigger `toBeInViewport()` BEFORE clicking — never click a virtualized/offscreen
+ * node. (The group-standings tables sit at the TOP of every column, so first-load
+ * top-aligned framing renders Group A's header on-screen; if a future relayout
+ * moves it, this in-viewport assertion fails loudly instead of flaking.)
+ *
+ * Once open we assert the dialog is visible, its close button is in-viewport (the
+ * `-top-3 -right-3` bleed must not push it off a 320px screen), and the document
+ * has no horizontal overflow — then snapshot the structural overlay (flags masked).
+ *
+ * RED until StandingsOverlay is viewport-bounded + uses the compact column set on
+ * mobile: today the 296px card + its bleeding close button can exceed a 320px
+ * viewport (close button off-screen / horizontal overflow).
+ */
+test.describe('mobile standings overlay layout', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(
+      testInfo.project.name === 'mobile',
+      'self-driven viewport; mobile project pins its own viewport',
+    );
+  });
+
+  for (const bp of STANDINGS_BREAKPOINTS) {
+    test(`standings overlay fits at ${bp.label}px — dialog + close button in viewport, no overflow`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: bp.width, height: bp.height });
+      await page.goto('/');
+
+      await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+      await settle(page);
+
+      // DETERMINISTIC open: the group-standings tables are the top row of every
+      // column, so first-load top-aligned framing renders Group A's header. Assert
+      // the opener is genuinely in-viewport BEFORE clicking (no virtualized flake).
+      const opener = page.getByRole('button', { name: 'Open Group A standings' });
+      await expect(opener).toBeVisible({ timeout: 10_000 });
+      await expect(opener).toBeInViewport();
+      await opener.click();
+
+      // The dialog must be visible and bounded within the viewport.
+      const dialog = page.getByRole('dialog', { name: 'Group A standings' });
+      await expect(dialog).toBeVisible();
+
+      // The close button must be reachable without scrolling (the -top-3 -right-3
+      // bleed must not push it off a 320px screen).
+      const closeBtn = dialog.getByRole('button', { name: 'Close standings' });
+      await expect(closeBtn).toBeVisible();
+      await expect(closeBtn).toBeInViewport();
+
+      // No horizontal page overflow with the overlay open.
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(
+        scrollWidth,
+        `document must not overflow horizontally at ${bp.label}px with the standings overlay open`,
+      ).toBeLessThanOrEqual(clientWidth + 1);
+
+      await page.evaluate(() => document.fonts.ready);
+      await settle(page);
+
+      // Structural snapshot of the open overlay (flag <img>s masked, as elsewhere).
+      await expect(page).toHaveScreenshot(`standings-open-${bp.label}.png`, {
+        fullPage: false,
+        animations: 'disabled',
+        mask: [page.locator('img')],
         maxDiffPixelRatio: 0.02,
       });
     });

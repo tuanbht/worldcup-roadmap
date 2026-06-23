@@ -1,30 +1,8 @@
 import { memo } from 'react';
 import type { StandingRow } from '@/domain/types';
 import type { GroupTableProps } from '@/features/roadmap/graph-model';
+import { pickStandingsColumns } from '@/features/roadmap/responsive';
 import { Flag } from '@/components/ui/Flag';
-
-function gd(value: number): string {
-  return value > 0 ? `+${value}` : `${value}`;
-}
-
-/** Secondary numeric columns folded under the LOD detail fade at low zoom. */
-interface StatColumn {
-  readonly key: string;
-  readonly label: string;
-  readonly value: (row: StandingRow) => string | number;
-  /** Hidden at overview zoom (data-lod-detail) when true. */
-  readonly detail: boolean;
-}
-
-const STAT_COLUMNS: readonly StatColumn[] = [
-  { key: 'mp', label: 'MP', value: (r) => r.played, detail: true },
-  { key: 'w', label: 'W', value: (r) => r.won, detail: true },
-  { key: 'd', label: 'D', value: (r) => r.draw, detail: true },
-  { key: 'l', label: 'L', value: (r) => r.lost, detail: true },
-  { key: 'gf', label: 'GF', value: (r) => r.goalsFor, detail: true },
-  { key: 'ga', label: 'GA', value: (r) => r.goalsAgainst, detail: true },
-  { key: 'gd', label: 'GD', value: (r) => gd(r.goalDifference), detail: false },
-];
 
 /** Sorted ascending by `position` so the table reads 1..N top-to-bottom. */
 function byPosition(a: StandingRow, b: StandingRow): number {
@@ -51,7 +29,7 @@ function TeamCell({ row, onFocusTeam }: TeamCellProps) {
       {onFocusTeam ? (
         <button
           type="button"
-          className="nopan shrink-0 rounded-[3px] focus-visible:shadow-[var(--glow-accent)] focus-visible:outline-none"
+          className="nopan shrink-0 rounded-[3px] focus-visible:shadow-[var(--glow-accent)] focus-visible:outline-none pointer-coarse:-m-[13px] pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center"
           aria-label={`Show matches for ${team.name}`}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
@@ -129,8 +107,9 @@ function GroupHeader({
  * flag focus, item 3) and `onOpenStandings` (header opener) are present only on
  * the former.
  */
-function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings }: GroupTableProps) {
+function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings, compact }: GroupTableProps) {
   const rows = [...group.table].sort(byPosition);
+  const statColumns = pickStandingsColumns(compact ? 'compact' : 'full');
   return (
     <section
       aria-label={`Group ${group.name} standings`}
@@ -144,7 +123,7 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings }: GroupTableP
         <colgroup>
           <col className="w-6" />
           <col />
-          {STAT_COLUMNS.map((c) => (
+          {statColumns.map((c) => (
             <col key={c.key} className="w-7" />
           ))}
           <col className="w-9" />
@@ -157,7 +136,7 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings }: GroupTableP
             <th scope="col" className="px-2 text-left">
               Team
             </th>
-            {STAT_COLUMNS.map((c) => (
+            {statColumns.map((c) => (
               <th
                 key={c.key}
                 scope="col"
@@ -182,7 +161,7 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings }: GroupTableP
               <td className="px-2 text-left">
                 <TeamCell row={row} onFocusTeam={onFocusTeam} />
               </td>
-              {STAT_COLUMNS.map((c) => (
+              {statColumns.map((c) => (
                 <td
                   key={c.key}
                   data-lod-detail={c.detail || undefined}

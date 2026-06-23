@@ -8,7 +8,7 @@ function AppShell() {
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
-      <header className="border-edge relative z-10 flex flex-col gap-y-3 border-b px-6 py-5 sm:px-10">
+      <header className="border-edge relative z-10 flex flex-col gap-y-3 border-b px-4 py-5 sm:px-10">
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
           <div>
             <p className="text-accent text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
