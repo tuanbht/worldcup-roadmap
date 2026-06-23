@@ -53,6 +53,24 @@ If that is empty, ask the user for the requirement before proceeding. If it is a
 - **Commit + archive only on success.** Stage 9 (commit) runs only when stage 6 was APPROVED and stage 7 (live verify) did not FAIL; the committer re-checks the gates and refuses to commit a red tree. Stage 10 (archive) runs only after the commit lands. The committer and archiver **never push** and never use `--no-verify` — pushing stays the user's call.
 - Keep the user informed between stages with a one-line status (stage, verdict, key artifact path). Do not dump full subagent output unless asked.
 - Never skip the test stages. Tests are written and must be RED before implementation begins.
+- **Survive compaction — auto-resume.** A long run WILL be compacted. If you continue with only a summary, do **not** stop or restart from scratch; re-derive progress from the on-disk `docs/pipeline/<slug>/` artifacts and continue the build team from the next incomplete stage (see _Resuming after a context compaction_).
+
+## Resuming after a context compaction
+
+A full pipeline run is long and **will** be compacted (the harness replaces the conversation with a summary). Treat that as a **checkpoint, not a stop signal** — the build team auto-restarts from disk, because the durable state lives in files, not in context.
+
+When you find yourself resuming with only a summary (or are re-invoked and a run was clearly in progress):
+
+1. Re-read this command + `docs/pipeline/README.md` + `requirements/` (skip every `*.deleted.md` — those are finished).
+2. Process active requirements **oldest-first** by their `<YYYY-MM-DD-HHMM>-` filename prefix.
+3. For the in-flight requirement, infer the last completed stage from which artifacts exist in `docs/pipeline/<slug>/`, and resume at the **next** stage — do not redo finished stages:
+   - only `requirement.md` → Stage 1 (plan)
+   - `plan.md` present, no `plan-review.md` → Stage 2 (review plan)
+   - `plan-review.md` APPROVED → Stage 3 (tests); `CHANGES_REQUESTED` → re-plan
+   - tests already in the repo, no `impl-review.md` → Stage 5 (implement)
+   - `impl-review.md` APPROVED → Stage 7 (live verify) → 8 (final) → 9 (commit) → 10 (archive)
+   - `final-review.md` present but the requirement file is not yet `*.deleted.md` → finish Stages 9–10 (commit + archive)
+4. Continue until **every** active requirement is committed and archived (`*.deleted.md`).
 
 ## Final report to the user
 

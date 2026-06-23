@@ -75,6 +75,16 @@ plus the tests and production code written into the repo proper.
 
 Both gate agents end their response with exactly one machine-read line — `VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED` — and, when changes are requested, a numbered `## Required Changes` list. The orchestrator/workflow keys off this to advance or loop.
 
+## Resuming after a context compaction
+
+A full run is long and **will** get compacted (the harness summarizes the conversation). This is a **checkpoint, not a stop** — all durable state is on disk, so the build team auto-restarts without losing progress:
+
+- `requirements/*.md` is the work queue (skip `*.deleted.md` = done); pick the **oldest** by its `<YYYY-MM-DD-HHMM>-` prefix.
+- Each `docs/pipeline/<slug>/` folder records the last completed stage by which artifacts exist (`plan.md` → `plan-review.md` → `impl-review.md` → `final-review.md`); resume at the **next** stage, don't redo finished ones.
+- Continue until every active requirement is committed (stage 9) and archived to `*.deleted.md` (stage 10).
+
+The orchestrator (`.claude/commands/implement-requirement.md`, _Resuming after a context compaction_) owns this protocol; the `wc-*` specialists likewise re-read the governing `requirements/*.md` + run artifacts on resume rather than trusting stale context.
+
 ## Customizing
 
 - Change models per stage by editing the `model:` frontmatter in each agent.
