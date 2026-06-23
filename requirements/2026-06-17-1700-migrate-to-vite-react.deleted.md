@@ -57,15 +57,15 @@ wc-roadmap/
 
 ### What moves where
 
-| Next thing                            | Replacement                                                                                        |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/app/api/worldcup/route.ts`       | `server/routes/worldcup.ts` (Hono handler — same `ok/fail` envelope, ~15 lines)                    |
-| `src/app/layout.tsx` + `globals.css`  | `index.html` + `src/main.tsx` + `src/styles/global.css`                                            |
-| `src/app/page.tsx`                    | `src/App.tsx`                                                                                      |
-| `next/font` (Archivo, Inter)          | `@fontsource/archivo` + `@fontsource/inter` (self-hosted, `font-display: swap`)                    |
-| `next/image` (flags)                  | plain `<img loading="lazy" width height>` (or keep `Flag.tsx`, drop next/image)                    |
-| `server-only` import in `env.ts`      | delete the import; keep the zod `process.env` validation (now plain Node env)                      |
-| `useStageView` `history.replaceState` | keep, or React Router (light — app is essentially single-page)                                     |
+| Next thing                            | Replacement                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `src/app/api/worldcup/route.ts`       | `server/routes/worldcup.ts` (Hono handler — same `ok/fail` envelope, ~15 lines)                                    |
+| `src/app/layout.tsx` + `globals.css`  | `index.html` + `src/main.tsx` + `src/styles/global.css`                                                            |
+| `src/app/page.tsx`                    | `src/App.tsx`                                                                                                      |
+| `next/font` (Archivo, Inter)          | `@fontsource/archivo` + `@fontsource/inter` (self-hosted, `font-display: swap`)                                    |
+| `next/image` (flags)                  | plain `<img loading="lazy" width height>` (or keep `Flag.tsx`, drop next/image)                                    |
+| `server-only` import in `env.ts`      | delete the import; keep the zod `process.env` validation (now plain Node env)                                      |
+| `useStageView` `history.replaceState` | keep, or React Router (light — app is essentially single-page)                                                     |
 | `useTournament` (fetch+setInterval)   | `useQuery(['tournament'], …)` — focus-only refetch, no interval (see `2026-06-23-0853-refetch-on-window-focus.md`) |
 
 ### Reused unchanged
