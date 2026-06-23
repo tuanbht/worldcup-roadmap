@@ -4,9 +4,10 @@ import { defineConfig, devices } from '@playwright/test';
  * E2E config. Runs against the mock provider for deterministic, offline runs.
  * Requires `npx playwright install` once to download browsers.
  *
- * Two processes: the Vite preview server (static SPA) and the Hono API. The
- * in-browser `/api/worldcup` calls reach the API through Vite's `preview.proxy`
- * (vite preview ignores `server.proxy`, so the config defines both).
+ * A SINGLE process: the Vite preview server (static SPA). There is no backend —
+ * the SPA fetches FIFA directly in the browser. The build is pinned to the mock
+ * provider via `env: { VITE_FIFA_PROVIDER: 'mock' }` so Vite inlines it at BUILD
+ * time and the browser never reaches live `api.fifa.com` during E2E.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -30,19 +31,13 @@ export default defineConfig({
     },
     { name: 'mobile', use: { ...devices['iPhone 13'] } },
   ],
-  webServer: [
-    {
-      command: 'npm run build && npm run preview',
-      url: 'http://localhost:3217',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-    },
-    {
-      command: 'npm run start:api',
-      url: 'http://localhost:8787/api/worldcup',
-      env: { WC_PROVIDER: 'mock', PORT: '8787' },
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-    },
-  ],
+  webServer: {
+    command: 'npm run build && npm run preview',
+    url: 'http://localhost:3217',
+    // Pin the static build to the mock provider so Vite inlines it at BUILD time
+    // (a build only inlines VITE_* keys present in the build process's env).
+    env: { VITE_FIFA_PROVIDER: 'mock' },
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

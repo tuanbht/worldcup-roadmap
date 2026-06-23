@@ -5,6 +5,7 @@
 > call FIFA directly. The Hono BFF is **not** needed for access. Go pure frontend.
 
 ## Decision
+
 1. **Delete the backend.** Remove `server/` entirely (`index.ts`, `routes/*`, `cors.ts`, `deploy-runbook*`),
    drop deps `hono` + `@hono/node-server`, remove the Vite `/api` proxy, and remove the
    `VITE_API_BASE_URL`/`apiUrl` indirection (supersedes `fix-direct-api-connection.md`).
@@ -29,15 +30,18 @@
    still wants a result shape).
 
 ## Deploy (resolves "can it run both")
+
 **Single static Vercel project. No functions, no server.** `vite build` → `dist`, served by the CDN. There is
 nothing to "run in parallel" — the SPA fetches FIFA directly from the user's browser.
 
 ## Supersedes
+
 - `migrate-to-vite-react.md` — keep Vite+React; **drop the "thin Hono backend"** part (no backend at all).
 - `fix-direct-api-connection.md` — no internal API to point at; the SPA calls FIFA directly.
 - `match-detail-panel.md` — match detail comes from FIFA `live`+`timelines` directly, not a Hono route.
 
 ## Risks (the real ones — CORS is NOT one)
+
 - **No shared cache.** Each browser hits FIFA itself. Mitigated by focus-only refetch + `staleTime` + honoring
   FIFA's own HTTP cache headers. Acceptable for this traffic.
 - **Undocumented & could change under tournament load** (bot-challenge, rate-limit, CORS/shape change) — the
@@ -45,6 +49,7 @@ nothing to "run in parallel" — the SPA fetches FIFA directly from the user's b
 - Client bundle grows by the mapper/zod code (small); FIFA IDs become client-visible (not secrets).
 
 ## Acceptance criteria (testable)
+
 - No `server/` directory; `hono`/`@hono/node-server` removed from `package.json`; no Vite `/api` proxy.
 - The SPA fetches `api.fifa.com` directly (TanStack Query); tournament graph + match-detail panel render from
   those direct fetches.

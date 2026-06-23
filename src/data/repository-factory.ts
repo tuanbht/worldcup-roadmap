@@ -1,4 +1,4 @@
-import { env } from './config/env';
+import { fifaConfig } from './config/fifa-config';
 import type { MatchRepository } from './repository';
 import { FifaRepository } from './providers/fifa/fifa-repository';
 import { MockRepository } from './providers/mock/mock-repository';
@@ -11,7 +11,7 @@ import { MockRepository } from './providers/mock/mock-repository';
  *    with zero config and survives FIFA outages/rate limits.
  */
 export function selectRepository(): MatchRepository {
-  switch (env.WC_PROVIDER) {
+  switch (fifaConfig.provider) {
     case 'mock':
       return new MockRepository();
     case 'fifa':

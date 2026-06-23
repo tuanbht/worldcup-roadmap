@@ -525,6 +525,37 @@ describe('buildRoadmapGraph — knockout live state [CR-1 Acceptance #1-#3]', ()
     // payload" block keeps that green); this block only governs KO cards.
   });
 
+  it('AF-6 a live THIRD_PLACE KO card surfaces status:live + its real minute and score', () => {
+    // build-graph.test.ts only asserted live state on the FINAL. The CR-1 merge
+    // already covers a live THIRD_PLACE node too — lock it with a test. The mock
+    // fixture leaves wc2026-3p-1 scheduled, so build a live state via an IMMUTABLE
+    // clone overriding ONLY that match (never mutate the shared fixture), then
+    // assert the third-place card reflects it: status:'live', the real minute and
+    // running score, with the isThirdPlace flag preserved and isFinal still false.
+    const liveThirdPlace: Tournament = {
+      ...tournament,
+      matches: tournament.matches.map((m) =>
+        m.id === 'wc2026-3p-1'
+          ? { ...m, status: 'live', minute: 58, score: { ...m.score, home: 1, away: 0 } }
+          : m,
+      ),
+    };
+    // Fixture invariant: the override targeted an existing third-place match.
+    expect(liveThirdPlace.matches.some((m) => m.id === 'wc2026-3p-1')).toBe(true);
+
+    const g = buildRoadmapGraph(liveThirdPlace, 'UTC');
+    const card = koCard('wc2026-3p-1', g);
+    expect(card.status).toBe('live');
+    expect(card.minute).toBe(58);
+    expect(card.minute).not.toBeNull();
+    expect(card.score.home).toBe(1);
+    expect(card.score.away).toBe(0);
+    expect(card.score).not.toEqual(EMPTY_SCORE);
+    // Structural flags survive the live merge and stay mutually exclusive.
+    expect(card.isThirdPlace).toBe(true);
+    expect(card.isFinal).toBe(false);
+  });
+
   it('#1 immutable merge: leaves the source tournament and its Match objects untouched', () => {
     // Build against a deeply-frozen tournament: any in-place mutation of `node`
     // or a `Match` during the merge would throw under the freeze.

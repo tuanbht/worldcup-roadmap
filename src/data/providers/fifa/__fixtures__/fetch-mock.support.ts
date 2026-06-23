@@ -29,11 +29,33 @@ export function abortError(name: AbortName = 'AbortError'): Error {
 
 /** A calendar-pager `Response`: one OK page, no continuation → the pager stops. */
 export function okCalendarPage(results: readonly unknown[]): Response {
+  return calendarPage(results, null);
+}
+
+/**
+ * A calendar `Response` carrying an explicit `ContinuationToken`. A non-null
+ * token tells the pager to fetch the NEXT page; `null` (the `okCalendarPage`
+ * default) stops it. Lets a suite assert ContinuationToken pagination without
+ * copy-pasting the `{ Results, ContinuationToken }` envelope per page.
+ */
+export function calendarPage(results: readonly unknown[], token: string | null): Response {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ Results: results, ContinuationToken: null }),
+    json: async () => ({ Results: results, ContinuationToken: token }),
   } as Response;
+}
+
+/**
+ * Spy on the global `fetch` and resolve each successive call with the NEXT
+ * `Response` in `pages` (page 0, page 1, …). Used to drive multi-page
+ * ContinuationToken pagination deterministically: no real network, the page
+ * boundary is whatever each stubbed page's token says.
+ */
+export function spyFetchSequence(pages: readonly Response[]): MockInstance {
+  const spy = vi.spyOn(globalThis, 'fetch');
+  pages.forEach((page) => spy.mockResolvedValueOnce(page));
+  return spy;
 }
 
 /** A non-OK calendar `Response` with the given HTTP status (5xx / 429 paths). */
@@ -42,6 +64,23 @@ export function httpResponse(status: number): Response {
     ok: status >= 200 && status < 300,
     status,
     json: async () => ({}),
+  } as Response;
+}
+
+/**
+ * An OK (`200`) calendar `Response` whose `.json()` REJECTS with an abort-named
+ * error — the shape undici surfaces when `AbortSignal.timeout` fires DURING
+ * response-body streaming (AF-1). HTTP status passes the `res.ok`/`429` gates,
+ * so the rejection is raised from the `await res.json()` parse block, exercising
+ * the second try/catch rather than the fetch() catch.
+ */
+export function bodyAbortingPage(name: AbortName = 'TimeoutError'): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async (): Promise<unknown> => {
+      throw abortError(name);
+    },
   } as Response;
 }
 

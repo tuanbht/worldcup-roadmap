@@ -1,21 +1,62 @@
 // @vitest-environment jsdom
 //
-// jsdom-only (per-file pragma), matching useTournamentQuery.test.tsx. Stubs
-// global.fetch; never touches the network or live FIFA.
+// jsdom-only (per-file pragma), matching useTournamentQuery.test.tsx.
+//
+// REWRITTEN for the direct-FIFA frontend: the hook takes the resolved `Match`
+// (carrying providerRef) and calls the client-side `loadMatchDetail(match,
+// { signal })` loader — no internal /api fetch, no ApiEnvelope, no
+// DETAIL_UNAVAILABLE code, no apiUrl. The loader is mocked so no network or live
+// FIFA is reached; it returns the `DetailOutcome` union the hook maps to
+// `{ detail, status, error }`. A thrown loader error → status:'error'.
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor, type RenderHookResult } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, fail } from '@/data/envelope';
-import { DETAIL_UNAVAILABLE } from '@/data/detail-codes';
-import { EMPTY_MATCH_DETAIL } from '@/domain/types';
+import { RateLimitError } from '@/data/errors';
+import { EMPTY_MATCH_DETAIL, teamRef } from '@/domain/types';
+import type { Match, ProviderRef } from '@/domain/types';
 import { useMatchDetailQuery, type MatchDetailQueryResult } from './useMatchDetailQuery';
 
-const MATCH_ID = 'wc2026-fifa-400251';
-const DETAIL_PATH = `/api/worldcup/match/${MATCH_ID}/detail`;
-const ENDPOINT = DETAIL_PATH; // relative fallback URL (base unset)
-const API_BASE = 'http://localhost:8787';
-const ABSOLUTE_ENDPOINT = `${API_BASE}${DETAIL_PATH}`;
+// Mock the client-side loader the hook delegates to. Each test sets its outcome.
+const loadMatchDetailMock = vi.fn();
+vi.mock('@/data/providers/fifa/match-detail-loader', () => ({
+  loadMatchDetail: (...args: unknown[]) => loadMatchDetailMock(...args),
+}));
+
+const FIFA_REF: ProviderRef = {
+  idCompetition: '17',
+  idSeason: '285023',
+  idStage: 'st-r16',
+  idMatch: '400251',
+};
+
+function makeMatch(id: string, providerRef: ProviderRef | null): Match {
+  return {
+    id,
+    providerMatchId: id,
+    providerRef,
+    stage: 'ROUND_OF_16',
+    group: null,
+    matchday: null,
+    home: teamRef({ id: 'h', name: 'France', code: 'FRA', flagUrl: null }),
+    away: teamRef({ id: 'a', name: 'Brazil', code: 'BRA', flagUrl: null }),
+    score: {
+      home: 2,
+      away: 1,
+      penaltyHome: null,
+      penaltyAway: null,
+      resolution: 'regular',
+      winner: 'home',
+    },
+    kickoff: '2026-07-04T16:00:00Z',
+    status: 'finished',
+    minute: null,
+    venue: { name: null, city: null },
+  };
+}
+
+const FIFA_MATCH = makeMatch('wc2026-fifa-400251', FIFA_REF);
+const MOCK_MATCH = makeMatch('wc2026-mock-1', null);
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -26,64 +67,30 @@ function makeWrapper() {
   };
 }
 
-function stubFetchResolved(envelope: unknown) {
-  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok: true,
-    json: async () => envelope,
-  } as Response);
-}
-
-/** A non-OK HTTP response whose body is not JSON (the route 500 path). */
-function stubFetchHttpError(status = 500) {
-  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok: false,
-    status,
-    json: async () => {
-      throw new SyntaxError('Unexpected token I in JSON');
-    },
-  } as unknown as Response);
-}
-
-/**
- * Stub `fetch` with a request that NEVER resolves, capturing the per-call
- * AbortSignal so a test can keep the request "in flight" and later assert the
- * signal aborts on unmount / key-change. Returns both the spy and a getter for
- * the most-recently-captured signal.
- */
-function stubFetchInFlight() {
-  let capturedSignal: AbortSignal | undefined;
-  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
-    capturedSignal = (init as RequestInit | undefined)?.signal ?? undefined;
-    return new Promise<Response>(() => {});
-  });
-  return { spy, lastSignal: (): AbortSignal | undefined => capturedSignal };
-}
-
 interface QueryProps {
-  id: string | null;
+  match: Match | null;
 }
 
-function renderQuery(
-  matchId: string | null,
-  isLive = false,
-): RenderHookResult<MatchDetailQueryResult, QueryProps> {
-  return renderHook(({ id }) => useMatchDetailQuery(id, isLive), {
+function renderQuery(match: Match | null): RenderHookResult<MatchDetailQueryResult, QueryProps> {
+  return renderHook(({ match: m }) => useMatchDetailQuery(m), {
     wrapper: makeWrapper(),
-    initialProps: { id: matchId },
+    initialProps: { match },
   });
 }
 
 /** Render and wait until the detail query reaches a terminal `ready` status. */
 async function renderReady(
-  matchId: string,
-  isLive = false,
+  match: Match,
 ): Promise<RenderHookResult<MatchDetailQueryResult, QueryProps>> {
-  const view = renderQuery(matchId, isLive);
+  const view = renderQuery(match);
   await waitFor(() => expect(view.result.current.status).toBe('ready'));
   return view;
 }
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  loadMatchDetailMock.mockReset();
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -91,183 +98,121 @@ afterEach(() => {
 
 describe('useMatchDetailQuery', () => {
   it('exposes the { detail, status, error } contract', () => {
-    stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = renderQuery(MATCH_ID);
+    loadMatchDetailMock.mockResolvedValue({
+      kind: 'ready',
+      detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+    });
+    const { result } = renderQuery(FIFA_MATCH);
     expect(result.current).toHaveProperty('detail');
     expect(result.current).toHaveProperty('status');
     expect(result.current).toHaveProperty('error');
   });
 
-  it('is disabled (no fetch, no loading) when matchId is null', () => {
-    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
+  it('is disabled (no loader call) when match is null', () => {
+    loadMatchDetailMock.mockResolvedValue({
+      kind: 'ready',
+      detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+    });
     const { result } = renderQuery(null);
-    expect(spy).not.toHaveBeenCalled();
+    expect(loadMatchDetailMock).not.toHaveBeenCalled();
     expect(result.current.detail).toBeNull();
   });
 
-  it('lazily fetches the per-match detail endpoint via apiUrl() relative fallback (base unset)', async () => {
-    // Part 1: with no VITE_API_BASE_URL configured, apiUrl() returns the path
-    // unchanged so the dev proxy still resolves it — the URL still comes from
-    // apiUrl(), never a hardcoded relative literal in the fetcher.
-    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    await renderReady(MATCH_ID);
-    expect(spy).toHaveBeenCalledWith(ENDPOINT, expect.anything());
-  });
-
-  it('builds the detail URL through apiUrl() — absolute when VITE_API_BASE_URL is set', async () => {
-    // Part 1: configured base → direct cross-origin call to the Hono origin.
-    vi.stubEnv('VITE_API_BASE_URL', API_BASE);
-    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    await renderReady(MATCH_ID);
-    expect(spy).toHaveBeenCalledWith(ABSOLUTE_ENDPOINT, expect.anything());
-  });
-
-  it('encodes the matchId into the deep detail path for a different match', async () => {
-    // Guards against the URL being hardcoded to one id: a second match must
-    // resolve to its own endpoint segment, still routed through apiUrl().
-    const otherId = 'wc2026-fifa-400777';
-    vi.stubEnv('VITE_API_BASE_URL', API_BASE);
-    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(otherId)));
-    await renderReady(otherId);
-    expect(spy).toHaveBeenCalledWith(
-      `${API_BASE}/api/worldcup/match/${otherId}/detail`,
+  it('calls loadMatchDetail with the resolved Match (carrying its providerRef)', async () => {
+    loadMatchDetailMock.mockResolvedValue({
+      kind: 'ready',
+      detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+    });
+    await renderReady(FIFA_MATCH);
+    expect(loadMatchDetailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: FIFA_MATCH.id, providerRef: FIFA_REF }),
       expect.anything(),
     );
   });
 
-  it('resolves to status "ready" with the detail on a success envelope', async () => {
-    stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = await renderReady(MATCH_ID);
-    expect(result.current.detail?.matchId).toBe(MATCH_ID);
+  it('resolves to status "ready" with the detail when the loader returns kind:ready', async () => {
+    loadMatchDetailMock.mockResolvedValue({
+      kind: 'ready',
+      detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+    });
+    const { result } = await renderReady(FIFA_MATCH);
+    expect(result.current.detail?.matchId).toBe(FIFA_REF.idMatch);
     expect(result.current.error).toBeNull();
   });
 
-  it('maps a DETAIL_UNAVAILABLE fail envelope to status "unavailable" (not an error)', async () => {
-    stubFetchResolved(fail(DETAIL_UNAVAILABLE, 'Detail not available for this match.'));
-    const { result } = renderQuery(MATCH_ID);
+  it('maps a kind:unavailable loader outcome to status "unavailable" (not an error)', async () => {
+    // Null providerRef → the loader resolves "unavailable"; the hook surfaces it
+    // as a distinct status, never an error.
+    loadMatchDetailMock.mockResolvedValue({ kind: 'unavailable' });
+    const { result } = renderQuery(MOCK_MATCH);
     await waitFor(() => expect(result.current.status).toBe('unavailable'));
     expect(result.current.error).toBeNull();
+    expect(result.current.detail).toBeNull();
   });
 
-  it('maps a genuine upstream fail envelope to status "error"', async () => {
-    stubFetchResolved(fail('RATE_LIMITED', 'Upstream rate limit reached'));
-    const { result } = renderQuery(MATCH_ID);
+  it('maps a thrown loader error to status "error" with a non-null message', async () => {
+    loadMatchDetailMock.mockRejectedValue(new RateLimitError('Upstream rate limit reached'));
+    const { result } = renderQuery(FIFA_MATCH);
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.error).toContain('rate limit');
-  });
-
-  it('maps a non-OK HTTP response (non-JSON body) to status "error", not a crash', async () => {
-    stubFetchHttpError(500);
-    const { result } = renderQuery(MATCH_ID);
-    await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.detail).toBeNull();
-    expect(result.current.error).not.toBeNull();
   });
 
-  it('still resolves to "ready" when the match is live (isLive flag does not block the fetch)', async () => {
-    const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    const { result } = await renderReady(MATCH_ID, true);
-    expect(spy).toHaveBeenCalledWith(ENDPOINT, expect.anything());
-    expect(result.current.detail?.matchId).toBe(MATCH_ID);
-  });
-
-  it('issues the SAME request (url + options) whether or not isLive is set', async () => {
-    // Part 2: isLive no longer drives any fetch behavior. The endpoint, the
-    // no-store cache directive, and the abort signal must be identical for a
-    // live and a non-live match — isLive is purely informational now.
-    const liveSpy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    await renderReady(MATCH_ID, true);
-    expect(liveSpy).toHaveBeenCalledTimes(1);
-    expect(liveSpy).toHaveBeenCalledWith(
-      ENDPOINT,
-      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
-    );
-
-    vi.restoreAllMocks();
-
-    const idleSpy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-    await renderReady(MATCH_ID, false);
-    expect(idleSpy).toHaveBeenCalledTimes(1);
-    expect(idleSpy).toHaveBeenCalledWith(
-      ENDPOINT,
-      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
-    );
-  });
-
-  // Part 2: the `isLive` interval branch is removed. isLive stays in the
-  // signature (callers unchanged) but no longer drives any fetch timing — a live
-  // match does NOT poll on a timer.
-  describe('no interval polling regardless of isLive (Part 2)', () => {
-    it('does not re-fetch on a timer for a LIVE match after the mount load', async () => {
+  describe('no interval polling', () => {
+    it('does not re-fetch on a timer after the mount load (no refetchInterval)', async () => {
       vi.useFakeTimers();
       try {
-        const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-        const { result } = renderQuery(MATCH_ID, true);
+        loadMatchDetailMock.mockResolvedValue({
+          kind: 'ready',
+          detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+        });
+        const { result } = renderQuery(FIFA_MATCH);
 
         await vi.waitFor(() => expect(result.current.status).toBe('ready'));
-        const callsAfterMount = spy.mock.calls.length;
+        const callsAfterMount = loadMatchDetailMock.mock.calls.length;
 
-        // Past the old 30s live interval; no second request must be scheduled.
+        // Past the old 30s detail interval; no second request must be scheduled.
         await vi.advanceTimersByTimeAsync(120_000);
 
-        expect(spy.mock.calls.length).toBe(callsAfterMount);
+        expect(loadMatchDetailMock.mock.calls.length).toBe(callsAfterMount);
       } finally {
         vi.useRealTimers();
       }
     });
   });
 
-  // CR-13 #9/#10: TanStack Query creates an AbortController per query and aborts
-  // it on unmount / key-change. The queryFn must thread its context `signal` into
-  // fetch so the in-flight detail request is actually cancellable.
-  describe('CR-13: AbortSignal forwarding + cancellation', () => {
-    it('forwards the TanStack-provided AbortSignal into the fetch call (#9/#10)', async () => {
-      const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-      await renderReady(MATCH_ID);
+  describe('AbortSignal forwarding', () => {
+    it('forwards the TanStack-provided AbortSignal into the loader call', async () => {
+      loadMatchDetailMock.mockResolvedValue({
+        kind: 'ready',
+        detail: EMPTY_MATCH_DETAIL(FIFA_REF.idMatch),
+      });
+      await renderReady(FIFA_MATCH);
 
-      expect(spy).toHaveBeenCalledWith(
-        ENDPOINT,
+      expect(loadMatchDetailMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: FIFA_MATCH.id }),
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
 
-    it('keeps the existing fetch options (cache: no-store) alongside the new signal', async () => {
-      const spy = stubFetchResolved(ok(EMPTY_MATCH_DETAIL(MATCH_ID)));
-      await renderReady(MATCH_ID);
-
-      // Forwarding the signal must NOT drop the no-store cache directive that
-      // keeps live detail fresh — both belong in the same options object.
-      expect(spy).toHaveBeenCalledWith(
-        ENDPOINT,
-        expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
+    it('aborts the in-flight loader call when the query key changes (different match)', async () => {
+      // Capture the signal the loader received for the first match; selecting a
+      // different match changes the query key and must abort the prior request.
+      let firstSignal: AbortSignal | undefined;
+      loadMatchDetailMock.mockImplementation(
+        (_match: Match, options?: { signal?: AbortSignal }) => {
+          if (firstSignal === undefined) firstSignal = options?.signal;
+          return new Promise(() => {}); // never resolves → stays in-flight
+        },
       );
-    });
 
-    it('aborts the in-flight detail request when the query unmounts (#9)', async () => {
-      const { spy, lastSignal } = stubFetchInFlight();
-      const { unmount } = renderQuery(MATCH_ID);
-      await waitFor(() => expect(spy).toHaveBeenCalled());
+      const { rerender } = renderQuery(FIFA_MATCH);
+      await waitFor(() => expect(loadMatchDetailMock).toHaveBeenCalled());
 
-      expect(lastSignal()).toBeInstanceOf(AbortSignal);
-      expect(lastSignal()?.aborted).toBe(false);
-
-      unmount();
-
-      await waitFor(() => expect(lastSignal()?.aborted).toBe(true));
-    });
-
-    it('aborts the in-flight detail request when the query key changes (#9)', async () => {
-      const { spy, lastSignal } = stubFetchInFlight();
-      const { rerender } = renderQuery(MATCH_ID);
-      await waitFor(() => expect(spy).toHaveBeenCalled());
-
-      const firstSignal = lastSignal();
       expect(firstSignal).toBeInstanceOf(AbortSignal);
       expect(firstSignal?.aborted).toBe(false);
 
-      // Selecting a different match changes the query key; the prior in-flight
-      // request must be aborted rather than left dangling.
-      rerender({ id: 'wc2026-fifa-400252' });
+      rerender({ match: makeMatch('wc2026-fifa-400777', FIFA_REF) });
 
       await waitFor(() => expect(firstSignal?.aborted).toBe(true));
     });

@@ -16,18 +16,17 @@ export default defineConfig({
   },
   test: {
     // Global default stays `node` (domain/data tests). The hook test opts into
-    // jsdom via its own `// @vitest-environment jsdom` pragma (M3).
+    // jsdom via its own `// @vitest-environment jsdom` pragma (M3). The
+    // deterministic mock-provider pin now lives in `vitest.setup.ts`
+    // (`vi.stubEnv('VITE_FIFA_PROVIDER', 'mock')`), so no suite can attempt a live
+    // FIFA fetch.
     environment: 'node',
-    // H2: pin the provider before any data-layer module loads, so env.ts never
-    // captures the `auto` default (which would attempt a real FIFA fetch).
-    env: { WC_PROVIDER: 'mock' },
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'server/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
       include: [
         'src/domain/**',
-        'src/lib/api.ts',
         'src/lib/datetime.ts',
         'src/features/roadmap/layout/**',
         'src/features/roadmap/build-graph.ts',
@@ -42,12 +41,8 @@ export default defineConfig({
         'src/components/roadmap/InteractionModeToggle.tsx',
         'src/components/roadmap/FocusMatchButton.tsx',
         'src/data/providers/**',
-        'src/data/cache/match-detail-cache.ts',
-        'src/data/cache/tournament-cache.ts',
-        'src/data/config/env.ts',
+        'src/data/config/fifa-config.ts',
         'src/components/panel/match-detail/**',
-        'server/routes/**',
-        'server/cors.ts',
       ],
       // Test-support builders/fixtures are not production code — they sit under
       // `match-detail/**` (caught by the include glob) but must not be measured.

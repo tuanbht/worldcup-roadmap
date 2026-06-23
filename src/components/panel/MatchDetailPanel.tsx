@@ -113,10 +113,10 @@ export function MatchDetailPanel({
 
   const match = findMatch(tournament, matchId);
   const placeholder = match ? null : findBracketPlaceholder(tournament, matchId);
-  const isLive = match?.status === 'live';
-  // Detail is only fetchable for a real match; an unresolved/placeholder node
-  // passes a null id so the hook stays disabled.
-  const { detail, status } = useMatchDetailQuery(match ? matchId : null, isLive);
+  // Detail is only fetchable for a real match; the hook takes the resolved
+  // `Match` (carrying providerRef) so an unresolved/placeholder node passes null
+  // and the hook stays disabled.
+  const { detail, status } = useMatchDetailQuery(match);
   const groups = tournament?.groups ?? [];
 
   return (

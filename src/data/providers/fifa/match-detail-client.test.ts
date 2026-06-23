@@ -82,6 +82,38 @@ describe('fetchFifaMatchDetail — request deadline on both sections [CR-2 Accep
   });
 });
 
+describe('fetchFifaMatchDetail — plain browser fetch, no spoofed headers [direct-FIFA]', () => {
+  // Browser context: no spoofed User-Agent / Accept-Language, and no
+  // `cache: 'no-store'` (the browser honors FIFA Cache-Control). Both sections
+  // must be plain fetches carrying only the abort signal.
+  it('sends NO custom request headers on EITHER section fetch', async () => {
+    const spy = routeFetch(bothOk());
+    await fetchFifaMatchDetail(REF);
+    for (const call of spy.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers) {
+        expect(headers['User-Agent']).toBeUndefined();
+        expect(headers['Accept-Language']).toBeUndefined();
+        expect(Object.keys(headers)).toHaveLength(0);
+      } else {
+        expect(headers).toBeUndefined();
+      }
+    }
+  });
+
+  it('leaves cache unset on EITHER section fetch (browser honors FIFA Cache-Control)', async () => {
+    // Stronger than `not.toBe('no-store')`: the plan drops the directive entirely
+    // (Review M-2), so each section fetch must pass no `cache` value at all.
+    const spy = routeFetch(bothOk());
+    await fetchFifaMatchDetail(REF);
+    for (const call of spy.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      expect(init?.cache).toBeUndefined();
+    }
+  });
+});
+
 describe('fetchFifaMatchDetail — graceful degradation on timeout [CR-2 Acceptance #8]', () => {
   it('degrades the aborted section to null and keeps the surviving section populated', async () => {
     routeFetch({

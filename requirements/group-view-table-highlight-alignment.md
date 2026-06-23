@@ -55,6 +55,7 @@ ordered by `position`; it doesn't overlap the first day-row; it reflects live da
 connector lines** and **every match that team plays in**, dimming the rest.
 
 **Behavior:**
+
 - Set a **focused team** (by team id/code). Compute the set of:
   - **match nodes** the team participates in — group matches where it's home/away, plus knockout matches whose
     resolved `home`/`away` is that team;
@@ -76,6 +77,7 @@ works by keyboard.
 ---
 
 ## Verification
+
 `npm run test` (layout + build-graph + component tests) → run the app: date labels line up with their row's
 cards; each group shows its points table under the header; clicking a flag lights that team's matches + lines and
 dims the rest. Playwright: assert a `day-marker` and its row's card share a center line; a group-standings table

@@ -28,11 +28,11 @@ import {
 } from './match-detail/__test-support__/match-detail-fixtures';
 
 // Mock the detail hook so the panel renders a deterministic state without a real
-// fetch. Each test overrides the return via the mocked module.
+// fetch. The hook now takes the resolved `Match | null` (single arg), so the
+// factory forwards exactly that one argument. Each test overrides the return.
 const useMatchDetailQueryMock = vi.fn();
 vi.mock('@/features/roadmap/hooks/useMatchDetailQuery', () => ({
-  useMatchDetailQuery: (matchId: string | null, isLive: boolean) =>
-    useMatchDetailQueryMock(matchId, isLive),
+  useMatchDetailQuery: (match: unknown) => useMatchDetailQueryMock(match),
 }));
 
 // --- Fixtures -------------------------------------------------------------
@@ -195,10 +195,12 @@ describe('MatchDetailPanel — close button (guard)', () => {
 // --- Redesigned header + tabs (RED until implemented) ---------------------
 
 describe('MatchDetailPanel — 3-tab redesign (RED until implemented)', () => {
-  it('passes the selected matchId through to the detail hook', () => {
+  it('passes the resolved Match through to the detail hook', () => {
     stubDetailReady(GROUP_MATCH.id);
     renderPanel(GROUP_MATCH.id);
-    expect(useMatchDetailQueryMock).toHaveBeenCalledWith(GROUP_MATCH.id, expect.any(Boolean));
+    expect(useMatchDetailQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: GROUP_MATCH.id }),
+    );
   });
 
   it('renders the tabs as a tablist (Timeline / Lineups / Stats)', () => {
@@ -362,7 +364,7 @@ describe('MatchDetailPanel — unscheduled knockout bracket node', () => {
     useMatchDetailQueryMock.mockReturnValue({ detail: null, status: 'loading', error: null });
     renderPanel(KNOCKOUT_NODE_ID, vi.fn(), TOURNAMENT_WITH_BRACKET);
 
-    expect(useMatchDetailQueryMock).toHaveBeenCalledWith(null, expect.any(Boolean));
+    expect(useMatchDetailQueryMock).toHaveBeenCalledWith(null);
     expect(screen.getByText('Round of 16')).toBeInTheDocument();
     expect(screen.getByText('Winner 1A')).toBeInTheDocument();
     expect(screen.getByText('Runner-up 2B')).toBeInTheDocument();

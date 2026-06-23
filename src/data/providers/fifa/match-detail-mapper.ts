@@ -1,6 +1,7 @@
 import type { Lineup, LineupPlayer, MatchDetail, ProviderRef } from '@/domain/types';
 import { EMPTY_MATCH_DETAIL } from '@/domain/types';
-import { buildMatchEvents, deriveMatchStats } from './match-detail-mapper.stats';
+import { buildMatchEvents } from './match-detail-mapper.events';
+import { deriveMatchStats } from './match-detail-mapper.stats';
 import {
   type RawEvent,
   type RawPlayer,

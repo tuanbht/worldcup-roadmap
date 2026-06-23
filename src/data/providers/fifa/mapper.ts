@@ -9,7 +9,7 @@ import type {
   Venue,
 } from '@/domain/types';
 import { placeholderRef, teamRef } from '@/domain/types';
-import { env } from '@/data/config/env';
+import { fifaConfig } from '@/data/config/fifa-config';
 import { fifaFlagUrl } from '@/data/flag-url';
 import type { RawMatch } from './schema';
 
@@ -113,8 +113,8 @@ function mapVenue(raw: RawMatch): Venue {
 function mapProviderRef(raw: RawMatch): ProviderRef | null {
   if (!raw.IdStage) return null;
   return {
-    idCompetition: env.WC_FIFA_COMPETITION_ID,
-    idSeason: env.WC_FIFA_SEASON_ID,
+    idCompetition: fifaConfig.competitionId,
+    idSeason: fifaConfig.seasonId,
     idStage: raw.IdStage,
     idMatch: raw.IdMatch,
   };

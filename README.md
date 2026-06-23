@@ -25,26 +25,30 @@ Built with Vite, React, React Flow, and Tailwind CSS.
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000 — runs against the offline mock by default
+npm run dev          # http://localhost:3217 — runs against the offline mock by default
 ```
 
-With no `.env`, the app serves a fully-simulated tournament (real teams, a live final),
-so there's nothing to configure. To use live FIFA data, see **Data providers** below.
+`npm run dev` starts **only Vite** — there is no backend. With no `.env`, the app
+serves a fully-simulated tournament (real teams, a live final), so there's nothing
+to configure. To use live FIFA data, see **Data providers** below.
 
 ## Scripts
 
-| Script                        | What it does                                             |
-| ----------------------------- | -------------------------------------------------------- |
-| `npm run dev`                 | Next dev server                                          |
-| `npm run build` / `npm start` | Production build / serve                                 |
-| `npm run typecheck`           | `tsc --noEmit`                                           |
-| `npm test`                    | Vitest unit tests (domain, layout, mapper)               |
-| `npm run test:coverage`       | Unit tests with coverage                                 |
-| `npm run test:e2e`            | Playwright E2E (run `npx playwright install` once first) |
+| Script                  | What it does                                             |
+| ----------------------- | -------------------------------------------------------- |
+| `npm run dev`           | Vite dev server (SPA only)                               |
+| `npm run build`         | Production static build → `dist/`                        |
+| `npm run preview`       | Preview the built static bundle                          |
+| `npm run typecheck`     | `tsc --noEmit`                                           |
+| `npm test`              | Vitest unit tests (domain, layout, mapper, hooks)        |
+| `npm run test:coverage` | Unit tests with coverage                                 |
+| `npm run test:e2e`      | Playwright E2E (run `npx playwright install` once first) |
 
 ## Data providers
 
-Configured via `WC_PROVIDER` (see `.env.example`):
+The SPA fetches `api.fifa.com` **directly from the browser** (no backend). The
+provider is a build-time client config — set `VITE_FIFA_PROVIDER` (see
+`.env.example`):
 
 | Value            | Behaviour                                                              |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -62,30 +66,33 @@ the app never depends on the API providing those links.
 
 ## Architecture
 
+Pure frontend — the browser fetches FIFA directly; TanStack Query owns caching,
+dedupe, and focus-only refetch. No server, no internal API, no shared cache.
+
 ```
-api.fifa.com / mock fixture
+api.fifa.com / mock fixture        (called directly from the browser)
         │  (provider adapters: FifaRepository | MockRepository)
-        ▼  normalize + zod-validate → Tournament
-  MatchRepository ──▶ tournament-cache (TTL · single-flight · stale-on-error)
-        ▼
-  GET /api/worldcup  →  { success, data: Tournament, error }
-        ▼  client polls; route TTL absorbs it
+        ▼  normalize + zod-validate → Tournament (assembled client-side)
+  selectRepository().getTournament()
+        ▼  useTournamentQuery (TanStack Query: cache · dedupe · focus refetch)
   build-graph  →  React Flow nodes/edges (one continuous canvas)
         ▼
   RoadmapCanvas (@xyflow/react)  ·  MatchNode + AdvanceEdge + group tables
+        ▼  useMatchDetailQuery → loadMatchDetail → FIFA live + timelines
+  MatchDetailPanel (Timeline / Lineups / Stats)
 ```
 
-| Layer                                  | Location                             |
-| -------------------------------------- | ------------------------------------ |
-| Domain types + bracket/standings logic | `src/domain/`                        |
-| Providers, repository, cache, route    | `src/data/`, `src/app/api/worldcup/` |
-| Layout engine + graph builder + hooks  | `src/features/roadmap/`              |
-| React Flow components                  | `src/components/`                    |
+| Layer                                             | Location                |
+| ------------------------------------------------- | ----------------------- |
+| Domain types + bracket/standings logic            | `src/domain/`           |
+| Providers, repository, FIFA client/mappers/loader | `src/data/`             |
+| Layout engine + graph builder + hooks             | `src/features/roadmap/` |
+| React Flow + panel components                     | `src/components/`       |
 
 ## Tech
 
-Next.js 15 (App Router) · TypeScript · React Flow v12 (`@xyflow/react`) · Tailwind CSS v4 ·
-zod · Vitest · Playwright.
+Vite · TypeScript · React 19 · React Flow v12 (`@xyflow/react`) · TanStack Query ·
+Tailwind CSS v4 · zod · Vitest · Playwright.
 
 ## Keyboard
 

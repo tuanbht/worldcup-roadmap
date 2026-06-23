@@ -82,11 +82,33 @@ describe('sanitizePictureUrl (CR-11 boundary helper)', () => {
     });
   });
 
-  describe('acceptance #6 — protocol-relative URLs are accepted unchanged (pinned decision)', () => {
+  // AF-3 (TIGHTEN) — protocol-relative URLs (`//host/x.png`) load from an
+  // ARBITRARY host (they inherit the page scheme but not the page origin), so for
+  // defense-in-depth they are now REJECTED to null, like `http:`/`javascript:`.
+  // This REPLACES the prior CR-11 "acceptance #6" block that pinned acceptance.
+  describe('acceptance #6 — protocol-relative URLs are REJECTED to null (AF-3 tighten)', () => {
     it.each([
       ['simple host', '//host/x.png'],
       ['attacker host (//evil)', '//evil.com/steal.png'],
-    ])('accepts a protocol-relative %s URL unchanged', (_label, url) => {
+      ['with path + query', '//cdn.evil.com/a/b.png?steal=1'],
+      ['space-leading', '  //evil.com/x.png'],
+      ['tab/newline-leading', '\t\n//evil.com/x.png'],
+      ['bare double slash (no host)', '//'],
+      ['network-path triple slash', '///evil.com/x.png'],
+    ])('rejects a %s protocol-relative URL to null (no throw)', (_label, url) => {
+      // The guard must trim leading whitespace BEFORE the `//` check, so a future
+      // refactor that drops the `.trim()` (or only checks `[0] === '/'`) is caught.
+      expect(() => sanitizePictureUrl(url)).not.toThrow();
+      expect(sanitizePictureUrl(url)).toBeNull();
+    });
+
+    it.each([
+      ['root-relative single slash', '/host/x.png'],
+      ['root-relative with query', '/players/10.png?v=2'],
+    ])('still accepts a genuinely %s URL (not protocol-relative)', (_label, url) => {
+      // Guard the boundary: ONE leading slash is a normal same-origin path and
+      // must stay accepted — only the `//` double-slash protocol-relative form is
+      // rejected. Asserts the tighten did not over-reach into ordinary paths.
       expect(sanitizePictureUrl(url)).toBe(url);
     });
   });

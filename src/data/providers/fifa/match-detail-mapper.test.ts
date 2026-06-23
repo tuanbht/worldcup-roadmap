@@ -267,6 +267,43 @@ describe('mapFifaMatchDetail (real captured payloads)', () => {
         expect(home + draw + away).toBe(100);
       }
     });
+
+    // --- AF-2: real match status threaded into the win-probability label ----
+    //
+    // The captured fixture is a PLAYED match (`MatchStatus: 0`). The mapper must
+    // pass the REAL status into estimateWinProbability instead of hardcoding
+    // 'live'. Observable behaviour: estimateWinProbability only branches on
+    // 'scheduled' (returns null pre-match); 'live' and 'finished' produce the
+    // SAME non-null numeric distribution. So this pass-through test asserts the
+    // OBSERVABLE result (a non-null, summing-to-100 estimate) for BOTH a played
+    // (MatchStatus:0 → 'finished') payload and a MatchStatus:3 ('live') clone —
+    // the numeric output is identical either way. The label routing itself is
+    // pinned by the direct `liveStatusToWinProb` unit test in win-probability.test.ts.
+    //
+    // RED note: this asserts the result is preserved (non-null, sums to 100) after
+    // the status is threaded — it locks the AF-2 change against a regression that
+    // would, say, drop win-prob when status !== 'live'.
+    it('keeps a non-null win-prob for the played (MatchStatus:0) fixture', () => {
+      const { winProbability } = buildDetail();
+      expect(winProbability).not.toBeNull();
+      const { home, draw, away } = winProbability!;
+      expect(home + draw + away).toBe(100);
+    });
+
+    it('keeps a non-null win-prob for a MatchStatus:3 (live) clone of the same payload', () => {
+      // Immutable clone overriding MatchStatus to the in-play code 3; the mapper
+      // must still surface a non-null estimate (live and finished share numbers).
+      const live = parseLive();
+      // L-C self-check: the BASE captured fixture is a played match (status 0);
+      // the clone deliberately flips ONLY MatchStatus to the in-play code 3, so
+      // the clone's intent stays legible if the live fixture is ever re-captured.
+      expect(live.MatchStatus).toBe(0);
+      const liveClone = { ...live, MatchStatus: 3 } as typeof live;
+      const detail = mapFifaMatchDetail(liveClone, parseTimeline(), REF);
+      expect(detail.winProbability).not.toBeNull();
+      const { home, draw, away } = detail.winProbability!;
+      expect(home + draw + away).toBe(100);
+    });
   });
 
   describe('graceful degradation', () => {

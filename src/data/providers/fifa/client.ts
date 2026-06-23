@@ -1,4 +1,4 @@
-import { env } from '@/data/config/env';
+import { fifaConfig } from '@/data/config/fifa-config';
 import {
   RateLimitError,
   RepositoryError,
@@ -9,7 +9,7 @@ import {
 import { rawMatchesResponseSchema, type RawMatch } from './schema';
 
 /** Shared FIFA v3 API base (reused by the per-match detail client). */
-export const BASE = 'https://api.fifa.com/api/v3';
+export const BASE = fifaConfig.baseUrl;
 
 /**
  * Shared request deadline for EVERY FIFA `fetch` (calendar pager + both detail
@@ -29,26 +29,17 @@ export function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
-// Browser-like headers reduce the chance of bot-protection blocks on the
-// undocumented FIFA endpoint. Exported so the detail client reuses them verbatim.
-export const FIFA_HEADERS: Record<string, string> = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  Accept: 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-};
-
 const MAX_PAGES = 5;
 
 /** Build the calendar-page URL for a given continuation token (null = first page). */
 function calendarPageUrl(token: string | null): URL {
   const url = new URL(`${BASE}/calendar/matches`);
-  url.searchParams.set('idCompetition', env.WC_FIFA_COMPETITION_ID);
-  url.searchParams.set('idSeason', env.WC_FIFA_SEASON_ID);
+  url.searchParams.set('idCompetition', fifaConfig.competitionId);
+  url.searchParams.set('idSeason', fifaConfig.seasonId);
   url.searchParams.set('count', '500');
   url.searchParams.set('language', 'en');
-  if (env.WC_FIFA_COUNTRY) url.searchParams.set('country', env.WC_FIFA_COUNTRY);
+  // `country` defaults to 'US' and is always sent unless explicitly emptied.
+  if (fifaConfig.country) url.searchParams.set('country', fifaConfig.country);
   if (token) url.searchParams.set('continuationToken', token);
   return url;
 }
@@ -61,9 +52,11 @@ function calendarPageUrl(token: string | null): URL {
 async function fetchCalendarPage(url: URL): Promise<{ results: RawMatch[]; token: string | null }> {
   let res: Response;
   try {
+    // Plain browser fetch: no spoofed User-Agent/Accept-Language (forbidden in
+    // the browser), and no `cache: 'no-store'` so the browser honors FIFA's own
+    // Cache-Control (the "no shared cache" mitigation leg). Only the abort
+    // deadline is set.
     res = await fetch(url, {
-      headers: FIFA_HEADERS,
-      cache: 'no-store',
       signal: AbortSignal.timeout(FIFA_FETCH_TIMEOUT_MS),
     });
   } catch (error: unknown) {
@@ -77,6 +70,10 @@ async function fetchCalendarPage(url: URL): Promise<{ results: RawMatch[]; token
     const parsed = rawMatchesResponseSchema.parse(await res.json());
     return { results: parsed.Results ?? [], token: parsed.ContinuationToken ?? null };
   } catch (error: unknown) {
+    // AF-1: the deadline can fire DURING body streaming, so `res.json()` rejects
+    // with an abort-named error here too — classify it as a timeout, not a
+    // schema/parse failure. Genuine parse failures still surface UPSTREAM_INVALID.
+    if (isAbortError(error)) throw new UpstreamTimeoutError();
     throw new ValidationError(`FIFA payload validation failed: ${getErrorMessage(error)}`);
   }
 }

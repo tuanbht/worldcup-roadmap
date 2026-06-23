@@ -6,6 +6,7 @@ import {
   renormalize,
   type WinProbabilityInput,
 } from './win-probability';
+import { liveStatusToWinProb } from './match-detail-mapper.stats';
 
 function input(over: Partial<WinProbabilityInput>): WinProbabilityInput {
   return {
@@ -178,5 +179,39 @@ describe('renormalize non-zero behaviour is unchanged (CR-12 regression)', () =>
     const wp = renormalize(1, 0, 0);
     expect(wp).not.toEqual(NEUTRAL_SPLIT);
     expect(wp.home + wp.draw + wp.away).toBe(100);
+  });
+});
+
+/**
+ * AF-2 — `deriveMatchStats` must thread the REAL match status into the
+ * win-probability label instead of hardcoding `'live'`. `liveStatusToWinProb`
+ * maps a raw FIFA `MatchStatus` to the `'live' | 'finished'` label the estimate
+ * expects: only `3` (in-play) is `'live'`; a played match (`0`), a fixture, a
+ * null/undefined status — all read as `'finished'`. A finished match must NOT be
+ * mislabeled `'live'`.
+ *
+ * RED until `liveStatusToWinProb` returns `'finished'` for every status except 3
+ * (the stub returns the old hardcoded `'live'`).
+ */
+describe('liveStatusToWinProb (AF-2 status label)', () => {
+  it('maps ONLY the in-play status (3) to "live"', () => {
+    expect(liveStatusToWinProb(3)).toBe('live');
+  });
+
+  // Every non-3 status — played, fixture, the immediate neighbours of 3, a
+  // negative/unknown code, and a missing value — must read "finished". The
+  // `2`/`4` neighbours guard against a `>= 3` / `<= 3` range mis-implementation;
+  // null/undefined guard against the old hardcoded `'live'` default surviving.
+  it.each<[string, number | null | undefined]>([
+    ['played / finished (0)', 0],
+    ['fixture (1)', 1],
+    ['lower neighbour of live (2)', 2],
+    ['upper neighbour of live (4)', 4],
+    ['negative code (-1)', -1],
+    ['unknown code (99)', 99],
+    ['missing (null)', null],
+    ['missing (undefined)', undefined],
+  ])('maps a non-live %s status to "finished"', (_label, status) => {
+    expect(liveStatusToWinProb(status)).toBe('finished');
   });
 });

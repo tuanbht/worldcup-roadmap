@@ -18,3 +18,5 @@ docs/fifa-real-payloads
 docs/pipeline
 # Untracked external review note (not part of this codebase)
 docs/code-review-vite-hono-rework.md
+# Untracked, unrelated local agent definitions (not part of this codebase)
+.claude/agents/wc-*.md

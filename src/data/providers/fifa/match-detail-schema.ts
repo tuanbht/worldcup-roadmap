@@ -25,24 +25,29 @@ const localized = z
  *
  * Single rule:
  *  - `null`/`undefined`/empty/whitespace-only -> `null`.
+ *  - protocol-relative (`//host/x.png`, after trimming leading whitespace) -> `null`.
  *  - unparseable by `new URL()` (no scheme) -> a RELATIVE url, accepted unchanged.
  *  - parseable absolute url -> accepted unchanged iff `protocol === 'https:'`,
  *    otherwise `null` (rejects `http:`, `javascript:`, `data:`, `ftp:`, …).
  *
- * Protocol-relative urls (`//host/x.png`) parse-throw with no base and are thus
- * treated as relative and accepted unchanged — a deliberate, pinned decision:
- * they inherit the page scheme (https here), so they are not a mixed-content
- * vector on this https-served app.
+ * AF-3 (TIGHTEN) — protocol-relative urls (`//host/x.png`) load from an ARBITRARY
+ * host (they inherit the page scheme but not its origin), so for defense-in-depth
+ * they are REJECTED to `null`, like `http:`/`javascript:`. A single leading slash
+ * (`/path`) is an ordinary same-origin path and stays accepted.
  */
 export function sanitizePictureUrl(value: string | null | undefined): string | null {
   if (value == null) return null;
-  if (value.trim() === '') return null;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  // Reject protocol-relative ("//host/x.png") and network-path ("///…") forms:
+  // trim leading whitespace FIRST, then a leading "//" means an arbitrary host.
+  if (trimmed.startsWith('//')) return null;
 
   try {
     const parsed = new URL(value);
     return parsed.protocol === 'https:' ? value : null;
   } catch {
-    // No parseable scheme => relative URL (incl. protocol-relative) => accept.
+    // No parseable scheme => genuinely-relative URL (/path, ./x, x.png, ?q, #a) => accept.
     return value;
   }
 }
@@ -135,6 +140,10 @@ const possessionObj = z
 export const rawMatchLiveSchema = z
   .object({
     IdMatch: z.string().nullable().optional(),
+    // FIFA match status: 3 = in-play (live); 0 = played; other = fixture. Used by
+    // the win-probability label (AF-2). Tolerant like every other field;
+    // `.passthrough()` already lets it survive — this only types it.
+    MatchStatus: z.number().nullable().optional(),
     HomeTeam: rawTeamSquad.nullable().optional(),
     AwayTeam: rawTeamSquad.nullable().optional(),
     BallPossession: possessionObj.nullable().optional(),
