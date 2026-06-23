@@ -49,9 +49,6 @@ vi.mock('@/features/roadmap/hooks/useTournamentQuery', () => ({
 vi.mock('@/features/roadmap/hooks/useStageView', () => ({
   useStageView: () => ({ focus: 'all', setFocus: vi.fn() }),
 }));
-vi.mock('@/features/roadmap/hooks/useInteractionMode', () => ({
-  useInteractionMode: () => ({ mode: 'zoom', setMode: vi.fn() }),
-}));
 vi.mock('@/features/roadmap/hooks/useRoadmapGraph', () => ({
   useRoadmapGraph: () => ({ nodes: [], edges: [] }),
 }));
@@ -72,13 +69,6 @@ vi.mock('@/features/roadmap/hooks/useBracketKeyboard', () => ({
 }));
 vi.mock('@/features/roadmap/hooks/useFocusedTeam', () => ({
   useFocusedTeam: () => ({ teamId: null, setFocusedTeam: vi.fn(), clear: vi.fn() }),
-}));
-vi.mock('@/features/roadmap/interaction-mode', () => ({
-  interactionFlowProps: () => ({
-    zoomOnScroll: true,
-    panOnDrag: true,
-    zoomOnPinch: true,
-  }),
 }));
 vi.mock('@/features/roadmap/focus-target', () => ({
   pickFocusMatchId: () => null,
@@ -102,9 +92,6 @@ vi.mock('@/components/roadmap/StandingsOverlay', () => ({
 }));
 vi.mock('@/components/roadmap/StageToggle', () => ({
   StageToggle: () => <div data-testid="stage-toggle" />,
-}));
-vi.mock('@/components/roadmap/InteractionModeToggle', () => ({
-  InteractionModeToggle: () => <div data-testid="interaction-mode-toggle" />,
 }));
 vi.mock('@/components/roadmap/FocusMatchButton', () => ({
   FocusMatchButton: () => <div data-testid="focus-match-button" />,
@@ -149,6 +136,22 @@ describe('RoadmapCanvas — Background dot-grid is still rendered', () => {
   it('renders the <Background> component', () => {
     render(<RoadmapCanvas />);
     expect(screen.getByTestId('rf-background')).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// Zoom/Pan mode toggle is removed
+// ============================================================================
+
+describe('RoadmapCanvas — Zoom/Pan mode toggle and hint are gone', () => {
+  it('does not render the canvas mode radiogroup', () => {
+    render(<RoadmapCanvas />);
+    expect(screen.queryByRole('radiogroup', { name: /scroll behavior/i })).toBeNull();
+  });
+
+  it('does not render the wheel-zoom hint text', () => {
+    render(<RoadmapCanvas />);
+    expect(screen.queryByText(/scroll to zoom/i)).toBeNull();
   });
 });
 

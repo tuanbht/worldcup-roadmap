@@ -3,7 +3,7 @@
 // Hook spec for `useFocusedTeam` — the `?team=CODE` URL-state store behind the
 // team-focus feature (requirement item 3; plan Test Strategy 13 / Acceptance #6).
 //
-// The hook mirrors useStageView/useInteractionMode's client-only hydrate pattern:
+// The hook mirrors useStageView's client-only hydrate pattern:
 //   - default to no focus on a clean URL,
 //   - hydrate `teamId` from `?team=CODE` after mount (resolving CODE -> id),
 //   - `setFocusedTeam(id)` writes `?team=CODE` and toggles OFF on re-select,

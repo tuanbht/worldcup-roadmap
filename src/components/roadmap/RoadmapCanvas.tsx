@@ -20,15 +20,12 @@ import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
 import { useFocusMatch } from '@/features/roadmap/hooks/useFocusMatch';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
-import { useInteractionMode } from '@/features/roadmap/hooks/useInteractionMode';
-import { interactionFlowProps } from '@/features/roadmap/interaction-mode';
 import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
 import { useFocusedTeam } from '@/features/roadmap/hooks/useFocusedTeam';
 import { selectTeamFocus, applyTeamFocus } from '@/features/roadmap/team-focus';
 import type { RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
-import { InteractionModeToggle } from './InteractionModeToggle';
 import { FocusMatchButton } from './FocusMatchButton';
 
 function Legend({ provider }: { provider: string | null }) {
@@ -59,7 +56,6 @@ function Legend({ provider }: { provider: string | null }) {
 function CanvasInner() {
   const { data: tournament, loading } = useTournamentQuery();
   const { focus, setFocus } = useStageView();
-  const { mode, setMode } = useInteractionMode();
   const { nodes, edges } = useRoadmapGraph(tournament);
   const { lod } = useZoomLevel();
   const [selected, setSelected] = useState<string | null>(null);
@@ -152,8 +148,6 @@ function CanvasInner() {
   }, [clearFocusedTeam]);
   useBracketKeyboard(onEscape);
 
-  const flowInteraction = useMemo(() => interactionFlowProps(mode), [mode]);
-
   const onNodeClick = useCallback<NodeMouseHandler<RoadmapNode>>((_, node) => {
     if (node.type === 'match') setSelected(node.id);
   }, []);
@@ -177,7 +171,9 @@ function CanvasInner() {
           clearFocusedTeam();
         }}
         proOptions={{ hideAttribution: false }}
-        {...flowInteraction}
+        zoomOnScroll
+        panOnDrag
+        zoomOnPinch
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -186,7 +182,6 @@ function CanvasInner() {
           color="rgba(148,163,184,0.10)"
         />
         <StageToggle focus={focus} onChange={setFocus} />
-        <InteractionModeToggle mode={mode} onChange={setMode} />
         <FocusMatchButton
           targetMatchId={focusTarget.id}
           isLive={focusTarget.isLive}
