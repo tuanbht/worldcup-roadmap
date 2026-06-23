@@ -129,7 +129,8 @@ Nullable everywhere → graceful partial/empty data.
 ## Frontend
 
 - **`useMatchDetailQuery(matchId)`** (TanStack Query) — `enabled` only when a match is selected; lazy fetch of
-  `/api/worldcup/match/:id/detail`; short refetch interval while the match is live.
+  `/api/worldcup/match/:id/detail`. **No `refetchInterval`** — refetch on window focus only, per
+  `refetch-on-window-focus.md` (single source of truth for refetch behavior).
 - **`MatchDetailPanel` redesign** (keep right slide-in, glass, `inert`/Escape/focus a11y, mobile bottom-sheet):
   - **Header:** competition ("FIFA World Cup 2026™"), status pill (Half-time / `{minute}'` / Full-time /
     Upcoming), both teams (flag, name, **group standing position** "1st/4th" from `tournament.groups`, score),
