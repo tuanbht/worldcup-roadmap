@@ -66,6 +66,13 @@
     --elevation-hover: 0 2px 4px rgb(0 0 0 / 0.45), 0 16px 40px rgb(0 0 0 / 0.45);
     --elevation-panel: 0 24px 64px rgb(0 0 0 / 0.55);
     --glow-accent: 0 0 0 1px rgb(61 220 151 / 0.45), 0 0 24px rgb(61 220 151 / 0.28);
+    /* Nearest-match emphasis. A cool indigo ring (the in-system hue already used
+       in the body background radial + minimap) so the nearest card never reads as
+       the green `--glow-accent` click-selected state. Paired in MatchNode with a
+       distinct top accent line (a shape the selected state never renders). */
+    --glow-nearest: 0 0 0 1px rgb(99 102 241 / 0.5), 0 0 22px rgb(99 102 241 / 0.3);
+    /* Live nearest: a warm `--color-live` ring matching the live affordance. */
+    --glow-nearest-live: 0 0 0 1px rgb(255 77 94 / 0.55), 0 0 24px rgb(255 77 94 / 0.34);
     --duration-lod: 220ms;
   }
 

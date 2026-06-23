@@ -26,6 +26,12 @@ export type MatchNodeData = {
   venue: Venue;
   isFinal: boolean;
   isThirdPlace: boolean;
+  /**
+   * Display-layer flag set ONLY by the canvas (`applyNearestFlag`) to mark the
+   * single "nearest" match — the focus-button target. `buildRoadmapGraph` never
+   * sets this, so the graph stays pure / time-independent. Absent/false elsewhere.
+   */
+  isNearest?: boolean;
 };
 
 /**

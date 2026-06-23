@@ -25,6 +25,7 @@ import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
 import { useInteractionMode } from '@/features/roadmap/hooks/useInteractionMode';
 import { interactionFlowProps } from '@/features/roadmap/interaction-mode';
 import { pickFocusMatchId } from '@/features/roadmap/focus-target';
+import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
 import type { MatchNodeData, RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
 import { InteractionModeToggle } from './InteractionModeToggle';
@@ -76,23 +77,6 @@ function CanvasInner() {
   const [selected, setSelected] = useState<string | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  // Inject the standings-overlay opener into each group-header's node data
-  // without mutating the memoized graph (immutable display copy).
-  const displayNodes = useMemo<RoadmapNode[]>(
-    () =>
-      nodes.map((node) =>
-        node.type === 'group-header'
-          ? { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } }
-          : node,
-      ),
-    [nodes],
-  );
-
-  const openGroupData = useMemo(
-    () => tournament?.groups.find((g) => g.name === openGroup) ?? null,
-    [tournament, openGroup],
-  );
-
   // Resolve the "current" match (live if any, else nearest upcoming) at render
   // time from a fresh `Date.now()`. TanStack Query refetches every 45s, so a
   // re-render re-evaluates the target; null disables the button (all ended).
@@ -102,6 +86,25 @@ function CanvasInner() {
     const isLive = id !== null && matches.some((m) => m.id === id && m.status === 'live');
     return { id, isLive };
   }, [tournament]);
+
+  // Build the display graph from the pure memoized graph: inject the
+  // standings-overlay opener into each group-header, then flag the single nearest
+  // match card (same id the focus button targets) — both immutable display copies,
+  // never mutating the memoized graph. The badge re-resolves whenever
+  // `focusTarget.id` changes, matching the focus-button cadence.
+  const displayNodes = useMemo<RoadmapNode[]>(() => {
+    const withOpeners = nodes.map((node) =>
+      node.type === 'group-header'
+        ? { ...node, data: { ...node.data, onOpenStandings: setOpenGroup } }
+        : node,
+    );
+    return applyNearestFlag(withOpeners, focusTarget.id);
+  }, [nodes, focusTarget.id]);
+
+  const openGroupData = useMemo(
+    () => tournament?.groups.find((g) => g.name === openGroup) ?? null,
+    [tournament, openGroup],
+  );
 
   const { focusMatch } = useFocusMatch({ onFocused: setSelected });
 
