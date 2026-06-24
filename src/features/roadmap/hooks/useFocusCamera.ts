@@ -165,28 +165,43 @@ export function frameTopAlignedWithRetry(
 }
 
 /**
- * Move the camera when `focus` CHANGES. Focus never alters the graph — `all`
- * frames everything TOP-aligned (so the standings band stays in view on the tall
- * canvas), `groups` frames the header columns + group cards, `knockout` frames
- * the funnel.
+ * Move the camera when `focus` CHANGES — and ONLY then. Focus never alters the
+ * graph — `all` frames everything TOP-aligned (so the standings band stays in
+ * view on the tall canvas), `groups` frames the header columns + group cards,
+ * `knockout` frames the funnel.
  *
  * The INITIAL `all` frame is owned by `useFitOnChange` (keyed on data arrival);
  * this hook skips its first run so the two don't issue competing camera
  * animations on mount (which would leave the first-load transform mid-flight and
  * non-deterministic). It then frames on every subsequent `focus` change.
+ *
+ * It NEVER re-frames on a data-only refetch. A TanStack Query refetch mints a
+ * new `tournament` ref → a brand-new `nodes` array identity (in this effect's
+ * deps) with an UNCHANGED `focus`; without a gate the effect would re-run and
+ * snap the camera, discarding the user's zoom + pan. The `prevFocusRef` guard
+ * frames only when `focus` actually changed, so a refetch is a no-op while a
+ * real StageToggle still re-frames.
  */
 export function useFocusCamera(focus: RoadmapFocus, nodes: RoadmapNode[]): void {
   const rf = useReactFlow();
   const { fitView, fitBounds } = rf;
   const framedOnce = useRef(false);
+  // The `focus` value at the last framed/skipped run. Per-mount; lets the effect
+  // distinguish a real focus change (frame) from a data-only refetch (no-op).
+  const prevFocusRef = useRef<RoadmapFocus | null>(null);
   useEffect(() => {
     if (nodes.length === 0) return;
     // Skip the first effective run (mount with data): `useFitOnChange` owns the
     // initial frame; re-framing here too would fight it and desync the transform.
+    // Record the initial focus so a later same-focus refetch is detected.
     if (!framedOnce.current) {
       framedOnce.current = true;
+      prevFocusRef.current = focus;
       return;
     }
+    // A data-only refetch: `nodes` changed but `focus` did not → no re-frame.
+    if (focus === prevFocusRef.current) return;
+    prevFocusRef.current = focus;
     let cancelFrame: (() => void) | undefined;
     const id = window.setTimeout(() => {
       if (focus === 'all') {
