@@ -307,24 +307,144 @@ test.describe('mobile viewport-scale floor', () => {
 });
 
 /**
- * Standings overlay fits a narrow viewport (requirement 2026-06-23-1336, AC #4).
+ * Standings overlay fits a narrow viewport (requirement 2026-06-23-1336 AC #4,
+ * requirement 2026-06-24-1453 deterministic open).
  *
- * Determinism (plan L1): the `Open Group A standings` header button lives inside a
- * virtualized React Flow node, so it can be offscreen at first-load framing. We
- * mirror the hardened `panel-open` block: settle the RF transform, then assert the
- * trigger `toBeInViewport()` BEFORE clicking — never click a virtualized/offscreen
- * node. (The group-standings tables sit at the TOP of every column, so first-load
- * top-aligned framing renders Group A's header on-screen; if a future relayout
- * moves it, this in-viewport assertion fails loudly instead of flaking.)
+ * Determinism — the open mechanism. The `Open Group A standings` opener is a real
+ * native `<button>` rendered ONLY by the always-on `GroupStandingsNode`
+ * (`GroupTableNode.tsx:109-120`), living inside the scaled, VIRTUALIZED
+ * `.react-flow__viewport` (`onlyRenderVisibleElements`). At the NARROW first-load
+ * camera set by `setViewportSize({320|375|768})` the Group A node is virtualized
+ * OUT of the render window — empirically, at 320px only ~8 nodes mount and ZERO
+ * standings openers are attached — so it is not merely off-viewport, it is NEVER
+ * MOUNTED. (Contrast `standings-overlay-focus.spec.ts`, which opens the same button
+ * fine at the DEFAULT desktop viewport where the node IS in the window.) The fixed
+ * open path therefore has THREE deterministic, TEST-ONLY steps (zero app change):
+ *   1. FRAME the Group A node into the render window so its opener ATTACHES —
+ *      `frameGroupAIntoView` widens the page to a desktop frame (where every
+ *      column mounts) and presses the app's built-in `F` = fitView shortcut
+ *      (`useBracketKeyboard`), a deterministic camera re-frame; first-load framing
+ *      alone never surfaces it (a bare `focus()` cannot focus a detached node).
+ *   2. KEYBOARD-activate it (`focus()` -> `toBeFocused()` -> `press('Enter')`), the
+ *      transform-independent path `timeline-grid.spec.ts` uses — a native button
+ *      fires `click` on Enter regardless of canvas transform, with no
+ *      `toBeInViewport()`/mouse hit-test dependency. This sets `openGroup='A'` in
+ *      React state, opening the dialog.
+ *   3. RESTORE the target viewport so the compact/full split + every assertion run
+ *      at the INTENDED width. `openGroup` is React state (camera-independent) so the
+ *      dialog stays open across the resize, and `StandingsOverlay`'s `compact`
+ *      flips reactively via `useMobileViewport`'s `matchMedia('max-width:640px')`
+ *      listener — compact below 640 (320/375), full at 768.
+ * The dialog itself (`StandingsOverlay`) renders OUTSIDE the scaled viewport, so
+ * once open it is directly assertable.
  *
- * Once open we assert the dialog is visible, its close button is in-viewport (the
- * `-top-3 -right-3` bleed must not push it off a 320px screen), and the document
- * has no horizontal overflow — then snapshot the structural overlay (flags masked).
+ * Once open (at the restored target width) we assert the dialog is visible, its
+ * close button is in-viewport (the in-card `top-1.5 right-1.5` placement must not
+ * push it off a 320px screen), and the document has no horizontal overflow — then
+ * snapshot the structural overlay (flags masked).
  *
  * RED until StandingsOverlay is viewport-bounded + uses the compact column set on
- * mobile: today the 296px card + its bleeding close button can exceed a 320px
- * viewport (close button off-screen / horizontal overflow).
+ * mobile: today the 296px card + its close button can exceed a 320px viewport
+ * (close button off-screen / horizontal overflow). The keyboard-open contract above
+ * is the deterministic SETUP the implementer must keep satisfied.
  */
+
+/**
+ * A desktop frame at which EVERY group column — including the leftmost Group A —
+ * is inside React Flow's render window (so its opener mounts under
+ * `onlyRenderVisibleElements`). Wider than `MOBILE_MAX_WIDTH` so the overlay opens
+ * non-compact here; the caller restores the narrow target before snapshotting.
+ */
+const FRAME_VIEWPORT = { width: 1440, height: 900 } as const;
+
+/**
+ * Deterministic, TEST-ONLY framing of the Group A standings node into the render
+ * window so its opener ATTACHES (it is virtualized OUT at the narrow first-load
+ * camera — see block comment). Widens the page to {@link FRAME_VIEWPORT} (where
+ * every column mounts) and drives the app's built-in `F` = fitView shortcut
+ * (`useBracketKeyboard`, a `window` keydown listener) to re-frame the whole graph.
+ *
+ * SELF-VERIFYING re-frame (no fire-and-forget). On a genuinely COLD first build the
+ * single `F` press can race the initial camera frame / the `useBracketKeyboard`
+ * effect's listener registration, so the `fitView` never lands and the Group A
+ * opener never mounts. To close that race deterministically — and with NO fixed
+ * timeout — this:
+ *   1. FOCUSES the React Flow pane first (`.react-flow__pane`, the canvas's
+ *      keyboard surface) so the `keydown` originates from inside the app and can
+ *      never be dropped because focus sat on the body/an unfocusable node; the pane
+ *      is also not an INPUT/contentEditable, so the handler's early-return guard
+ *      (`useBracketKeyboard.ts:10`) can never swallow the press.
+ *   2. POLLS until the opener is attached, RE-ISSUING `F` each interval and waiting
+ *      for the viewport transform to come to rest between presses (`settle`). The
+ *      poll predicate IS the success signal (opener attached after a settled
+ *      re-frame), so a single missed press self-heals on the next interval instead
+ *      of failing the gate. No pane *coordinate* click — that could land on a match
+ *      card and open its detail panel, contaminating the snapshot; `focus()` moves
+ *      keyboard focus without a hit-test.
+ */
+async function frameGroupAIntoView(page: Page): Promise<void> {
+  await page.setViewportSize(FRAME_VIEWPORT);
+
+  const pane = page.locator('.react-flow__pane');
+  const opener = page.getByRole('button', { name: 'Open Group A standings' });
+
+  // Self-verifying re-frame: focus the pane, press F, let the camera settle, and
+  // confirm the opener attached — re-issuing F (idempotent fitView) until it does.
+  // The poll terminates on attachment, so a cold-start miss is retried, not fatal.
+  await expect
+    .poll(
+      async () => {
+        await pane.focus().catch(() => {});
+        await page.keyboard.press('F');
+        await settle(page);
+        return opener.count();
+      },
+      {
+        message:
+          'the Group A standings opener must ATTACH after an F=fitView re-frame at the desktop frame (it is virtualized out at the narrow first-load camera)',
+        timeout: 15_000,
+        intervals: [200, 300, 400, 500],
+      },
+    )
+    .toBeGreaterThan(0);
+}
+
+/**
+ * Deterministically open the Group A standings overlay and return the open dialog
+ * locator. Encodes the full open contract, in the order it must hold:
+ *   1. opener ATTACHED — the Group A node is virtualized OUT of the render window at
+ *      the narrow first-load camera (see block comment), so `framedReady` must frame
+ *      the Group A region (camera move / fitView) first or this fails here.
+ *      `frameGroupAIntoView` already polls the opener to attachment, so this
+ *      `toBeAttached` is an explicit re-statement of that contract, not the wait.
+ *   2. opener is a real native BUTTON (fires click on Enter/Space intrinsically) —
+ *      pins WHY keyboard activation suffices, never a div-with-click-handler.
+ *   3. KEYBOARD-activate (`focus()` -> `toBeFocused()` -> `press('Enter')`) — the
+ *      transform-independent path from `standings-overlay-focus.spec.ts` /
+ *      `timeline-grid.spec.ts`; no `toBeInViewport`/mouse hit-test, no fixed timeout.
+ * Shared by all three breakpoints so the open contract is written (and tuned) once.
+ *
+ * NOTE: `framedReady` lets a caller hand in the framing step (here
+ * `frameGroupAIntoView`) before the opener is reached; the default no-op leaves the
+ * helper RED at step 1 if no framing is supplied.
+ */
+async function openGroupAStandings(
+  page: Page,
+  framedReady: () => Promise<void> = async () => {},
+): Promise<Locator> {
+  await framedReady();
+  const opener = page.getByRole('button', { name: 'Open Group A standings' });
+  await expect(
+    opener,
+    'the Group A standings opener must be ATTACHED (frame its node into the render window first; it is virtualized out at the narrow first-load camera)',
+  ).toBeAttached({ timeout: 10_000 });
+  await expect(opener).toHaveJSProperty('tagName', 'BUTTON');
+  await opener.focus();
+  await expect(opener).toBeFocused();
+  await opener.press('Enter');
+  return page.getByRole('dialog', { name: 'Group A standings' });
+}
+
 test.describe('mobile standings overlay layout', () => {
   test.beforeEach(({}, testInfo) => {
     test.skip(
@@ -343,20 +463,25 @@ test.describe('mobile standings overlay layout', () => {
       await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
       await settle(page);
 
-      // DETERMINISTIC open: the group-standings tables are the top row of every
-      // column, so first-load top-aligned framing renders Group A's header. Assert
-      // the opener is genuinely in-viewport BEFORE clicking (no virtualized flake).
-      const opener = page.getByRole('button', { name: 'Open Group A standings' });
-      await expect(opener).toBeVisible({ timeout: 10_000 });
-      await expect(opener).toBeInViewport();
-      await opener.click();
-
-      // The dialog must be visible and bounded within the viewport.
-      const dialog = page.getByRole('dialog', { name: 'Group A standings' });
+      // DETERMINISTIC open (requirement 2026-06-24-1453), test-only: frame the
+      // virtualized-out Group A node in (widen + the app's built-in `F` fitView),
+      // then keyboard-activate the native opener <button> — transform-independent,
+      // no in-viewport/mouse hit-test dependency. Opens at the wide frame width.
+      const dialog = await openGroupAStandings(page, () => frameGroupAIntoView(page));
       await expect(dialog).toBeVisible();
 
-      // The close button must be reachable without scrolling (the -top-3 -right-3
-      // bleed must not push it off a 320px screen).
+      // Restore the target viewport so the compact/full split + every assertion run
+      // at the INTENDED width. `openGroup` is React state (camera-independent) so the
+      // dialog stays open across the resize; `StandingsOverlay`'s `compact` flips via
+      // `useMobileViewport`'s matchMedia listener (compact ≤640 → 320/375, full 768).
+      await page.setViewportSize({ width: bp.width, height: bp.height });
+      await settle(page);
+
+      // The dialog must be visible and bounded within the viewport.
+      await expect(dialog).toBeVisible();
+
+      // The close button must be reachable without scrolling (the in-card
+      // `top-1.5 right-1.5` placement must not push it off a 320px screen).
       const closeBtn = dialog.getByRole('button', { name: 'Close standings' });
       await expect(closeBtn).toBeVisible();
       await expect(closeBtn).toBeInViewport();
