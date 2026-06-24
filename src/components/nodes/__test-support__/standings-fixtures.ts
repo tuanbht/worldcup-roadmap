@@ -13,6 +13,15 @@ export const POL: Team = { id: 'team-pol', name: 'Poland', code: 'POL', flagUrl:
 export const MEX: Team = { id: 'team-mex', name: 'Mexico', code: 'MEX', flagUrl: null };
 export const KSA: Team = { id: 'team-ksa', name: 'Saudi Arabia', code: 'KSA', flagUrl: null };
 
+/**
+ * The longest realistic team name (the one called out by GroupTableNode.tsx's
+ * truncation comment). Used by the compact-density specs to prove the Team cell
+ * ellipsis-truncates a long name rather than pushing the numeric columns past
+ * the fixed 296px card edge. `flagUrl: null` keeps the render deterministic.
+ */
+export const LONG_NAME = 'Bosnia and Herzegovina';
+export const BIH: Team = { id: 'team-bih', name: LONG_NAME, code: 'BIH', flagUrl: null };
+
 /** A `StandingRow` with safe zero defaults; `overrides` set the distinguishing stats. */
 export function standingRow(team: Team, overrides: Partial<StandingRow> = {}): StandingRow {
   return {
@@ -94,6 +103,19 @@ export const GROUP_A_PAIR: Group = {
   table: [
     standingRow(ARG, { position: 1, qualified: true }),
     standingRow(POL, { position: 2, qualified: true }),
+  ],
+};
+
+/**
+ * A two-row Group A whose top row is the very long `BIH` team name — the
+ * truncation fixture for the compact-density specs (a long name must ellipsis,
+ * not push the numeric columns past the card edge).
+ */
+export const GROUP_A_LONG_NAME: Group = {
+  name: 'A',
+  table: [
+    standingRow(BIH, { position: 1, goalDifference: 6, points: 9, qualified: true }),
+    standingRow(POL, { position: 2, goalDifference: 2, points: 6, qualified: true }),
   ],
 };
 

@@ -126,3 +126,30 @@ describe('StandingsOverlay — empty group boundary (no results yet)', () => {
     expectCoarseHitArea(close);
   });
 });
+
+// ============================================================================
+// requirement 1031 — compact density: the 640 seam wiring (behavior 6).
+// ============================================================================
+// Pins the exact `compact={isMobile}` boundary (StandingsOverlay.tsx line 72)
+// that the 1031 plan's rev2 misread: a render BELOW the 640 seam
+// (isMobile === true) yields the COMPACT set, and a render ABOVE it
+// (isMobile === false) yields the FULL set. This is a thin seam assertion — the
+// compact density CONTRACT itself is asserted in GroupTableNode.test.tsx, not
+// duplicated here. Reuses the existing `mockMobileViewport` matchMedia harness.
+//
+// Both assertions pass at the baseline (the seam already routes compact ←
+// isMobile), so this block is GREEN today — it is a regression pin guarding the
+// seam against a future refactor that decouples compact from isMobile.
+describe('StandingsOverlay — 640 seam routes compact ← isMobile [requirement 1031]', () => {
+  it('below the seam (isMobile === true) → the inner table is the COMPACT set', () => {
+    mockMobileViewport = { isMobile: true };
+    render(<StandingsOverlay group={GROUP_A} onClose={vi.fn()} />);
+    expect(getStatHeaderLabels()).toEqual([...COMPACT_HEADER_LABELS]);
+  });
+
+  it('above the seam (isMobile === false) → the inner table is the FULL set', () => {
+    mockMobileViewport = { isMobile: false };
+    render(<StandingsOverlay group={GROUP_A} onClose={vi.fn()} />);
+    expect(getStatHeaderLabels()).toEqual([...FULL_HEADER_LABELS]);
+  });
+});

@@ -133,6 +133,21 @@ function GroupHeader({
 function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings, compact }: GroupTableProps) {
   const rows = [...group.table].sort(byPosition);
   const statColumns = pickStandingsColumns(compact ? 'compact' : 'full');
+  // Density layer: gated behind `compact` so the non-compact branch (desktop ≥1024,
+  // the full 7-stat set, AND the 641–768 overlay) emits today's EXACT class strings.
+  // The compact branch drops the 0.06em tracking on the short labels, bumps the
+  // header + table font one step, and trims header vertical padding to offset the
+  // larger glyph — breathing room for the numeric columns comes from these levers,
+  // never from widening the held-flat `<colgroup>` widths.
+  //
+  // Two fragments (size+padding, then tracking) preserve the ORIGINAL class order:
+  // `…border-t {TH_SIZE} font-semibold {TH_TRACKING} uppercase`, so the non-compact
+  // branch is byte-identical to the string emitted before the density layer existed.
+  const TABLE_FONT = compact ? 'text-[0.82rem]' : 'text-[0.78rem]';
+  const TH_SIZE = compact
+    ? '[&>th]:py-0.5 [&>th]:text-[0.72rem]'
+    : '[&>th]:py-1 [&>th]:text-[0.68rem]';
+  const TH_TRACKING = compact ? '[&>th]:tracking-normal' : '[&>th]:tracking-[0.06em]';
   return (
     <section
       aria-label={`Group ${group.name} standings`}
@@ -142,7 +157,7 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings, compact }: Gr
       {/* table-fixed + narrow tabular-nums numeric columns so a long team name
           (e.g. "Bosnia and Herzegovina") truncates instead of pushing the stat
           columns past the 296px card edge, where overflow-hidden would clip them. */}
-      <table className="w-full table-fixed border-collapse text-[0.78rem]">
+      <table className={`w-full table-fixed border-collapse ${TABLE_FONT}`}>
         <colgroup>
           <col className="w-6" />
           <col />
@@ -152,7 +167,9 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings, compact }: Gr
           <col className="w-9" />
         </colgroup>
         <thead>
-          <tr className="[&>th]:border-edge [&>th]:text-dim [&>th]:border-t [&>th]:py-1 [&>th]:text-[0.68rem] [&>th]:font-semibold [&>th]:tracking-[0.06em] [&>th]:uppercase">
+          <tr
+            className={`[&>th]:border-edge [&>th]:text-dim [&>th]:border-t ${TH_SIZE} [&>th]:font-semibold ${TH_TRACKING} [&>th]:uppercase`}
+          >
             <th scope="col" className="pl-3 text-center">
               #
             </th>

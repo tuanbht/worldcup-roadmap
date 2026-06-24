@@ -25,10 +25,16 @@
 // per the concurrency guardrail. Counts/values come from a tiny explicit Group
 // fixture.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GroupTableNode } from './GroupTableNode';
-import { GROUP_A, GROUP_A_PAIR } from './__test-support__/standings-fixtures';
+import {
+  GROUP_A,
+  GROUP_A_EMPTY,
+  GROUP_A_LONG_NAME,
+  GROUP_A_PAIR,
+  LONG_NAME,
+} from './__test-support__/standings-fixtures';
 import {
   COMPACT_DROPPED_LABELS,
   COMPACT_HEADER_LABELS,
@@ -448,5 +454,335 @@ describe('GroupTableNode — overlay path renders NO focus button (decorative ro
     expect(glyphs).toHaveLength(1);
     expect((glyphs[0] as HTMLElement).style.width).toBe('18px');
     expect(within(row).queryByRole('button')).toBeNull();
+  });
+});
+
+// ============================================================================
+// requirement 1031 — compact density (320px header/typography polish).
+// ============================================================================
+// Density/typography tuning of the COMPACT mobile standings path so the
+// `# / Team / MP / GD / Pts` header reads cleanly at 320px (≈0.32 zoom floor).
+// The shipped change is a `compact`-gated class layer in GroupTableNode.tsx:
+//   - <table> font:           text-[0.78rem] → text-[0.82rem] when compact
+//   - <thead> <tr> header:    drop tracking-[0.06em] → tracking-normal, bump
+//                             text-[0.68rem] → text-[0.72rem], trim py-1 → py-0.5
+//   - <colgroup> fixed widths HELD FLAT (w-6 / w-7 / w-9) in BOTH branches
+//   - Team-cell ellipsis (min-w-0 truncate) preserved
+// The NON-compact branch (desktop ≥1024, full 7-stat set, AND the 641–768 overlay)
+// MUST emit today's EXACT class strings — pinned here byte-for-byte so a future
+// tweak cannot silently bleed into the full path. jsdom cannot measure the
+// post-transform layout, so these assert the class-level CONTRACT that produces
+// the density; the e2e overflow/vertical-fit checks assert the measured result.
+//
+// APPEND-ONLY: this block is self-labeled and lives at the END of the file. It
+// does NOT edit the 1030 row-control blocks (lines 207–452) or the 1336
+// compact-column-set block (lines 133–166).
+//
+// RED until the compact-gated density classes are emitted: at the baseline the
+// component renders ONE shared markup (text-[0.78rem] / text-[0.68rem] / py-1 /
+// tracking-[0.06em]) for both branches, so the compact assertions below fail
+// because the compact-specific classes do not yet exist.
+
+/** The `<thead>` header `<tr>` className for the table currently in the document. */
+function headerRowClass(): string {
+  const table = screen.getByRole('table');
+  const headerRow = table.querySelector('thead tr');
+  if (!headerRow) throw new Error('no <thead> <tr> found');
+  return headerRow.className;
+}
+
+/** The `<table>` element className currently in the document. */
+function tableClass(): string {
+  return screen.getByRole('table').className;
+}
+
+/** The `<colgroup>` `<col>` className strings, in DOM order (empty string = no class). */
+function colClasses(): string[] {
+  const table = screen.getByRole('table');
+  return Array.from(table.querySelectorAll('colgroup col')).map((col) => col.className);
+}
+
+/** The just-fixed-width `<col>` classes (drops the flex Team `<col>`'s empty string). */
+function fixedColClasses(): string[] {
+  return colClasses().filter((cls) => cls !== '');
+}
+
+/** The rendered Team-name span (the `min-w-0 truncate` ellipsis cell) for a team. */
+function teamNameSpan(teamName: string): HTMLElement {
+  return screen.getByText(teamName);
+}
+
+// --- Single-source render helpers so every 1031 spec drives the SAME shape. ----
+// jsdom is synchronous and `render` mounts into a fresh container per test
+// (RTL auto-cleanup runs in afterEach), so each helper is independent and
+// order-free; the cross-branch helper unmounts the compact tree before mounting
+// the full one so a single test can read both without two live tables.
+
+/** Render the compact (mobile-overlay) branch and read the table's class shape. */
+function renderCompact(group = GROUP_A): {
+  header: string;
+  table: string;
+  cols: string[];
+  fixedCols: string[];
+} {
+  render(<GroupTableNode group={group} compact />);
+  return {
+    header: headerRowClass(),
+    table: tableClass(),
+    cols: colClasses(),
+    fixedCols: fixedColClasses(),
+  };
+}
+
+/**
+ * Render the non-compact branch and read its class shape. `explicit` toggles
+ * between the default (no `compact` prop) and `compact={false}` so the two
+ * default-path entrypoints share one reader.
+ */
+function renderFull(
+  group = GROUP_A,
+  { explicit = false }: { explicit?: boolean } = {},
+): {
+  header: string;
+  table: string;
+  cols: string[];
+  fixedCols: string[];
+} {
+  render(
+    explicit ? <GroupTableNode group={group} compact={false} /> : <GroupTableNode group={group} />,
+  );
+  return {
+    header: headerRowClass(),
+    table: tableClass(),
+    cols: colClasses(),
+    fixedCols: fixedColClasses(),
+  };
+}
+
+// The CURRENT (baseline) full-path class strings — the byte-identity contract.
+// These are emitted verbatim today and MUST stay so on the non-compact branch.
+const FULL_TABLE_CLASS = 'w-full table-fixed border-collapse text-[0.78rem]';
+const FULL_HEADER_ROW_CLASS =
+  '[&>th]:border-edge [&>th]:text-dim [&>th]:border-t [&>th]:py-1 [&>th]:text-[0.68rem] [&>th]:font-semibold [&>th]:tracking-[0.06em] [&>th]:uppercase';
+
+// The compact density utilities the gate must emit (and the full-path values they
+// replace), declared once so a single edit re-points every density assertion.
+const COMPACT_HEADER_TRACKING = '[&>th]:tracking-normal';
+const COMPACT_HEADER_FONT = '[&>th]:text-[0.72rem]';
+const COMPACT_HEADER_PADDING = '[&>th]:py-0.5';
+const COMPACT_TABLE_FONT = 'text-[0.82rem]';
+const FULL_HEADER_TRACKING = '[&>th]:tracking-[0.06em]';
+const FULL_HEADER_FONT = '[&>th]:text-[0.68rem]';
+const FULL_HEADER_PADDING = '[&>th]:py-1';
+const FULL_TABLE_FONT = 'text-[0.78rem]';
+
+// The branch-INVARIANT header classes — emitted IDENTICALLY in both branches.
+// `uppercase` in particular is invariant (compact still renders PTS/TEAM).
+const INVARIANT_HEADER_CLASSES = [
+  '[&>th]:border-edge',
+  '[&>th]:text-dim',
+  '[&>th]:border-t',
+  '[&>th]:font-semibold',
+  '[&>th]:uppercase',
+] as const;
+
+// The held-flat fixed-`<col>` width budget, identical per-column in both branches:
+// only the column COUNT (set selection) differs, never the per-column fixed width.
+const COMPACT_COL_CLASSES = ['w-6', '', 'w-7', 'w-7', 'w-9'];
+const FULL_COL_CLASSES = ['w-6', '', 'w-7', 'w-7', 'w-7', 'w-7', 'w-7', 'w-7', 'w-7', 'w-9'];
+
+describe('GroupTableNode — compact density [requirement 1031]', () => {
+  describe('compact header is tuned for legibility (behavior 1)', () => {
+    it('drops the 0.06em letter-spacing for tracking-normal on the short compact headers', () => {
+      // Short labels (MP / GD / Pts / #) do not need letter-spacing; dropping the
+      // 0.06em reclaims in-cell width so glyphs are not cramped against the edges.
+      const { header } = renderCompact();
+      expect(header).toContain(COMPACT_HEADER_TRACKING);
+      expect(header).not.toContain(FULL_HEADER_TRACKING);
+    });
+
+    it('bumps the compact header font one step to text-[0.72rem] (up from 0.68rem)', () => {
+      const { header } = renderCompact();
+      expect(header).toContain(COMPACT_HEADER_FONT);
+      expect(header).not.toContain(FULL_HEADER_FONT);
+    });
+
+    it('trims the compact header vertical padding to py-0.5 so the larger glyph does not net-grow the row', () => {
+      const { header } = renderCompact();
+      expect(header).toContain(COMPACT_HEADER_PADDING);
+      // `py-1` must be GONE — `\b` won't help (Tailwind has no word boundary at
+      // `.5`), so anchor on whitespace/end to avoid matching `py-1` inside nothing.
+      expect(header).not.toMatch(/\[&>th\]:py-1(\s|$)/);
+    });
+
+    it('keeps the branch-invariant header classes (border / text-dim / uppercase / font-semibold) when compact', () => {
+      // These are NOT gated — they must be emitted identically in both branches.
+      // In particular `uppercase` stays (compact still renders PTS/TEAM — not a regression).
+      const { header } = renderCompact();
+      for (const invariant of INVARIANT_HEADER_CLASSES) {
+        expect(header).toContain(invariant);
+      }
+    });
+
+    it('still renders exactly the 5 compact header labels # / Team / MP / GD / Pts', () => {
+      renderCompact();
+      expect(getStatHeaderLabels()).toEqual([...COMPACT_HEADER_LABELS]);
+    });
+  });
+
+  describe('compact numeric columns stay present + legible (behavior 2)', () => {
+    it('bumps the compact table font one step to text-[0.82rem] (larger than the full set)', () => {
+      const { table } = renderCompact();
+      expect(table).toContain(COMPACT_TABLE_FONT);
+      expect(table).not.toContain(FULL_TABLE_FONT);
+    });
+
+    it('renders the MP + GD body values for each row when compact', () => {
+      renderCompact();
+      // Argentina (position 1): GD +6 in FULL_TABLE; MP/played = 3 per row.
+      expect(screen.getByText('+6')).toBeInTheDocument();
+      expect(screen.getAllByText('3').length).toBeGreaterThan(0);
+    });
+
+    it('holds the compact <colgroup> fixed widths FLAT (w-6 / w-7 / w-9) — no <col> widened', () => {
+      // Breathing room comes from reclaimed tracking + font/padding, NOT from
+      // widening fixed columns. Compact set is # / Team / MP / GD / Pts → 5 <col>:
+      //   # = w-6, Team = (flex, no class), MP = w-7, GD = w-7, Pts = w-9.
+      const { cols } = renderCompact();
+      expect(cols).toEqual(COMPACT_COL_CLASSES);
+    });
+
+    it('uses the SAME per-column fixed widths as the full set — only the column count differs', () => {
+      // The fixed-width budget must not grow vs. today: # / each stat / Pts widths
+      // are the flat w-6 / w-7 / w-9 in BOTH branches; compaction drops COLUMNS,
+      // never widens a surviving one. Read both branches in one test (compact tree
+      // unmounted before the full tree mounts) so the equality is pinned directly.
+      const { fixedCols: compactFixed } = renderCompact();
+      // The compact fixed widths are a subset, with identical first/last anchors.
+      expect(new Set(compactFixed)).toEqual(new Set(['w-6', 'w-7', 'w-9']));
+      expect(compactFixed.at(0)).toBe('w-6');
+      expect(compactFixed.at(-1)).toBe('w-9');
+
+      cleanup();
+      const { fixedCols: fullFixed } = renderFull();
+      expect(fullFixed.at(0)).toBe('w-6');
+      expect(fullFixed.at(-1)).toBe('w-9');
+      // Every per-column width the full set uses is one of the same three tokens —
+      // no stat <col> is widened beyond w-7.
+      expect(new Set(fullFixed)).toEqual(new Set(['w-6', 'w-7', 'w-9']));
+    });
+  });
+
+  describe('compact-vs-full class divergence proves the gate actually fired (behavior 1 + 4)', () => {
+    it('emits DIFFERENT <thead> header-row classes for compact vs. full (the gate diverges)', () => {
+      // A direct cross-branch comparison: rendering the SAME group compact then full
+      // must yield different header classes. A no-op gate (same string both ways)
+      // fails here even if the individual substring checks were somehow satisfied.
+      const compactHeader = renderCompact().header;
+      cleanup();
+      const fullHeader = renderFull().header;
+      expect(compactHeader).not.toBe(fullHeader);
+      // And the divergence is exactly the density utilities, nothing else: every
+      // invariant class is present in BOTH.
+      for (const invariant of INVARIANT_HEADER_CLASSES) {
+        expect(compactHeader).toContain(invariant);
+        expect(fullHeader).toContain(invariant);
+      }
+    });
+
+    it('emits a DIFFERENT <table> font class for compact vs. full', () => {
+      const compactTable = renderCompact().table;
+      cleanup();
+      const fullTable = renderFull().table;
+      expect(compactTable).not.toBe(fullTable);
+      expect(compactTable).toContain(COMPACT_TABLE_FONT);
+      expect(fullTable).toContain(FULL_TABLE_FONT);
+    });
+  });
+
+  describe('Team-name ellipsis is preserved (behavior 3)', () => {
+    it('keeps min-w-0 + truncate on the compact Team-name span', () => {
+      renderCompact();
+      const span = teamNameSpan('Argentina');
+      expect(span.className).toMatch(/(^|\s)min-w-0(\s|$)/);
+      expect(span.className).toMatch(/(^|\s)truncate(\s|$)/);
+    });
+
+    it('keeps min-w-0 + truncate on the full-path Team-name span too (ellipsis is branch-invariant)', () => {
+      renderFull();
+      const span = teamNameSpan('Argentina');
+      expect(span.className).toMatch(/(^|\s)min-w-0(\s|$)/);
+      expect(span.className).toMatch(/(^|\s)truncate(\s|$)/);
+    });
+
+    it('truncates a very long compact team name without widening the numeric <col>s (edge case)', () => {
+      // The acceptance criterion is "a long name never pushes the numeric columns
+      // past the card edge". jsdom can't measure pixels, but the CONTRACT that
+      // produces that behavior is: the long name's span still carries `truncate`
+      // (so it ellipsis-clips) AND the fixed <col> widths stay flat (so the numeric
+      // columns keep their budget). Pin both for a genuinely long name.
+      const { cols } = renderCompact(GROUP_A_LONG_NAME);
+      const span = teamNameSpan(LONG_NAME);
+      expect(span.className).toMatch(/(^|\s)truncate(\s|$)/);
+      expect(span.className).toMatch(/(^|\s)min-w-0(\s|$)/);
+      // The long name must NOT have widened any numeric column.
+      expect(cols).toEqual(COMPACT_COL_CLASSES);
+    });
+  });
+
+  describe('compact density is data-independent (empty-group boundary)', () => {
+    it('emits the compact density classes + 5 flat <col>s even for an empty group (no rows)', () => {
+      // The density layer keys off the `compact` prop, not the row data, so an
+      // early-tournament group with zero rows still renders the tuned header +
+      // the held-flat compact <colgroup>. Guards against a regression that derives
+      // density from row presence.
+      const { header, table, cols } = renderCompact(GROUP_A_EMPTY);
+      expect(header).toContain(COMPACT_HEADER_TRACKING);
+      expect(header).toContain(COMPACT_HEADER_FONT);
+      expect(header).toContain(COMPACT_HEADER_PADDING);
+      expect(table).toContain(COMPACT_TABLE_FONT);
+      expect(cols).toEqual(COMPACT_COL_CLASSES);
+    });
+  });
+
+  describe('desktop / full-set byte-identity regression guard (behavior 4)', () => {
+    it("emits TODAY's exact <table> class string on the default (no-prop) non-compact branch", () => {
+      const { table } = renderFull();
+      expect(table).toBe(FULL_TABLE_CLASS);
+    });
+
+    it("emits TODAY's exact <table> class string when compact={false} is explicit", () => {
+      const { table } = renderFull(GROUP_A, { explicit: true });
+      expect(table).toBe(FULL_TABLE_CLASS);
+    });
+
+    it("emits TODAY's exact <thead> header-row class string on the non-compact branch", () => {
+      const { header } = renderFull();
+      expect(header).toBe(FULL_HEADER_ROW_CLASS);
+    });
+
+    it('keeps the non-compact <thead> header on the OLD density and rejects EVERY compact-only class', () => {
+      // The exact inverse of the compact assertions: the full path must NOT pick up
+      // any compact-only density class. This catches a gate that leaks into desktop.
+      const { header } = renderFull();
+      expect(header).toContain(FULL_HEADER_PADDING);
+      expect(header).toContain(FULL_HEADER_FONT);
+      expect(header).toContain(FULL_HEADER_TRACKING);
+      expect(header).not.toContain(COMPACT_HEADER_PADDING);
+      expect(header).not.toContain(COMPACT_HEADER_FONT);
+      expect(header).not.toContain(COMPACT_HEADER_TRACKING);
+    });
+
+    it('renders the FULL 7-stat header matrix on the non-compact branch (set unchanged)', () => {
+      renderFull();
+      expect(getStatHeaderLabels()).toEqual([...FULL_HEADER_LABELS]);
+    });
+
+    it('holds the full-path <colgroup> fixed widths FLAT (w-6 / 7×w-7 / w-9)', () => {
+      // Full set = # / Team / MP / W / D / L / GF / GA / GD / Pts → 10 <col>:
+      //   # = w-6, Team = (flex), 7 stat = w-7, Pts = w-9.
+      const { cols } = renderFull();
+      expect(cols).toEqual(FULL_COL_CLASSES);
+    });
   });
 });

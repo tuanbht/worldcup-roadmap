@@ -361,6 +361,21 @@ test.describe('mobile standings overlay layout', () => {
       await expect(closeBtn).toBeVisible();
       await expect(closeBtn).toBeInViewport();
 
+      // requirement 1031 — vertical fit (AC #3): at 320×720 the open dialog must
+      // also fit VERTICALLY. A density bump (larger header glyph + table font) that
+      // net-grows the card so it clips top/bottom under the `grid place-items-center`
+      // backdrop now fails loudly. Gated to the 320×720 case (the densest, named
+      // acceptance width); the binary-fit overflow check below covers all widths.
+      if (bp.width === 320 && bp.height === 720) {
+        const VERTICAL_FIT_EPSILON = 1;
+        const box = await dialog.boundingBox();
+        expect(box, 'the open standings dialog should have a bounding box at 320px').not.toBeNull();
+        expect(
+          box!.y + box!.height,
+          `the open dialog bottom (${box!.y + box!.height}px) must fit within the ${bp.height}px viewport at 320×720`,
+        ).toBeLessThanOrEqual(bp.height + VERTICAL_FIT_EPSILON);
+      }
+
       // No horizontal page overflow with the overlay open.
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
