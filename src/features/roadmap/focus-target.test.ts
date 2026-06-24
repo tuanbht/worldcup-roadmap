@@ -8,10 +8,27 @@
 // so every behavioural assertion fails for the right (missing-logic) reason while
 // the constant-shape tests already pass against the named constants.
 import { describe, expect, it } from 'vitest';
-import { FOCUS_DURATION_MS, FOCUS_ZOOM, MATCH_DURATION_MS, pickFocusMatchId } from './focus-target';
+import {
+  FOCUS_DURATION_MS,
+  FOCUS_ZOOM,
+  MATCH_DURATION_MS,
+  pickFocusMatchId,
+  readColdLoadFocusParam,
+  resolveColdLoadFocusBounds,
+} from './focus-target';
 import { EMPTY_SCORE, teamRef } from '@/domain/types';
 import type { Match, MatchStatus } from '@/domain/types';
 import { deepFreeze } from './__test-support__/roadmap-fixtures';
+import {
+  boundsOf,
+  isGroupZoneNode,
+  isKnockoutNode,
+} from './hooks/useFocusCamera';
+import {
+  distinctZoneGraph,
+  groupOnlyGraph,
+  mixedGraph,
+} from './hooks/__test-support__/camera-nodes';
 
 /** A fixed wall-clock instant the tests resolve "now" against (UTC). */
 const NOW = Date.parse('2026-06-20T18:00:00Z');
@@ -213,5 +230,153 @@ describe('pickFocusMatchId — purity & determinism [Acceptance #1]', () => {
     // Interleave the winner into the middle so the answer is not at either end.
     const shuffled = [...noise.slice(0, 30), winner, ...noise.slice(30)];
     expect(pickFocusMatchId(shuffled, NOW)).toBe('the-winner');
+  });
+});
+
+// ===========================================================================
+// resolveColdLoadFocusBounds — pure cold-load `?focus=` → framing Rect | null
+//   (requirement 2026-06-24-1032; plan Test Strategy resolver cases 1-6,
+//    Acceptance #1, #4, #5). Pure / DOM-free: a raw param string + a node set in,
+//    a `Rect | null` out, asserted against the SAME `boundsOf` the production
+//    framing branch composes with.
+//
+// The shared `distinctZoneGraph()` fixture gives three nodes whose `all` /
+// `groups` / `knockout` / match-id envelopes are GENUINELY DISTINCT (the knockout
+// card sits far south-east, outside the group envelope), so no "distinct from
+// whole-graph" assertion below can pass by coincidence.
+// ===========================================================================
+
+describe('resolveColdLoadFocusBounds — view tokens [Acceptance #1]', () => {
+  it("'all' resolves to the whole-graph envelope (== boundsOf(all nodes))", () => {
+    const { nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds('all', nodes)).toEqual(boundsOf([...nodes]));
+  });
+
+  it("'groups' resolves to the group-zone subset envelope, distinct from whole-graph", () => {
+    const { nodes } = distinctZoneGraph();
+    const groupSubset = nodes.filter(isGroupZoneNode);
+    const expected = boundsOf(groupSubset);
+    expect(resolveColdLoadFocusBounds('groups', nodes)).toEqual(expected);
+    // The knockout node sits outside the group envelope, so the two differ.
+    expect(expected).not.toEqual(boundsOf([...nodes]));
+  });
+
+  it("'knockout' resolves to the knockout subset envelope, distinct from whole-graph", () => {
+    const { nodes } = distinctZoneGraph();
+    const koSubset = nodes.filter(isKnockoutNode);
+    const expected = boundsOf(koSubset);
+    expect(resolveColdLoadFocusBounds('knockout', nodes)).toEqual(expected);
+    expect(expected).not.toEqual(boundsOf([...nodes]));
+  });
+});
+
+describe('resolveColdLoadFocusBounds — match-id deep link [Acceptance #1, #4]', () => {
+  it('a knockout match id resolves to that single node footprint (== boundsOf([node]))', () => {
+    const { knockoutMatch, nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds(knockoutMatch.id, nodes)).toEqual(boundsOf([knockoutMatch]));
+  });
+
+  it('a GROUP-stage match id resolves to that card (a bare id targets any match card, not just KO)', () => {
+    // Guards against an implementation that only resolves knockout cards. The
+    // group card footprint is independently distinct from every view envelope.
+    const { groupMatch, nodes } = distinctZoneGraph();
+    const single = boundsOf([groupMatch]);
+    expect(resolveColdLoadFocusBounds(groupMatch.id, nodes)).toEqual(single);
+    expect(single).not.toEqual(boundsOf([...nodes]));
+    expect(single).not.toEqual(boundsOf(nodes.filter(isGroupZoneNode)));
+    expect(single).not.toEqual(boundsOf(nodes.filter(isKnockoutNode)));
+  });
+
+  it('the single-card box is distinct from the whole-graph, group, AND knockout-subset envelopes', () => {
+    // The knockout card is the ONLY knockout node, so its single-card box equals
+    // the knockout subset here; we therefore prove distinctness against the OTHER
+    // three envelopes so the match-id path can't masquerade as any view frame.
+    const { knockoutMatch, nodes } = distinctZoneGraph();
+    const single = boundsOf([knockoutMatch]);
+    expect(resolveColdLoadFocusBounds(knockoutMatch.id, nodes)).toEqual(single);
+    expect(single).not.toEqual(boundsOf([...nodes]));
+    expect(single).not.toEqual(boundsOf(nodes.filter(isGroupZoneNode)));
+  });
+
+  it('an UNMATCHED match id falls back to null (no such rendered node)', () => {
+    const { nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds('no-such-match', nodes)).toBeNull();
+  });
+
+  it('does NOT match a non-match node id (e.g. the standings table id) — null', () => {
+    // The standings node is a `group-standings` node, not a `match`; a bare id
+    // deep link only targets match cards, so this must fall through to null.
+    const { standings, nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds(standings.id, nodes)).toBeNull();
+  });
+});
+
+describe('resolveColdLoadFocusBounds — garbage / empty / null param [Acceptance #4]', () => {
+  it('returns null for a null param (no `?focus=` present)', () => {
+    const { nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds(null, nodes)).toBeNull();
+  });
+
+  it('returns null for an empty-string param', () => {
+    const { nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds('', nodes)).toBeNull();
+  });
+
+  it('returns null for an unknown garbage token', () => {
+    const { nodes } = distinctZoneGraph();
+    expect(resolveColdLoadFocusBounds('%%%garbage%%%', nodes)).toBeNull();
+  });
+
+  it("returns null for a valid view whose subset is EMPTY ('knockout' on a group-only graph)", () => {
+    // A group-only graph has no knockout node → empty subset → boundsOf is null →
+    // the resolver yields null so the caller uses the default whole-graph fit.
+    const nodes = groupOnlyGraph();
+    expect(resolveColdLoadFocusBounds('knockout', nodes)).toBeNull();
+  });
+
+  it('returns null when the whole node set is empty (no graph to frame yet)', () => {
+    expect(resolveColdLoadFocusBounds('all', [])).toBeNull();
+  });
+});
+
+describe('resolveColdLoadFocusBounds — purity & determinism [Acceptance #5]', () => {
+  it('does not mutate a deep-frozen nodes input (proves it never writes the array)', () => {
+    const nodes = deepFreeze(mixedGraph());
+    expect(() => resolveColdLoadFocusBounds('groups', nodes)).not.toThrow();
+    expect(() => resolveColdLoadFocusBounds('knockout', nodes)).not.toThrow();
+    expect(() => resolveColdLoadFocusBounds('all', nodes)).not.toThrow();
+  });
+
+  it('does not reorder a deep-frozen nodes input (node order is preserved)', () => {
+    const { nodes } = distinctZoneGraph();
+    const idsBefore = nodes.map((n) => n.id);
+    resolveColdLoadFocusBounds('groups', deepFreeze([...nodes]));
+    expect(nodes.map((n) => n.id)).toEqual(idsBefore);
+  });
+
+  it('is deterministic — same (param, nodes) returns an equal Rect across calls', () => {
+    const { nodes } = distinctZoneGraph();
+    const first = resolveColdLoadFocusBounds('knockout', nodes);
+    const second = resolveColdLoadFocusBounds('knockout', nodes);
+    expect(first).toEqual(second);
+    expect(first).toEqual(boundsOf(nodes.filter(isKnockoutNode)));
+  });
+});
+
+// ===========================================================================
+// readColdLoadFocusParam — the thin, no-window-safe `?focus=` reader
+//   (Acceptance #5: "no-window-safe (returns null)"). This file runs in the
+//   `node` environment (no `window`/`document`), so it is the correct home for
+//   the NO-WINDOW branch. The WITH-window extraction branch (a real `?focus=` in
+//   the URL) is covered in `useFitOnChange.test.ts`, which runs under jsdom and
+//   drives `window.location` directly.
+// ===========================================================================
+
+describe('readColdLoadFocusParam — no-window safety [Acceptance #5]', () => {
+  it('returns null when no `window` exists (SSR / node env), without throwing', () => {
+    // Guard precondition: the node env genuinely has no `window`.
+    expect(typeof window).toBe('undefined');
+    expect(() => readColdLoadFocusParam()).not.toThrow();
+    expect(readColdLoadFocusParam()).toBeNull();
   });
 });

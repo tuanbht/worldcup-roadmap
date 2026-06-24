@@ -91,3 +91,37 @@ export function groupOnlyGraph(suffix = ''): RoadmapNode[] {
     matchNode({ id: `gm${suffix}`, x: 0, y: 200, stage: 'GROUP_STAGE' }),
   ];
 }
+
+/** The named members of a {@link distinctZoneGraph}, plus its full node array. */
+export interface DistinctZoneGraph {
+  /** Group-zone standings header at the graph origin. */
+  readonly standings: GroupStandingsFlowNode;
+  /** Group-zone match card, near the origin (still inside the group envelope). */
+  readonly groupMatch: MatchFlowNode;
+  /** Knockout-zone match card, placed FAR to the south-east. */
+  readonly knockoutMatch: MatchFlowNode;
+  /** All three nodes, in [standings, groupMatch, knockoutMatch] order. */
+  readonly nodes: RoadmapNode[];
+}
+
+/**
+ * A mixed graph whose four cold-load `?focus=` envelopes are GENUINELY DISTINCT,
+ * so an `all` / `groups` / `knockout` / match-id frame can never pass by
+ * coinciding with the whole-graph box:
+ *   - `standings`     at (0, 0)         — group zone (header column)
+ *   - `groupMatch`    at (300, 200)     — group zone (a GROUP_STAGE card)
+ *   - `knockoutMatch` at (1200, 1600)   — knockout zone, far south-east
+ *
+ * `boundsOf([standings, groupMatch])` (the `groups` envelope) is a strict sub-box
+ * of `boundsOf(nodes)` (the `all` envelope), and `boundsOf([knockoutMatch])` (both
+ * the `knockout` envelope AND the `knockoutMatch.id` single-card box) sits ENTIRELY
+ * outside the group envelope — so every assertion of "distinct from whole-graph"
+ * is non-vacuous. The optional `suffix` mints fresh node ids (and a fresh array),
+ * so a refetch is modelled by calling `distinctZoneGraph('-v2')`.
+ */
+export function distinctZoneGraph(suffix = ''): DistinctZoneGraph {
+  const standings = standingsNode({ id: `s1${suffix}`, x: 0, y: 0 });
+  const groupMatch = matchNode({ id: `gm1${suffix}`, x: 300, y: 200, stage: 'GROUP_STAGE' });
+  const knockoutMatch = matchNode({ id: `ko1${suffix}`, x: 1200, y: 1600, stage: 'QUARTER_FINALS' });
+  return { standings, groupMatch, knockoutMatch, nodes: [standings, groupMatch, knockoutMatch] };
+}

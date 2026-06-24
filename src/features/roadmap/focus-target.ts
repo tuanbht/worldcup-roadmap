@@ -12,7 +12,10 @@
 // This is the single home for the temporal selection logic — pure, O(n), no clock
 // read, no input mutation. The component passes `Date.now()`; tests pass a fixed
 // `now`. Kept inside the roadmap feature (domain-specific, not library-ized).
+import type { Rect } from '@xyflow/react';
 import type { Match } from '@/domain/types';
+import type { RoadmapNode } from './graph-model';
+import { boundsOf, isGroupZoneNode, isKnockoutNode } from './hooks/useFocusCamera';
 
 /**
  * A full match's wall-clock span: 2 x 45' regulation + 15' half-time + a
@@ -77,4 +80,45 @@ function isBetterCandidate(
   if (end !== bestEnd) return end < bestEnd;
   if (kickoff !== bestKickoff) return kickoff < bestKickoff;
   return id < bestId;
+}
+
+// ---------------------------------------------------------------------------
+// Cold-load `?focus=` camera framing (RED-phase stubs — see plan §"Data Model")
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads the raw `?focus=` value once (cold load). No-window-safe → null. Not
+ * validated against the `RoadmapFocus` union: a match id is a legal cold-load
+ * target even though it is not one of the three views. Surfaces the decoded raw
+ * value verbatim — `resolveColdLoadFocusBounds` decides if it is resolvable.
+ */
+export function readColdLoadFocusParam(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get('focus');
+}
+
+/**
+ * Resolve a raw `?focus=` value to the camera-framing target for the ONE-TIME
+ * cold-load frame:
+ *   'all'      → boundsOf(nodes)                       (whole graph)
+ *   'groups'   → boundsOf(nodes.filter(isGroupZoneNode))
+ *   'knockout' → boundsOf(nodes.filter(isKnockoutNode))
+ *   <match id> → boundsOf([node matching id & type 'match'])
+ *   else / unmatched / empty subset / null param → null  (caller uses default fit)
+ * Pure: never mutates `nodes`, never reads the clock or the URL (param passed in).
+ * `boundsOf` already returns null for an empty subset, so an empty graph, an
+ * empty view subset, or an unmatched/non-match id all fall through to the default
+ * fit without a special case.
+ */
+export function resolveColdLoadFocusBounds(
+  rawParam: string | null,
+  nodes: readonly RoadmapNode[],
+): Rect | null {
+  if (!rawParam) return null;
+  if (rawParam === 'all') return boundsOf([...nodes]);
+  if (rawParam === 'groups') return boundsOf(nodes.filter(isGroupZoneNode));
+  if (rawParam === 'knockout') return boundsOf(nodes.filter(isKnockoutNode));
+  // A bare token that is not a view → treat it as a match-card deep link.
+  const match = nodes.find((node) => node.type === 'match' && node.id === rawParam);
+  return match ? boundsOf([match]) : null;
 }

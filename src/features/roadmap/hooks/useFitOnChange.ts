@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { boundsOf, frameTopAlignedWithRetry } from './useFocusCamera';
+import { readColdLoadFocusParam, resolveColdLoadFocusBounds } from '../focus-target';
 import type { RoadmapNode } from '../graph-model';
 
 /** Padding tuned to frame the tall, continuous group-band + knockout canvas. */
@@ -51,7 +52,14 @@ export function useFitOnChange(key: unknown, nodes: readonly RoadmapNode[] = [])
     // in-flight first-load frame never lands late.
     let cancelFrame: (() => void) | undefined;
     const id = window.setTimeout(() => {
-      const bounds = boundsOf([...nodes]);
+      // Cold-load deep link: a resolvable `?focus=` target frames that subset on
+      // this ONE automatic frame; an absent/unresolvable/garbage value yields
+      // null and falls through to the whole-graph default fit (byte-identical to
+      // the no-param first load). Read once, inside this fit-once branch, so a
+      // refetch — which short-circuits on `hasFramedRef` above — never re-reads
+      // the URL or re-frames.
+      const focusBounds = resolveColdLoadFocusBounds(readColdLoadFocusParam(), nodes);
+      const bounds = focusBounds ?? boundsOf([...nodes]);
       cancelFrame = frameTopAlignedWithRetry(rf, bounds, FRAME_DURATION, () => {
         void fitView({ padding: FIT_PADDING, duration: FRAME_DURATION });
       });
