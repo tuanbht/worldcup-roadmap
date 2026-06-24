@@ -384,3 +384,191 @@ test.describe('mobile standings overlay layout', () => {
     });
   }
 });
+
+/**
+ * Canvas standings row — full-row focus-team tap target, no mis-tap under zoom
+ * (requirement 2026-06-24-1030; plan Test Strategy 7 / Acceptance #1, #2).
+ *
+ * The canvas standings rows live under `.react-flow__viewport { transform:
+ * scale(zoom) }`. At the mobile zoom floor (0.32) on a 320px screen the BASELINE
+ * per-flag focus button is only ~5.76px wide on-screen — far below the 44px touch
+ * minimum — and the prior counter-scale attempt mis-tapped 3 of 4 rows. The fix
+ * makes each row's focus-team control a single full-row-spanning <button> (the
+ * <tr> is the sole `position: relative` containing block; an `absolute inset-0`
+ * button resolves against it → ~94px-wide on-screen at 0.32, zero overlap).
+ *
+ * This block asserts BOTH halves of the contract on a REAL touch tap, on the
+ * coarse-pointer `mobile` (iPhone 13) project ONLY (the inverse of the
+ * self-driven-viewport skip the other blocks use):
+ *   (a) WIDTH — the row button's live post-transform `boundingBox().width` is
+ *       >= 44 - 0.5 CSS px. This is the primary RED signal (baseline ~5.76px) AND
+ *       the guard that the `<tr>`-resolved `inset-0` actually stretched the button
+ *       to full-row width in real Chromium (a Team-cell containing block would be
+ *       ~12px → RED). No height assertion (accepted geometric limit at the floor).
+ *   (b) TAP → CORRECT TEAM — tapping the TOP row and a MIDDLE row focuses THAT
+ *       row's team each time, verified via the `role="status"` live region
+ *       ("Showing matches for {team}", RoadmapCanvas.tsx:218-220), never a
+ *       neighbour. This is the no-mis-tap pin the size-only test structurally
+ *       could not make.
+ *
+ * Deterministic waits only; no new screenshot ⇒ no new snapshot baseline.
+ *
+ * NOTE: Playwright browsers may be unavailable in the sandbox/CI image; this spec
+ * runs under `npm run test:e2e` (not the unit `vitest` gate). Document, do not
+ * fail the unit gate, when browsers cannot launch here.
+ */
+/** Minimum on-screen tap-target width (CSS px); ε absorbs sub-pixel transform noise. */
+const TAP_TARGET_MIN_WIDTH = 44;
+const TAP_TARGET_EPSILON = 0.5;
+
+/** Read a row button's OWN team name straight from its accessible name. */
+async function teamFromButton(button: Locator): Promise<string> {
+  const label = (await button.getAttribute('aria-label')) ?? '';
+  return label.replace(/^Show matches for\s+/, '').trim();
+}
+
+/** Escape a team name for safe use inside a RegExp (e.g. "Saudi Arabia"). */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+test.describe('canvas standings row — full-row focus-team target, no mis-tap under zoom', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'mobile',
+      'coarse-pointer/touch path only (iPhone 13); other projects drive their own viewport',
+    );
+  });
+
+  test('top + middle row buttons are >=44px wide and tap the CORRECT team at 320px/0.32', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+    await settle(page);
+
+    // Worst case: assert the settled scale is AT the mobile floor (densest rows).
+    const scale = await readScale(page);
+    expect(
+      scale,
+      `settled scale (${scale}) must be at the MOBILE_MIN_ZOOM floor (${MOBILE_MIN_ZOOM}) so the densest rows are exercised`,
+    ).toBeGreaterThanOrEqual(MOBILE_MIN_ZOOM - ZOOM_FLOOR_EPSILON);
+    expect(scale).toBeLessThanOrEqual(MOBILE_MIN_ZOOM + 0.05);
+
+    // Scope under the group-standings region (the `<section aria-label="Group …
+    // standings">` → role="region"). The standings tables are the TOP row of every
+    // column, so first-load top-aligned framing renders Group A on-screen. Assert
+    // it is genuinely in-viewport BEFORE interacting (never act on an offscreen,
+    // virtualized node).
+    const standings = page.getByRole('region', { name: /standings/ }).first();
+    await expect(standings).toBeInViewport();
+
+    // The row-spanning focus buttons, addressed by their stable accessible name
+    // within the region (excludes the TeamRow match-card flags elsewhere).
+    const rowButtons = standings.getByRole('button', { name: /^Show matches for/ });
+    await expect(rowButtons.first()).toBeVisible({ timeout: 10_000 });
+    expect(
+      await rowButtons.count(),
+      'a group standings table should expose at least 3 row focus buttons (top + middle reachable)',
+    ).toBeGreaterThanOrEqual(3);
+
+    const status = page.getByRole('status');
+
+    // Indices 0 (TOP row) and 2 (a MIDDLE row) of the 4 mock rows. For each:
+    // measure the on-screen width, read its OWN team from the aria-label, tap, and
+    // assert the live region names THAT team (and not a neighbour). Focus is
+    // cleared between taps (Esc) so the second assertion is independent.
+    for (const rowIndex of [0, 2]) {
+      const button = rowButtons.nth(rowIndex);
+      await expect(button).toBeInViewport();
+
+      const team = await teamFromButton(button);
+      expect(team, `row ${rowIndex} should carry a team name in its aria-label`).not.toBe('');
+
+      // (a) WIDTH — post-transform on-screen rect in CSS px (deviceScaleFactor: 3
+      // does NOT inflate it). Baseline per-flag button ~5.76px → RED.
+      const box = await button.boundingBox();
+      expect(box, `row ${rowIndex} focus button should have a bounding box`).not.toBeNull();
+      expect(
+        box!.width,
+        `row ${rowIndex} (${team}) focus button on-screen width (${box!.width}px) must be >= ${TAP_TARGET_MIN_WIDTH} - ${TAP_TARGET_EPSILON} CSS px at 320px/0.32`,
+      ).toBeGreaterThanOrEqual(TAP_TARGET_MIN_WIDTH - TAP_TARGET_EPSILON);
+
+      // (b) TAP → CORRECT TEAM — a coarse-pointer tap at the button centre.
+      await button.click();
+      await expect(status, `tapping row ${rowIndex} must focus ${team} (no mis-tap)`).toHaveText(
+        new RegExp(`Showing matches for ${escapeRegExp(team)}`),
+      );
+
+      // Clear focus so the next row's assertion is independent of this one.
+      await page.keyboard.press('Escape');
+      await expect(status).toHaveText('');
+    }
+  });
+
+  test('adjacent row buttons tile with ZERO vertical overlap at 320px/0.32 (the original mis-tap defect)', async ({
+    page,
+  }) => {
+    // The original defect was a 44px-TALL hit box overlapping ~3 neighbours at the
+    // floor, so a tap landed on the WRONG row's control. The row-as-target fix gives
+    // each button its OWN `<tr>` band (`absolute inset-0`), so adjacent buttons must
+    // NOT overlap vertically — a deterministic geometric pin (boundingBoxes only, no
+    // timing). RED at baseline only via the width assertion alongside it; this
+    // overlap pin documents the no-overlap guarantee the fix relies on.
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+    await settle(page);
+
+    const scale = await readScale(page);
+    expect(
+      scale,
+      `settled scale (${scale}) must be at the MOBILE_MIN_ZOOM floor so the densest rows are exercised`,
+    ).toBeGreaterThanOrEqual(MOBILE_MIN_ZOOM - ZOOM_FLOOR_EPSILON);
+    expect(scale).toBeLessThanOrEqual(MOBILE_MIN_ZOOM + 0.05);
+
+    const standings = page.getByRole('region', { name: /standings/ }).first();
+    await expect(standings).toBeInViewport();
+
+    const rowButtons = standings.getByRole('button', { name: /^Show matches for/ });
+    await expect(rowButtons.first()).toBeVisible({ timeout: 10_000 });
+    const count = await rowButtons.count();
+    expect(count, 'need at least 2 rows to compare adjacent bands').toBeGreaterThanOrEqual(2);
+
+    // Each on-screen band must be at least the ≥44px-wide full-row target AND must
+    // start at/below the previous band's bottom — i.e. no vertical overlap. We
+    // compare consecutive in-viewport rows by their measured boxes only.
+    let previousBottom = Number.NEGATIVE_INFINITY;
+    let previousTeam = '';
+    let compared = 0;
+    for (let i = 0; i < count; i += 1) {
+      const button = rowButtons.nth(i);
+      if (!(await button.isVisible())) continue;
+      const box = await button.boundingBox();
+      if (!box) continue;
+      const team = await teamFromButton(button);
+
+      expect(
+        box.width,
+        `row ${i} (${team}) on-screen width (${box.width}px) must be the full-row ≥44px target`,
+      ).toBeGreaterThanOrEqual(TAP_TARGET_MIN_WIDTH - TAP_TARGET_EPSILON);
+
+      if (previousBottom !== Number.NEGATIVE_INFINITY) {
+        // This row's TOP must be at/after the previous row's BOTTOM (allowing a
+        // sub-pixel ε): the two bands do not overlap, so a tap inside band N can
+        // only hit row N. A negative gap is the exact original mis-tap defect.
+        expect(
+          box.y,
+          `row ${i} (${team}) must not overlap the previous row (${previousTeam}): top ${box.y} >= prev bottom ${previousBottom}`,
+        ).toBeGreaterThanOrEqual(previousBottom - TAP_TARGET_EPSILON);
+        compared += 1;
+      }
+      previousBottom = box.y + box.height;
+      previousTeam = team;
+    }
+    expect(compared, 'should have compared at least one adjacent row pair').toBeGreaterThanOrEqual(
+      1,
+    );
+  });
+});

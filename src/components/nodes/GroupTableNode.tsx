@@ -11,39 +11,62 @@ function byPosition(a: StandingRow, b: StandingRow): number {
 
 interface TeamCellProps {
   row: StandingRow;
-  onFocusTeam?: (teamId: string) => void;
 }
 
 /**
- * The team identity cell: flag + truncated name. When `onFocusTeam` is given the
- * flag becomes a focusable `<button>` (native Enter/Space) that sets team focus;
- * its click/pointerdown `stopPropagation` so the surrounding React Flow node never
- * selects or starts a pan, and it carries the built-in `nopan` class. Without a
- * handler (the overlay path) the flag stays a decorative `aria-hidden` span.
+ * The team identity cell content: a decorative `<Flag>` glyph (`aria-hidden`) +
+ * truncated team name. This is plain, non-interactive content in BOTH render
+ * paths. On the canvas the focus-team control is the full-row-spanning
+ * `<button>` rendered alongside it (see `FocusRowButton`); the flag itself is
+ * never its own button (requirement 2026-06-24-1030, row-as-tap-target).
  */
-function TeamCell({ row, onFocusTeam }: TeamCellProps) {
+function TeamCell({ row }: TeamCellProps) {
   const { team } = row;
-  const flag = <Flag code={team.code} url={team.flagUrl} size={18} />;
   return (
     <span className="text-ink flex items-center gap-2 font-medium">
-      {onFocusTeam ? (
-        <button
-          type="button"
-          className="nopan shrink-0 rounded-[3px] focus-visible:shadow-[var(--glow-accent)] focus-visible:outline-none pointer-coarse:-m-[13px] pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center"
-          aria-label={`Show matches for ${team.name}`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onFocusTeam(team.id);
-          }}
-        >
-          {flag}
-        </button>
-      ) : (
-        flag
-      )}
+      <Flag code={team.code} url={team.flagUrl} size={18} />
       <span className="min-w-0 truncate">{team.name}</span>
     </span>
+  );
+}
+
+interface FocusRowButtonProps {
+  row: StandingRow;
+  onFocusTeam: (teamId: string) => void;
+}
+
+/**
+ * The canvas standings row's focus-team control: a real `<button>` rendered
+ * inside the STATIC Team `<td>` and stretched across the FULL row via
+ * `position: absolute; inset: 0`. Because the Team `<td>` is static, `inset-0`
+ * resolves against the `position: relative` `<tr>` (the sole positioned ancestor),
+ * so the button spans the whole ~294px row (~94px on-screen at the 0.32 mobile
+ * zoom floor → a ≥44px-wide tap target with zero overlap → no mis-tap).
+ *
+ * It is transparent (no background/border) so it never changes the row's paint;
+ * it only provides the hit area + accessible name + keyboard activation. A native
+ * `<button>` fires `click` on both Enter and Space, so keyboard activation is
+ * intrinsic; we also `stopPropagation` on pointerdown/click/keydown and carry
+ * `nopan` so a row tap never starts a React Flow pan or selects the node.
+ */
+function FocusRowButton({ row, onFocusTeam }: FocusRowButtonProps) {
+  const { team } = row;
+  const focus = () => onFocusTeam(team.id);
+  return (
+    <button
+      type="button"
+      className="nopan absolute inset-0 z-10 cursor-pointer rounded-[3px] focus-visible:shadow-[var(--glow-accent)] focus-visible:outline-none"
+      aria-label={`Show matches for ${team.name}`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        focus();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.stopPropagation();
+      }}
+    />
   );
 }
 
@@ -155,11 +178,15 @@ function GroupTableNodeImpl({ group, onFocusTeam, onOpenStandings, compact }: Gr
           {rows.map((row) => (
             <tr
               key={row.team.id}
-              className={`tabular-nums [&>td]:py-[5px] ${row.qualified ? 'bg-accent/15 standings-row--accent' : ''}`}
+              className={`tabular-nums [&>td]:py-[5px] ${onFocusTeam ? 'relative' : ''} ${row.qualified ? 'bg-accent/15 standings-row--accent' : ''}`}
             >
               <td className="text-muted pl-3 text-center">{row.position}</td>
+              {/* The Team <td> stays STATIC (no `relative`) so the focus button's
+                  `inset-0` resolves against the `position: relative` <tr> and spans
+                  the full row, not the narrow Team cell. */}
               <td className="px-2 text-left">
-                <TeamCell row={row} onFocusTeam={onFocusTeam} />
+                {onFocusTeam ? <FocusRowButton row={row} onFocusTeam={onFocusTeam} /> : null}
+                <TeamCell row={row} />
               </td>
               {statColumns.map((c) => (
                 <td

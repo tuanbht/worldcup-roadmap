@@ -7,8 +7,15 @@
 //   - the full column set # / team / MP / W / D / L / GF / GA / GD / Pts, with
 //     Pts emphasized,
 //   - `qualified` rows visually accented,
-//   - each row's flag as a FOCUSABLE button that calls `onFocusTeam(team.id)`
-//     (mouse + keyboard).
+//   - each row's focus-team control as a FOCUSABLE button that calls
+//     `onFocusTeam(team.id)` (mouse + keyboard).
+//
+// NOTE (requirement 2026-06-24-1030): the focus-team control is now a single
+// full-row-spanning `<button aria-label="Show matches for {team}">` inside the
+// Team cell (not a tiny per-flag button); the table/row/cell/columnheader roles
+// stay intact (the in-cell <button> does NOT make the row presentational). The
+// role + accent assertions below are unchanged; the per-row focus tests resolve
+// the row-spanning button by its accessible name `/Show matches for/`.
 //
 // Counts/values are taken from a small explicit Group fixture so the column
 // numbers are unambiguous; the rows are intentionally supplied OUT of position
@@ -52,6 +59,18 @@ function renderNode(data: GroupStandingsNodeData) {
       />
     </ReactFlowProvider>,
   );
+}
+
+/** The body <tr> whose Team cell names `teamName` (header row excluded). */
+function rowForTeam(teamName: string): HTMLTableRowElement {
+  const row = screen.getByText(teamName).closest('tr');
+  if (!row) throw new Error(`no <tr> found for team "${teamName}"`);
+  return row as HTMLTableRowElement;
+}
+
+/** The single row-spanning focus-team control in `teamName`'s row, by accessible name. */
+function rowFocusButton(teamName: string): HTMLElement {
+  return within(rowForTeam(teamName)).getByRole('button', { name: `Show matches for ${teamName}` });
 }
 
 describe('GroupStandingsNode — one row per team, ordered by position', () => {
@@ -121,29 +140,42 @@ describe('GroupStandingsNode — qualified accent [Acceptance #2]', () => {
   });
 });
 
-describe('GroupStandingsNode — flag focus button [Acceptance #5]', () => {
-  it("makes a row's flag a focusable button that calls onFocusTeam(team.id) on click", async () => {
+describe('GroupStandingsNode — row focus-team button [Acceptance #5]', () => {
+  it("makes a row's focus control a full-row button that calls onFocusTeam(team.id) on click", async () => {
     const onFocusTeam = vi.fn();
     const user = userEvent.setup();
     renderNode(makeData({ onFocusTeam }));
 
-    const argRow = screen.getByText('Argentina').closest('tr')!;
-    const button = within(argRow).getByRole('button');
-    await user.click(button);
+    // Re-pointed to the row-spanning button by its accessible name; there is
+    // exactly ONE focus-team control per row.
+    await user.click(rowFocusButton('Argentina'));
 
+    expect(onFocusTeam).toHaveBeenCalledTimes(1);
     expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
   });
 
-  it('activates the flag by keyboard (Enter/Space) for accessibility [Acceptance #8]', async () => {
+  it('exposes exactly ONE row-spanning focus control per team row (no double tab stop)', () => {
+    // The re-pointed button resolves through the node wiring too: each rendered
+    // row carries a single `/Show matches for/` control, never a nested per-flag
+    // button alongside it.
+    renderNode(makeData({ onFocusTeam: vi.fn() }));
+    for (const teamName of ['Argentina', 'Mexico']) {
+      const controls = within(rowForTeam(teamName))
+        .getAllByRole('button')
+        .filter((b) => /^Show matches for/.test(b.getAttribute('aria-label') ?? ''));
+      expect(controls, `${teamName} row should have one focus control`).toHaveLength(1);
+    }
+  });
+
+  it('activates the row focus button by keyboard (Enter) for accessibility [Acceptance #8]', async () => {
     const onFocusTeam = vi.fn();
     const user = userEvent.setup();
     renderNode(makeData({ onFocusTeam }));
 
-    const argRow = screen.getByText('Argentina').closest('tr')!;
-    const button = within(argRow).getByRole('button');
-    button.focus();
+    rowFocusButton('Argentina').focus();
     await user.keyboard('{Enter}');
 
+    expect(onFocusTeam).toHaveBeenCalledTimes(1);
     expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
   });
 });
@@ -184,16 +216,15 @@ describe('GroupStandingsNode — overlay opener threading [C1 / Acceptance #12]'
     expect(onOpenStandings).toHaveBeenCalledWith('A');
   });
 
-  it('a row flag click sets the focused team WITHOUT opening the overlay (stopPropagation)', async () => {
+  it('a row focus click sets the focused team WITHOUT opening the overlay (stopPropagation)', async () => {
     const onOpenStandings = vi.fn();
     const onFocusTeam = vi.fn();
     const user = userEvent.setup();
     renderNode(makeData({ onOpenStandings, onFocusTeam }));
 
-    const argRow = screen.getByText('Argentina').closest('tr')!;
-    const flag = within(argRow).getByRole('button', { name: 'Show matches for Argentina' });
-    await user.click(flag);
+    await user.click(rowFocusButton('Argentina'));
 
+    expect(onFocusTeam).toHaveBeenCalledTimes(1);
     expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
     expect(onOpenStandings).not.toHaveBeenCalled();
   });
