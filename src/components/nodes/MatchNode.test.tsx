@@ -17,12 +17,9 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactFlowProvider, Position } from '@xyflow/react';
 import { teamRef, placeholderRef, EMPTY_SCORE } from '@/domain/types';
-import type { Team } from '@/domain/types';
 import type { MatchNodeData } from '@/features/roadmap/graph-model';
+import { ARG, FRA, focusLabel } from './__test-support__/team-row-fixtures';
 import { MatchNode } from './MatchNode';
-
-const ARG: Team = { id: 'team-arg', name: 'Argentina', code: 'ARG', flagUrl: null };
-const FRA: Team = { id: 'team-fra', name: 'France', code: 'FRA', flagUrl: null };
 
 function makeData(overrides: Partial<MatchNodeData>): MatchNodeData {
   return {
@@ -357,20 +354,21 @@ describe('MatchNode — flag click sets the focused team [Acceptance #5, #8]', (
     const onFocusTeam = vi.fn();
     const user = userEvent.setup();
     renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
-    // Each resolved team's flag is a focusable button labelled by the team.
-    const argFlag = screen.getByRole('button', { name: /Argentina/ });
-    await user.click(argFlag);
-    expect(onFocusTeam).toHaveBeenCalledWith('team-arg');
+    // Each resolved team's row control is a button addressed by its exact
+    // accessible name (not a loose substring that the score/label could match).
+    await user.click(screen.getByRole('button', { name: focusLabel(ARG) }));
+    expect(onFocusTeam).toHaveBeenCalledTimes(1);
+    expect(onFocusTeam).toHaveBeenCalledWith(ARG.id);
   });
 
   it('activates the flag by keyboard (Enter) for keyboard users', async () => {
     const onFocusTeam = vi.fn();
     const user = userEvent.setup();
     renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
-    const fraFlag = screen.getByRole('button', { name: /France/ });
-    fraFlag.focus();
+    screen.getByRole('button', { name: focusLabel(FRA) }).focus();
     await user.keyboard('{Enter}');
-    expect(onFocusTeam).toHaveBeenCalledWith('team-fra');
+    expect(onFocusTeam).toHaveBeenCalledTimes(1);
+    expect(onFocusTeam).toHaveBeenCalledWith(FRA.id);
   });
 
   it('renders no focus button for an unresolved (placeholder) slot', () => {
@@ -385,9 +383,11 @@ describe('MatchNode — flag click sets the focused team [Acceptance #5, #8]', (
         onFocusTeam: vi.fn(),
       }),
     );
-    // Only the resolved team (Argentina) exposes a focus button; the placeholder does not.
+    // Only the resolved team (Argentina) exposes a focus button; the placeholder
+    // never does, and the whole card carries exactly ONE row control.
     expect(screen.queryByRole('button', { name: /Runner-up B/ })).toBeNull();
-    expect(screen.getByRole('button', { name: /Argentina/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: focusLabel(ARG) })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Show matches for/ })).toHaveLength(1);
   });
 
   it('renders no focus buttons at all when onFocusTeam is absent (overlay / read-only path)', () => {
@@ -406,7 +406,73 @@ describe('MatchNode — flag click sets the focused team [Acceptance #5, #8]', (
       makeData({ home: teamRef(ARG), away: teamRef(FRA), focusState: 'dim', onFocusTeam }),
     );
     expect(getArticle(container).getAttribute('data-focus')).toBe('dim');
-    await user.click(screen.getByRole('button', { name: /France/ }));
-    expect(onFocusTeam).toHaveBeenCalledWith('team-fra');
+    await user.click(screen.getByRole('button', { name: focusLabel(FRA) }));
+    expect(onFocusTeam).toHaveBeenCalledWith(FRA.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No mis-tap per row — the row-as-tap-target contract (requirement
+// 2026-06-24-1421; plan Test Strategy 6 / Acceptance #2). Each TeamRow's
+// focus control is a full-row-spanning <button> bounded by its OWN row, so
+// tapping the HOME row focuses the home team and tapping the AWAY row focuses
+// the away team — each resolves to its OWN team, never the sibling. jsdom can't
+// measure the post-transform geometry (the e2e overlap/width assertions do),
+// but it CAN pin the per-row team mapping under click AND both keyboard
+// activations: a transposed home↔away wiring fails here.
+// ---------------------------------------------------------------------------
+describe('MatchNode — each row taps its OWN team (no mis-tap) [Acceptance #2]', () => {
+  // home=ARG, away=FRA: the HOME row must focus team-arg and the AWAY row
+  // team-fra. Each control is addressed by its EXACT per-team accessible name;
+  // `team`/`other` are the fixtures, so a transposed home<->away wiring (the
+  // mis-tap defect) flips id AND name and fails loudly.
+  const ROW_CASES = [
+    { row: 'home', team: ARG, other: FRA },
+    { row: 'away', team: FRA, other: ARG },
+  ] as const;
+
+  it.each(ROW_CASES)(
+    'clicking the $row row calls onFocusTeam once with that row team id, never the sibling',
+    async ({ team, other }) => {
+      const onFocusTeam = vi.fn();
+      const user = userEvent.setup();
+      renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
+      await user.click(screen.getByRole('button', { name: focusLabel(team) }));
+      expect(onFocusTeam).toHaveBeenCalledTimes(1);
+      expect(onFocusTeam).toHaveBeenCalledWith(team.id);
+      expect(onFocusTeam).not.toHaveBeenCalledWith(other.id);
+    },
+  );
+
+  it.each(
+    ROW_CASES.flatMap(({ row, team, other }) =>
+      [
+        { key: '{Enter}', label: 'Enter' },
+        { key: ' ', label: 'Space' },
+      ].map(({ key, label }) => ({ row, key, label, team, other })),
+    ),
+  )(
+    'keyboard $label on the $row row focuses its OWN team — native <button> semantics',
+    async ({ key, team, other }) => {
+      const onFocusTeam = vi.fn();
+      const user = userEvent.setup();
+      renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam }));
+      screen.getByRole('button', { name: focusLabel(team) }).focus();
+      await user.keyboard(key);
+      expect(onFocusTeam).toHaveBeenCalledTimes(1);
+      expect(onFocusTeam).toHaveBeenCalledWith(team.id);
+      expect(onFocusTeam).not.toHaveBeenCalledWith(other.id);
+    },
+  );
+
+  it('exposes EXACTLY TWO row focus controls on a both-teams-resolved card (one per row)', () => {
+    renderNode(makeData({ home: teamRef(ARG), away: teamRef(FRA), onFocusTeam: vi.fn() }));
+    const controls = screen.getAllByRole('button', { name: /^Show matches for/ });
+    expect(controls).toHaveLength(2);
+    // The two controls are the two DISTINCT teams (not the same name twice) —
+    // pins one control per row, each carrying its own row's accessible name.
+    const labels = controls.map((c) => c.getAttribute('aria-label'));
+    expect(labels).toContain(focusLabel(ARG));
+    expect(labels).toContain(focusLabel(FRA));
   });
 });

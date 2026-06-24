@@ -587,3 +587,219 @@ test.describe('canvas standings row — full-row focus-team target, no mis-tap u
     );
   });
 });
+
+/**
+ * Match-card team row — full-row focus-team target, no mis-tap under zoom
+ * (requirement 2026-06-24-1421; plan Test Strategy 7 / Acceptance #1, #2).
+ *
+ * Sibling of the standings block above: the MatchNode team rows ALSO live under
+ * `.react-flow__viewport { transform: scale(zoom) }`, and at the 0.32 floor the
+ * BASELINE per-flag focus button is only ~7px wide on-screen (the 22px glyph ×
+ * 0.32) — far below the 44px touch minimum, and this control never even received
+ * the 1336 coarse-pointer slop. The fix makes each TeamRow's focus-team control a
+ * single full-row-spanning <button> (the grid <div> is the sole `position:
+ * relative` containing block; an `absolute inset-0` button resolves against it →
+ * ~75px-wide on-screen at 0.32, zero overlap between the two stacked rows).
+ *
+ * This block asserts the contract on a REAL touch tap, on the coarse-pointer
+ * `mobile` (iPhone 13) project ONLY (the inverse self-driven-viewport skip),
+ * scoped to a MatchNode card <article> (NOT the standings <section role=region>,
+ * which shares the `Show matches for` accessible name):
+ *   (a) WIDTH — a resolved-team row button's live post-transform
+ *       `boundingBox().width` is >= 44 - 0.5 CSS px. Primary RED signal (baseline
+ *       ~7px) AND the guard that the grid-<div>-resolved `inset-0` actually
+ *       stretched to full-row width in real Chromium. No height assertion
+ *       (accepted geometric limit: a 108px card × 0.32 ≈ 35px holds two rows).
+ *   (b) TAP → CORRECT TEAM — tapping the HOME row and the AWAY row of one card
+ *       focuses THAT row's team each time, via the `role="status"` live region
+ *       ("Showing matches for {team}", RoadmapCanvas.tsx ~218-220), never the
+ *       sibling. The no-mis-tap pin the size-only test structurally cannot make.
+ *   (c) ZERO OVERLAP — the away row button's top >= the home button's bottom
+ *       (sub-pixel ε), so a tap in one band cannot hit the other's control.
+ *
+ * Determinism (plan L1): MatchNode cards are virtualized React Flow nodes, so we
+ * pick the FIRST in-viewport card <article> that exposes exactly TWO `Show
+ * matches for` buttons (both teams resolved) and assert `toBeInViewport()` before
+ * interacting — never act on an offscreen node. Deterministic waits only; no new
+ * screenshot ⇒ no new snapshot baseline.
+ *
+ * NOTE: Playwright browsers may be unavailable in the sandbox/CI image; this spec
+ * runs under `npm run test:e2e` (not the unit `vitest` gate). Document, do not
+ * fail the unit gate, when browsers cannot launch here.
+ */
+
+/**
+ * The first in-viewport MatchNode card (an <article>) that exposes EXACTLY TWO
+ * row focus buttons (both teams resolved). Returns the card locator and its two
+ * row buttons in DOM order (home first, away second). Skips the test loudly if no
+ * such card is framed at first-load 320px (a relayout regression, not a flake).
+ */
+async function firstResolvedMatchCard(page: Page): Promise<{
+  card: Locator;
+  rowButtons: Locator;
+}> {
+  const articles = page.getByRole('article');
+  const total = await articles.count();
+  for (let i = 0; i < total; i += 1) {
+    const card = articles.nth(i);
+    if (!(await card.isVisible())) continue;
+    const rowButtons = card.getByRole('button', { name: /^Show matches for/ });
+    if ((await rowButtons.count()) !== 2) continue;
+    // BOTH row buttons (home + away) must be on-screen so the width + tap
+    // assertions can actually run against this card (never act on an offscreen,
+    // virtualized node). A card framed at the viewport edge with a clipped row is
+    // skipped in favour of a fully-on-screen one.
+    const home = rowButtons.nth(0);
+    const away = rowButtons.nth(1);
+    const homeRatio = await home.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight ? 1 : 0;
+    });
+    const awayRatio = await away.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight ? 1 : 0;
+    });
+    if (homeRatio === 1 && awayRatio === 1) {
+      return { card, rowButtons };
+    }
+  }
+  throw new Error(
+    'no fully on-screen MatchNode <article> with two resolved-team row buttons found at 320px first-load',
+  );
+}
+
+/**
+ * Load the mock canvas at 320px, wait for nodes + the settled transform, and
+ * assert the live `.react-flow__viewport` scale is AT the MOBILE_MIN_ZOOM floor
+ * (densest rows — the worst case for the ≥44px target). Shared by the match-card
+ * block's two tests so the scale-settle guard is written (and tuned) exactly
+ * once; ε and the [floor, floor+0.05] window are NOT relaxed. Returns nothing —
+ * each test then locates its own card.
+ */
+async function gotoMobileFloor(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 });
+  await settle(page);
+
+  const scale = await readScale(page);
+  expect(
+    scale,
+    `settled scale (${scale}) must be at the MOBILE_MIN_ZOOM floor (${MOBILE_MIN_ZOOM}) so the densest rows are exercised`,
+  ).toBeGreaterThanOrEqual(MOBILE_MIN_ZOOM - ZOOM_FLOOR_EPSILON);
+  expect(
+    scale,
+    `settled scale (${scale}) must sit at the floor (<= ${MOBILE_MIN_ZOOM + 0.05}), not zoomed-in`,
+  ).toBeLessThanOrEqual(MOBILE_MIN_ZOOM + 0.05);
+}
+
+test.describe('match-card team row — full-row focus-team target, no mis-tap under zoom', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'mobile',
+      'coarse-pointer/touch path only (iPhone 13); other projects drive their own viewport',
+    );
+  });
+
+  test('home + away row buttons are >=44px wide and tap the CORRECT team at 320px/0.32', async ({
+    page,
+  }) => {
+    await gotoMobileFloor(page);
+
+    // Pick the first in-viewport match card whose BOTH teams are resolved (two row
+    // buttons), scoped to the <article> so the standings region's identically-named
+    // buttons are never matched.
+    const { card, rowButtons } = await firstResolvedMatchCard(page);
+    await expect(card).toBeInViewport();
+    expect(await rowButtons.count(), 'a resolved match card exposes two row focus buttons').toBe(2);
+
+    const status = page.getByRole('status');
+
+    // Read both rows' own team names up front so each tap can assert the live
+    // region names THAT row's team AND explicitly NOT the sibling's (the negative
+    // half of the no-mis-tap pin). The two teams must be distinct, else the
+    // "not the sibling" assertion would be vacuous on this card.
+    const homeTeam = await teamFromButton(rowButtons.nth(0));
+    const awayTeam = await teamFromButton(rowButtons.nth(1));
+    expect(homeTeam, 'home row should carry a team name in its aria-label').not.toBe('');
+    expect(awayTeam, 'away row should carry a team name in its aria-label').not.toBe('');
+    expect(
+      awayTeam,
+      'the chosen card must have two DISTINCT teams for the no-mis-tap pin',
+    ).not.toBe(homeTeam);
+
+    // Index 0 = HOME row, index 1 = AWAY row. For each: measure the on-screen
+    // width, tap, and assert the live region names THAT team and not the sibling.
+    // Focus is cleared between taps (Esc) so the second assertion is independent.
+    // `firstResolvedMatchCard` already guaranteed both row buttons are fully
+    // on-screen, so we measure/tap directly — the WIDTH assertion is the primary
+    // RED signal (baseline ~7px), never gated behind a flakier viewport-ratio probe.
+    for (const rowIndex of [0, 1]) {
+      const button = rowButtons.nth(rowIndex);
+      const team = rowIndex === 0 ? homeTeam : awayTeam;
+      const sibling = rowIndex === 0 ? awayTeam : homeTeam;
+      const rowName = rowIndex === 0 ? 'home' : 'away';
+
+      // (a) WIDTH — post-transform on-screen rect in CSS px (deviceScaleFactor: 3
+      // does NOT inflate it). Baseline per-flag button ~7px → RED.
+      const box = await button.boundingBox();
+      expect(box, `${rowName} row focus button should have a bounding box`).not.toBeNull();
+      expect(
+        box!.width,
+        `${rowName} row (${team}) focus button on-screen width (${box!.width}px) must be >= ${TAP_TARGET_MIN_WIDTH} - ${TAP_TARGET_EPSILON} CSS px at 320px/0.32`,
+      ).toBeGreaterThanOrEqual(TAP_TARGET_MIN_WIDTH - TAP_TARGET_EPSILON);
+
+      // (b) TAP → CORRECT TEAM — a coarse-pointer tap at the button centre focuses
+      // THIS row's team and NOT the sibling's (no mis-tap, both halves pinned).
+      await button.click();
+      await expect(status, `tapping the ${rowName} row must focus ${team} (no mis-tap)`).toHaveText(
+        new RegExp(`Showing matches for ${escapeRegExp(team)}`),
+      );
+      await expect(
+        status,
+        `tapping the ${rowName} row must NOT focus the sibling ${sibling}`,
+      ).not.toHaveText(new RegExp(`Showing matches for ${escapeRegExp(sibling)}`));
+
+      // Clear focus so the next row's assertion is independent of this one.
+      await page.keyboard.press('Escape');
+      await expect(status).toHaveText('');
+    }
+  });
+
+  test('the two stacked row buttons tile with ZERO vertical overlap at 320px/0.32', async ({
+    page,
+  }) => {
+    // The 1030 mis-tap defect was a hit box overlapping a neighbour so a tap landed
+    // on the WRONG row's control. The row-as-target fix gives each button its OWN
+    // grid-<div> band (`absolute inset-0`), so the home and away buttons must NOT
+    // overlap vertically — a deterministic geometric pin (boundingBoxes only, no
+    // timing). The away row's top must be at/after the home row's bottom.
+    await gotoMobileFloor(page);
+
+    const { card, rowButtons } = await firstResolvedMatchCard(page);
+    await expect(card).toBeInViewport();
+
+    const homeBox = await rowButtons.nth(0).boundingBox();
+    const awayBox = await rowButtons.nth(1).boundingBox();
+    expect(homeBox, 'home row button should have a bounding box').not.toBeNull();
+    expect(awayBox, 'away row button should have a bounding box').not.toBeNull();
+
+    // Both bands are the full-row ≥44px-wide target.
+    expect(
+      homeBox!.width,
+      `home row on-screen width (${homeBox!.width}px) must be the full-row ≥44px target`,
+    ).toBeGreaterThanOrEqual(TAP_TARGET_MIN_WIDTH - TAP_TARGET_EPSILON);
+    expect(
+      awayBox!.width,
+      `away row on-screen width (${awayBox!.width}px) must be the full-row ≥44px target`,
+    ).toBeGreaterThanOrEqual(TAP_TARGET_MIN_WIDTH - TAP_TARGET_EPSILON);
+
+    // The away band's TOP must be at/after the home band's BOTTOM (sub-pixel ε): a
+    // tap inside the home band can only hit the home control. A negative gap is the
+    // exact 1030 mis-tap defect.
+    expect(
+      awayBox!.y,
+      `away row top (${awayBox!.y}) must not overlap the home row bottom (${homeBox!.y + homeBox!.height})`,
+    ).toBeGreaterThanOrEqual(homeBox!.y + homeBox!.height - TAP_TARGET_EPSILON);
+  });
+});
