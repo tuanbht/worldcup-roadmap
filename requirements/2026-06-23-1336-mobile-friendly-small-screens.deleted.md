@@ -1,6 +1,7 @@
 # Requirement: Mobile-friendly UI on small screens
 
 ## Context
+
 The app is desktop-first. Some responsive handling exists — `viewport` meta is set, `App.tsx` uses an
 `h-dvh` flex-column shell with a `flex-wrap` header, and `MatchDetailPanel` already has a `max-[640px]`
 bottom-sheet variant. But the rest isn't tuned for phones. Make the whole UI usable and comfortable on small
@@ -8,6 +9,7 @@ screens (target widths **320 / 375 / 414**, up through tablet **768**). Build on
 rebuild what's there.
 
 ## Scope — surface by surface
+
 1. **App shell / header** (`src/App.tsx`) — on small screens the header (title + view toggle + "Live data ·
    FIFA" legend) must stack cleanly without crowding: reduce padding (`px-4`), shrink the hero type via the
    existing `clamp()` scale, let the `SegmentedControl` view toggle and the status legend wrap or move below
@@ -28,11 +30,13 @@ rebuild what's there.
 6. **No page-level horizontal overflow** at any target width; only the canvas pans, never the document.
 
 ## Constraints
+
 - Tailwind v4 breakpoints + the existing `max-[640px]` / `sm:` patterns and oklch tokens — one styling system.
 - Compositor-only animation; honor `prefers-reduced-motion` (already wired).
 - Keep desktop layout unchanged at ≥1024.
 
 ## Acceptance criteria (testable)
+
 - At **320 / 375 / 768** widths: no horizontal page scroll; header stacks without overlap; the canvas fills the
   remaining height (`h-dvh` shell intact).
 - Pinch-zoom and one-finger pan work on the canvas; the page does not scroll while panning the canvas.
@@ -44,6 +48,7 @@ rebuild what's there.
   added/updated for those breakpoints. `npm run typecheck` + `build` green.
 
 ## Files (indicative)
+
 - `src/App.tsx` (header/shell responsiveness), `src/styles/global.css` (breakpoint tokens, safe-area, tap sizes)
 - `src/components/roadmap/RoadmapCanvas.tsx` (touch gestures, mobile zoom defaults)
 - `src/components/panel/MatchDetailPanel.tsx` + `panel/match-detail/*` (bottom-sheet polish, pitch/stats reflow)

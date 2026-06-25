@@ -19,11 +19,7 @@ import {
 import { EMPTY_SCORE, teamRef } from '@/domain/types';
 import type { Match, MatchStatus } from '@/domain/types';
 import { deepFreeze } from './__test-support__/roadmap-fixtures';
-import {
-  boundsOf,
-  isGroupZoneNode,
-  isKnockoutNode,
-} from './hooks/useFocusCamera';
+import { boundsOf, isGroupZoneNode, isKnockoutNode } from './hooks/useFocusCamera';
 import {
   distinctZoneGraph,
   groupOnlyGraph,

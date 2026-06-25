@@ -5,6 +5,7 @@
 > **Decision: REQUEST CHANGES** — 2 HIGH themes. Split into pipeline requirements as needed; R1/R2 first.
 
 ## Context
+
 The app is a pure FIFA-direct SPA with **no backend safety net**, so client-side resilience is now load-bearing:
 any module-eval throw, render error, or fetch failure currently blanks the whole page with no feedback. The review
 also found one real bracket-content bug and a tail of dead-code / a11y / perf cleanups.
@@ -14,7 +15,9 @@ also found one real bracket-content bug and a tail of dead-code / a11y / perf cl
 ## REQUIRED (HIGH)
 
 ### R1 · App-level error resilience (one theme, 3 failure modes → blank white SPA)
+
 The review flagged this from four subsystems; all converge here.
+
 - **No React error boundary anywhere** (`src/main.tsx:20`, `src/App.tsx`, `src/components/roadmap/RoadmapCanvas.tsx:195`).
   Any render-time throw (malformed node datum, a node-renderer null-deref, a React Flow assertion) unmounts to a blank page.
 - **`fifa-config.ts:30` throws at module-eval** — `FifaConfigSchema.parse(import.meta.env.…)`; an invalid
@@ -27,11 +30,13 @@ The review flagged this from four subsystems; all converge here.
   retry/error state. Add tests for the boundary fallback and the bad-config path.
 
 ### R2 · `buildBracket` shows a placeholder instead of the real advancing team
+
 `src/domain/bracket/build-bracket.ts:93-100` (and `buildThirdPlace` :136-141). When a real later-round `Match` exists
-but its `home`/`away` is still a **placeholder** (FIFA creates fixture *shells* with `PlaceHolderA/B` and no `IdTeam`
+but its `home`/`away` is still a **placeholder** (FIFA creates fixture _shells_ with `PlaceHolderA/B` and no `IdTeam`
 until teams resolve — see `mapper.ts:53-62`), the `match ? match.home : …` guard uses the placeholder and **bypasses
 the `decidedTeam` winner-propagation path**, so a R16/QF/SF/Final card shows a generic placeholder even though the
 finished feeder's winner is derivable. This defeats the module's documented contract (lines 47-48).
+
 - **Fix:** `homeTeam = (match && isResolved(match.home)) ? match.home : (decidedTeam(top, matchById, 'winner') ?? placeholderRef(...))`
   and the symmetric away/third-place variants (`isResolved` is already imported). Add a test: finished feeder + placeholder
   shell ⇒ the parent shows the real team.
@@ -39,6 +44,7 @@ finished feeder's winner is derivable. This defeats the module's documented cont
 ---
 
 ## RECOMMENDED (MEDIUM)
+
 - **M1 · `match-detail-client.ts:57-59` swallows every failure silently** — abort, 403/bot-block, schema regression all
   collapse to `null` with zero observability → a permanently-empty "ready" detail panel. Log non-abort errors (via a small
   logger, honoring the no-`console` rule) or return a discriminated result.
@@ -54,6 +60,7 @@ finished feeder's winner is derivable. This defeats the module's documented cont
   `team-focus.ts`/`useFocusedTeam.ts` though both have tests.
 
 ## OPTIONAL (LOW — grouped)
+
 - **Correctness nits:** event sort uses `parseMinute`→0 for null minutes (misorders unknown-minute events,
   `match-detail-mapper.events.ts:179,90`); `standings.ts:115` form-sort non-deterministic on tied kickoff;
   `build-graph.ts:270` day label uses first-seen (not earliest) kickoff; `useStageView.ts:26` no SSR guard.
@@ -67,6 +74,7 @@ finished feeder's winner is derivable. This defeats the module's documented cont
   `npm run format` on the failing `requirements/*.process.md`.
 
 ## Acceptance
+
 - R1 + R2 implemented with tests (boundary fallback, bad-config fail-soft, fetch-error UI, bracket placeholder→real).
 - M1–M7 addressed or consciously deferred with a one-line rationale; LOWs as capacity allows.
 - `npm run typecheck`, `npm run test`, `npm run build`, `npx prettier --check .` all green.

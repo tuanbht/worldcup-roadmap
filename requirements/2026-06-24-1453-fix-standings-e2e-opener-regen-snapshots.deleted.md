@@ -1,6 +1,7 @@
 # Requirement: Fix the standings e2e opener so the compact snapshots regenerate
 
 ## Context
+
 `2026-06-24-1031-compact-standings-header-density-320` shipped (commit `b75cc03`) but left **AC #11 open**:
 the two COMPACT visual snapshots `standings-open-320` / `standings-open-375` were **not** regenerated. The
 `mobile standings overlay layout` → `standings overlay fits at {320,375,768}px` block in
@@ -18,17 +19,20 @@ overlay is openable — only the e2e test's "rely on first-load framing to surfa
 broken.
 
 ## Bug
+
 At the test camera, the `Open Group A standings` button is off-screen / not hittable in headless Chromium,
 so the opener `click()` never happens → no dialog → the `standings-open-*` snapshots are stale (still at
 commit `22a9436`, pre-1031), and the in-viewport / no-overflow / 320×720 vertical-fit assertions are inert.
 
 ## Want
+
 The `standings overlay fits` e2e block runs **green** in headless Chromium at 320 / 375 / 768 by
 deterministically opening the Group A standings overlay, so the compact `standings-open-320` and
 `standings-open-375` snapshots **regenerate** (closing 1031 AC #11) and the in-viewport / no-overflow /
 vertical-fit assertions actually execute.
 
 ## Decision
+
 - **Make the opener deterministically reachable before clicking.** Bring the Group A `group-standings`
   opener into view via a reliable, deterministic mechanism rather than relying on first-load framing —
   e.g. an explicit camera frame / `fitView` to the Group A standings region, `scrollIntoViewIfNeeded()` /
@@ -44,6 +48,7 @@ vertical-fit assertions actually execute.
   `roadmap-1440` **must NOT change** — if any diffs, STOP and fix (it's a leak, not a refresh).
 
 ## Acceptance criteria (testable)
+
 - `npx playwright test e2e/visual.spec.ts -g "standings overlay fits"` passes at **320 / 375 / 768** in
   headless Chromium: the Group A standings dialog opens, the close button + dialog are in viewport, no
   horizontal overflow (`scrollWidth ≤ clientWidth + 1`), and the 320×720 vertical-fit assertion runs.
@@ -55,12 +60,14 @@ vertical-fit assertions actually execute.
   behavior change (or a minimal, justified affordance only).
 
 ## Files (indicative)
+
 - `e2e/visual.spec.ts` — the `mobile standings overlay layout` block opener (deterministic open) →
   **wc-test-engineer**
 - `e2e/visual.spec.ts-snapshots/standings-open-320-*.png`, `standings-open-375-*.png` (regenerated)
 - optionally a small deterministic test helper for opening the standings overlay
 
 ## Notes
+
 Closes the single open caveat from requirement 1031 (the standings density visual baseline). Owner:
 **wc-test-engineer** (e2e infra + snapshot refresh); **wc-graph-engineer** only if a deterministic
 camera/focus affordance is the chosen open mechanism.

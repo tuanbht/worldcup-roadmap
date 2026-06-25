@@ -1,6 +1,7 @@
 # Requirement: Make the match detail (Stats) popup mobile-friendly
 
 ## Bug (observed via Playwright on a 390×844 iPhone viewport)
+
 Open any match → select **Stats**: the bottom sheet shows the big score header + the full goalscorers line +
 the tab row, and the **actual stats content (Win Probability bar + team-stats rows) is pushed below the bottom
 of the sheet** — the tabs sit at the very bottom edge and the data the user opened Stats for is **off-screen**.
@@ -10,13 +11,16 @@ sheet is only ~half-height.)
 Same shape will affect the **Timeline** and **Lineups** tabs (header pushes their content down too).
 
 ## Root cause
+
 On mobile (`max-[640px]`) `MatchDetailPanel` is a bottom sheet (`bottom-0`, `h-auto`, `max-h-[70%]`, `w-full`,
 `flex flex-col`). Its children stack: tall `MatchDetailHeader` (oversized score + meta + scorers) → tabs →
 active tab content. The header consumes the sheet, so the tab content renders near/below the viewport bottom and
 is clipped, with no internal scroll bringing it into view.
 
 ## Decision (mobile, `max-[640px]` only — desktop right-drawer unchanged)
+
 Restructure the sheet so the **tab content is what the user sees**:
+
 1. **Taller sheet** — make it a near-full-height bottom sheet (e.g. `h-[88dvh]` / `max-h-[92dvh]`) instead of
    `max-h-[70%]`, so there's room for content. Respect `env(safe-area-inset-bottom)`.
 2. **Three-region flex column:** a **compact sticky header**, **sticky tabs** directly beneath it, and a
@@ -28,6 +32,7 @@ Restructure the sheet so the **tab content is what the user sees**:
 4. Keep the close button reachable (top-right of the sheet), `inert`/Escape/focus behavior intact.
 
 ## Acceptance criteria (testable, at 320 / 375 / 390 widths)
+
 - Opening a match → **Stats**: the **Win Probability bar and the first team-stats rows are visible without
   scrolling**; the remaining rows are reachable by scrolling **within** the sheet; the tab row stays visible
   (sticky) while the content scrolls. **No stats content is clipped off the bottom.**
@@ -38,6 +43,7 @@ Restructure the sheet so the **tab content is what the user sees**:
 - `npm run typecheck` + `build` + tests green; mobile visual snapshot of the open Stats sheet added/updated.
 
 ## Files
+
 - `src/components/panel/MatchDetailPanel.tsx` (mobile sheet height + the sticky-header / sticky-tabs /
   scroll-content structure), `src/components/panel/match-detail/MatchDetailHeader.tsx` (mobile compaction),
   `MatchDetailTabs.tsx` (sticky tabs + scrollable content region), `StatsTab.tsx`/`TimelineTab.tsx`/`LineupsTab.tsx`

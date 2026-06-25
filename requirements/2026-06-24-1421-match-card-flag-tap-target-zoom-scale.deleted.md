@@ -1,6 +1,7 @@
 # Requirement: Match-card team-row flag tap target stays ≥44px under the React Flow zoom transform
 
 ## Context
+
 This is the sibling follow-up to `2026-06-24-1030-canvas-flag-tap-target-zoom-scale` (which fixed the **standings-row**
 flag by making the whole row a full-width focus-team control). The 1030 work explicitly left the **match-card**
 flag out of scope; this requirement closes that gap.
@@ -12,6 +13,7 @@ The match-card team-row flag is an interactive `<button>` rendered in `src/compo
 under `.react-flow__viewport { transform: scale(zoom) }`.
 
 Two problems compound:
+
 1. Unlike the flags treated by `2026-06-23-1336-mobile-friendly-small-screens`, this button **never received the
    ≥44px coarse-pointer hit slop** (no `min-h-[44px]`/`min-w-[44px]`, no `pointer-coarse:` rule) — so it is small
    even un-transformed.
@@ -24,6 +26,7 @@ dialog have their own markup; grep confirms `TeamRow` is imported only by `Match
 flag to protect for this component — but desktop (≥1024) behaviour must stay byte-identical.
 
 ## Decision
+
 - The planner must determine the right approach, learning from 1030. The proven, accepted pattern from 1030 is
   **row-as-target**: make the whole team-row the focus-team control (a full-row-width tap target) rather than
   counter-scaling the tiny flag — because per-flag counter-scaling at the 0.32 floor overlapped neighbours and
@@ -42,6 +45,7 @@ flag to protect for this component — but desktop (≥1024) behaviour must stay
   unless the planner proves it is genuinely required (1030 needed none).
 
 ## Acceptance criteria (testable)
+
 - At 320px on the mobile/coarse-pointer path with the viewport scale settled at the floor (0.32), the match-card
   resolved-team-row focus control's **post-transform on-screen** bounding box (`getBoundingClientRect()` /
   Playwright `boundingBox()`, which includes the viewport scale) is **≥44px wide** (width ≥ 44 − 0.5 CSS px). As in
@@ -61,11 +65,13 @@ flag to protect for this component — but desktop (≥1024) behaviour must stay
   new snapshot baseline).
 
 ## Files (indicative)
+
 - `src/components/nodes/TeamRow.tsx` (the match-card team-row flag/control) and possibly `src/components/nodes/MatchNode.tsx` (row layout / containing block)
 - `src/components/nodes/TeamRow.test.tsx` and/or `src/components/nodes/MatchNode.test.tsx` (unit)
 - `e2e/visual.spec.ts` (transform-aware, `mobile`-only on-screen bounding-box + tap-action assertions at 320px/0.32)
 
 ## Notes
+
 Direct follow-up to `2026-06-24-1030-canvas-flag-tap-target-zoom-scale`; reuse its proven row-as-target mechanism and
 its e2e idiom (mobile-project-only inverse skip, scale-settled-at-floor guard, live `boundingBox().width ≥ 44 − 0.5`,
 correct-team-per-row via the live region, zero-overlap geometry guard). The standings-row fix and this match-card fix

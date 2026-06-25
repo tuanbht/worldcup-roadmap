@@ -122,6 +122,11 @@ export interface DistinctZoneGraph {
 export function distinctZoneGraph(suffix = ''): DistinctZoneGraph {
   const standings = standingsNode({ id: `s1${suffix}`, x: 0, y: 0 });
   const groupMatch = matchNode({ id: `gm1${suffix}`, x: 300, y: 200, stage: 'GROUP_STAGE' });
-  const knockoutMatch = matchNode({ id: `ko1${suffix}`, x: 1200, y: 1600, stage: 'QUARTER_FINALS' });
+  const knockoutMatch = matchNode({
+    id: `ko1${suffix}`,
+    x: 1200,
+    y: 1600,
+    stage: 'QUARTER_FINALS',
+  });
   return { standings, groupMatch, knockoutMatch, nodes: [standings, groupMatch, knockoutMatch] };
 }

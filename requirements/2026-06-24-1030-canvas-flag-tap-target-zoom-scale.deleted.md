@@ -1,6 +1,7 @@
 # Requirement: Canvas flag tap target stays ≥44px under the React Flow zoom transform
 
 ## Context
+
 `2026-06-23-1336-mobile-friendly-small-screens` added ≥44×44 coarse-pointer hit areas to flags, tabs, and
 close buttons. The unit tests assert the **un-transformed** bounding box, so they pass. But the standings-row
 flag button rendered **inside the canvas** lives under `.react-flow__viewport { transform: scale(zoom) }`. At
@@ -12,6 +13,7 @@ This is **canvas-only**: flags in the DOM overlays (the match-detail panel, the 
 NOT inside the scaled viewport and are already a genuine ≥44px on-screen — leave them unchanged.
 
 ## Decision
+
 - **Counter-scale the canvas flag's hit area by `1/zoom`** so its effective on-screen tap target is ≥44px
   regardless of the current zoom. Use the live zoom level (e.g. the existing `useZoomLevel`/React Flow viewport
   scale) to size a `1/zoom`-scaled hit slop around the (visually unchanged) flag glyph. The glyph itself stays
@@ -24,6 +26,7 @@ NOT inside the scaled viewport and are already a genuine ≥44px on-screen — l
 - Desktop (≥1024) and the DOM-overlay flags stay **byte-identical** — scope is the canvas flag only.
 
 ## Acceptance criteria (testable)
+
 - At 320px on the mobile/coarse-pointer path, the canvas standings-row flag's **post-transform on-screen**
   bounding box (`getBoundingClientRect`, which includes the viewport scale) is **≥44×44** — OR, if the flag is
   decorative, it is not an interactive control (no `button`/`role`, not tab-focusable) and the requirement is
@@ -36,11 +39,13 @@ NOT inside the scaled viewport and are already a genuine ≥44px on-screen — l
   the visual suite stays deterministic (no new flake).
 
 ## Files (indicative)
+
 - `src/components/nodes/GroupTableNode.tsx` (the canvas standings-row flag) and/or `src/components/**/Flag*`
 - the live zoom source (`src/features/roadmap/hooks/useZoomLevel.ts` or the React Flow viewport scale)
 - `e2e/visual.spec.ts` (transform-aware bounding-box assertion at 320px)
 
 ## Notes
+
 Independent of the in-flight `2026-06-24-0951-preserve-viewport-on-refetch` (that touches the camera/fit hooks;
 this touches the canvas flag hit area). No file overlap expected.
 

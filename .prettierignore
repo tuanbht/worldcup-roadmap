@@ -20,3 +20,5 @@ docs/pipeline
 docs/code-review-vite-hono-rework.md
 # Untracked, unrelated local agent definitions (not part of this codebase)
 .claude/agents/wc-*.md
+# Local Claude Code settings (untracked, machine-local — not project source)
+.claude/settings.local.json

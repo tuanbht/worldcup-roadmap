@@ -340,7 +340,7 @@ describe('useFitOnChange — garbage ?focus= falls back to default fit [hook cas
     expect(framedBounds()).toEqual(boundsOf([...nodes]));
   });
 
-  it("?focus=knockout on a group-only graph (empty subset) falls back to the whole-graph fit", () => {
+  it('?focus=knockout on a group-only graph (empty subset) falls back to the whole-graph fit', () => {
     setFocusParam('knockout');
     // group-only: standings + a single group match, no knockout node.
     const nodes: RoadmapNode[] = [
@@ -449,7 +449,7 @@ describe('readColdLoadFocusParam — reads the raw `?focus=` value from the URL 
     expect(readColdLoadFocusParam()).toBe('ko1');
   });
 
-  it('returns an unknown garbage token verbatim (validation is the resolver\'s job, not the reader\'s)', () => {
+  it("returns an unknown garbage token verbatim (validation is the resolver's job, not the reader's)", () => {
     setFocusParam('%%%garbage%%%');
     // The reader is a thin URL reader: it surfaces the decoded raw value and lets
     // `resolveColdLoadFocusBounds` decide it is unresolvable (→ default fit).
