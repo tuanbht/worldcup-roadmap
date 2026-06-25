@@ -59,7 +59,7 @@ export function useFitOnChange(key: unknown, nodes: readonly RoadmapNode[] = [])
       // refetch — which short-circuits on `hasFramedRef` above — never re-reads
       // the URL or re-frames.
       const focusBounds = resolveColdLoadFocusBounds(readColdLoadFocusParam(), nodes);
-      const bounds = focusBounds ?? boundsOf([...nodes]);
+      const bounds = focusBounds ?? boundsOf(nodes);
       cancelFrame = frameTopAlignedWithRetry(rf, bounds, FRAME_DURATION, () => {
         void fitView({ padding: FIT_PADDING, duration: FRAME_DURATION });
       });
@@ -68,8 +68,9 @@ export function useFitOnChange(key: unknown, nodes: readonly RoadmapNode[] = [])
       window.clearTimeout(id);
       cancelFrame?.();
     };
-    // Frame once on the first non-empty key; the ref makes every later key
-    // change (a refetch) a no-op, so it is intentionally not in the deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `nodes` is intentionally
+    // omitted: `hasFramedRef` makes every later run (incl. a refetch that mints a new
+    // `nodes`) a no-op, so the first non-empty `key` is the only trigger; adding `nodes`
+    // would re-run on refetch and re-frame, discarding the user's zoom + pan.
   }, [key, rf, fitView]);
 }

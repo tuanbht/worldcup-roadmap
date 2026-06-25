@@ -50,7 +50,7 @@ export function isKnockoutNode(node: RoadmapNode): boolean {
 }
 
 /** Axis-aligned bounds of a node set, accounting for each node's footprint. */
-export function boundsOf(nodes: RoadmapNode[]): Rect | null {
+export function boundsOf(nodes: readonly RoadmapNode[]): Rect | null {
   if (nodes.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
@@ -182,7 +182,7 @@ export function frameTopAlignedWithRetry(
  * frames only when `focus` actually changed, so a refetch is a no-op while a
  * real StageToggle still re-frames.
  */
-export function useFocusCamera(focus: RoadmapFocus, nodes: RoadmapNode[]): void {
+export function useFocusCamera(focus: RoadmapFocus, nodes: readonly RoadmapNode[]): void {
   const rf = useReactFlow();
   const { fitView, fitBounds } = rf;
   const framedOnce = useRef(false);

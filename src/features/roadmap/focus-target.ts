@@ -115,7 +115,7 @@ export function resolveColdLoadFocusBounds(
   nodes: readonly RoadmapNode[],
 ): Rect | null {
   if (!rawParam) return null;
-  if (rawParam === 'all') return boundsOf([...nodes]);
+  if (rawParam === 'all') return boundsOf(nodes);
   if (rawParam === 'groups') return boundsOf(nodes.filter(isGroupZoneNode));
   if (rawParam === 'knockout') return boundsOf(nodes.filter(isKnockoutNode));
   // A bare token that is not a view → treat it as a match-card deep link.

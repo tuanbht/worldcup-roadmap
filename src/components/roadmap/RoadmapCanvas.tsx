@@ -122,7 +122,12 @@ function CanvasInner() {
     });
   }, []);
 
-  useFitOnChange(nodes.length, displayNodes);
+  // Frame off the RAW graph for BOTH the trigger key and the geometry: the key
+  // (`nodes.length`) and the framing source must come from the same array so they
+  // can never diverge. `displayNodes` re-stamps focus/flag data over the same
+  // nodes WITHOUT moving any of them, so raw `nodes` yields identical bounds while
+  // keeping the one-time-frame trigger and its geometry in lockstep.
+  useFitOnChange(nodes.length, nodes);
   // Frame off the RAW graph (stable positions), NOT `displayNodes`: opening the
   // standings overlay, focusing a team, or the nearest-flag pass all mint a new
   // `displayNodes` identity WITHOUT changing any node position. Keying the camera

@@ -51,7 +51,7 @@ interface FocusRowButtonProps {
  */
 function FocusRowButton({ row, onFocusTeam }: FocusRowButtonProps) {
   const { team } = row;
-  const focus = () => onFocusTeam(team.id);
+  const focusTeam = () => onFocusTeam(team.id);
   return (
     <button
       type="button"
@@ -60,9 +60,13 @@ function FocusRowButton({ row, onFocusTeam }: FocusRowButtonProps) {
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation();
-        focus();
+        focusTeam();
       }}
       onKeyDown={(event) => {
+        // Propagation firewall ONLY — keep Enter/Space off React Flow's pan/select.
+        // The native <button> still synthesises a `click` for Enter/Space, which
+        // runs onClick → focusTeam(); do NOT add preventDefault() here or that
+        // synthesised click (and thus keyboard activation) would be suppressed.
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.stopPropagation();
       }}
