@@ -47,6 +47,12 @@ export function Flag({ code, url, size = 22, shape = 'rect' }: FlagProps) {
       aria-hidden="true"
       width={style.width}
       height={style.height}
+      // Inline width/height so the round roundel stays a true square circle: the
+      // HTML height attribute alone is overridden by the global `img { height: auto }`
+      // reset, which would render a real (rectangular) flag at its natural aspect
+      // inside `rounded-full` — i.e. an ellipse, not a circle. Scoped to `round` so
+      // the rect chip (grid) keeps its current natural-aspect rendering unchanged.
+      style={round ? style : undefined}
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}

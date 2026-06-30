@@ -6,6 +6,9 @@ import type { FinalCenterFlowNode } from '@/features/roadmap/graph-model';
 import { Flag } from '@/components/ui/Flag';
 
 const HANDLE = '!h-1 !w-1 !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0';
+/** Pin the handle to the center so the two inward SF connectors converge exactly
+ *  at the trophy, not at the top edge of the 96px center node. */
+const HANDLE_CENTER = { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' } as const;
 
 /** Champion roundel diameter — sized to sit beside the trophy in the 96px center. */
 const CHAMPION_PX = 22;
@@ -31,7 +34,13 @@ function FinalCenterNodeImpl({ data }: NodeProps<FinalCenterFlowNode>) {
       data-status={status}
       data-focus={focusState}
     >
-      <Handle id="t" type="target" position={Position.Top} className={HANDLE} />
+      <Handle
+        id="t"
+        type="target"
+        position={Position.Top}
+        className={HANDLE}
+        style={HANDLE_CENTER}
+      />
       <span className="radial-center__glow" aria-hidden="true" />
       <div className="radial-center__crown relative flex items-center justify-center gap-1">
         <Trophy className="radial-center__trophy text-gold" aria-hidden="true" />

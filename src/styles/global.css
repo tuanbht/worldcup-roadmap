@@ -247,10 +247,21 @@
 }
 
 /* ---- Outer-ring team badge ---- */
+/* Center the roundel on the polar point (position = center, not top-left): the
+   code caption is taken out of flow below so the column collapses to the roundel
+   and the translate lands the roundel exactly on the outer-ring radius. */
 .radial-badge {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  transform: translate(-50%, -50%);
+}
+.radial-badge__code {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .radial-badge__roundel {
   border-radius: 9999px;
@@ -279,6 +290,15 @@
 }
 
 /* ---- Inner-ring match dots: a small status-ringed junction ---- */
+/* React Flow places a node's top-left at its position; the radial layout's
+   position IS the node's intended CENTER (the polar point). Translate the dot so
+   its center sits on the polar point — then the centered Handle (and thus the
+   straight connector endpoints) and the visible roundel all coincide with the
+   geometry, so the lines meet the dots dead-center instead of at a corner. */
+.radial-dot {
+  position: relative;
+  transform: translate(-50%, -50%);
+}
 .radial-dot__core {
   width: 12px;
   height: 12px;
@@ -316,7 +336,13 @@
 /* Compact score caption (the e2e locator [L2]): tabular figures so the digits
    don't drift sub-pixel between scores; dim + display font, no layout animation. */
 .radial-dot__score {
-  margin-top: 2px;
+  /* Out of flow (absolute, just below the roundel) so it never shifts the
+     roundel off the polar center; centered horizontally under the dot. */
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 1px;
   font-family: var(--font-display);
   font-size: 0.5rem;
   font-weight: 600;
@@ -336,6 +362,9 @@
   background: radial-gradient(circle at 50% 35%, var(--color-surf-3), var(--color-surf-1));
   box-shadow: var(--glow-gold), var(--elevation-card);
   padding: 0.4rem;
+  /* Position = the circle center (0,0); translate so the 96px node centers on it,
+     so the inward connectors converge exactly at the trophy. */
+  transform: translate(-50%, -50%);
 }
 .radial-center__glow {
   position: absolute;

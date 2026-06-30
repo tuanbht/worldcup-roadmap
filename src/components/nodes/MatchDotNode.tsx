@@ -5,6 +5,10 @@ import type { MatchDotFlowNode } from '@/features/roadmap/graph-model';
 import { Flag } from '@/components/ui/Flag';
 
 const HANDLE = '!h-1 !w-1 !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0';
+/** Pin both handles to the dot's CENTER so the straight radial connectors attach
+ *  at the node center (the polar point) — not the top/bottom edge — keeping the
+ *  lines aligned with the roundel instead of meeting it off-center. */
+const HANDLE_CENTER = { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' } as const;
 
 /** Winner-roundel diameter by ring [M3]: R32/R16/QF ≤18px (fits DOT_SIZE), SF
  *  ≤16px (a hard cap so a roundel can't overflow into the dense neighbour band). */
@@ -62,7 +66,13 @@ function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
       title={dotTitle}
       role="img"
     >
-      <Handle id="t" type="target" position={Position.Top} className={HANDLE} />
+      <Handle
+        id="t"
+        type="target"
+        position={Position.Top}
+        className={HANDLE}
+        style={HANDLE_CENTER}
+      />
       {decided ? (
         <span className="radial-dot__flag block" aria-hidden="true">
           <Flag code={winnerCode} url={winnerFlagUrl} size={ROUNDEL_PX[stage]} shape="round" />
@@ -75,7 +85,13 @@ function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
           {score}
         </span>
       )}
-      <Handle id="b" type="source" position={Position.Bottom} className={HANDLE} />
+      <Handle
+        id="b"
+        type="source"
+        position={Position.Bottom}
+        className={HANDLE}
+        style={HANDLE_CENTER}
+      />
     </div>
   );
 }
