@@ -67,6 +67,27 @@ test.describe('radial circle view', () => {
     await expect(page.getByText(/Group A.*MD\d/)).toHaveCount(0, { timeout: 10_000 });
   });
 
+  test('decided inner nodes show winner flags + a .radial-dot__score caption [Test 18 / Acceptance #1, #3] (2026-06-30-1416)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await load(page);
+    await switchToCircle(page);
+
+    // At least one decided match-dot renders its score via the dedicated caption
+    // class — scoped to `.radial-dot__score`, NOT any en-dash text node (the EN
+    // DASH is also the empty-goal placeholder glyph elsewhere) [L2].
+    await expect(async () => {
+      expect(await page.locator('.radial-dot__score').count()).toBeGreaterThan(0);
+    }).toPass({ timeout: 10_000 });
+    await expect(page.locator('.radial-dot__score').first()).toBeAttached();
+
+    // The winner flags are the round Flag roundels rendered inside the match dots.
+    await expect(async () => {
+      expect(await page.locator('.radial-dot .rounded-full').count()).toBeGreaterThan(0);
+    }).toPass({ timeout: 10_000 });
+  });
+
   test('?layout=circle persists across reload and back-to-grid restores the timeline [Test 28 / Acceptance #4]', async ({
     page,
   }) => {

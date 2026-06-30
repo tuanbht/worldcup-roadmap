@@ -45,6 +45,10 @@ const dot: MatchDotFlowNode = {
     status: 'finished',
     home: ARG,
     away: FRA,
+    winner: null,
+    winnerCode: null,
+    winnerFlagUrl: null,
+    score: null,
   },
 };
 
@@ -52,7 +56,15 @@ const center: FinalCenterFlowNode = {
   id: 'wc2026-f-1',
   type: 'final-center',
   position: { x: 0, y: 0 },
-  data: { matchId: 'wc2026-f-1', status: 'live', home: ARG, away: FRA },
+  data: {
+    matchId: 'wc2026-f-1',
+    status: 'live',
+    home: ARG,
+    away: FRA,
+    winner: null,
+    winnerCode: null,
+    winnerFlagUrl: null,
+  },
 };
 
 describe('footprintOf — radial node sizes [H3 / Acceptance #8]', () => {

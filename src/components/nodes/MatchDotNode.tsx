@@ -2,19 +2,56 @@ import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { refLabel } from '@/domain/types';
 import type { MatchDotFlowNode } from '@/features/roadmap/graph-model';
+import { Flag } from '@/components/ui/Flag';
 
 const HANDLE = '!h-1 !w-1 !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0';
 
+/** Winner-roundel diameter by ring [M3]: R32/R16/QF ≤18px (fits DOT_SIZE), SF
+ *  ≤16px (a hard cap so a roundel can't overflow into the dense neighbour band). */
+const ROUNDEL_PX: Record<MatchDotFlowNode['data']['stage'], number> = {
+  ROUND_OF_32: 18,
+  ROUND_OF_16: 18,
+  QUARTER_FINALS: 18,
+  SEMI_FINALS: 16,
+  THIRD_PLACE: 16,
+  FINAL: 18,
+};
+
+/** Inline score caption shows only on the outer rings; the tight SF ring keeps the
+ *  score reachable via title/aria instead (decision 3) — no always-on center cluster. */
+const INLINE_SCORE_STAGES: ReadonlySet<MatchDotFlowNode['data']['stage']> = new Set([
+  'ROUND_OF_32',
+  'ROUND_OF_16',
+  'QUARTER_FINALS',
+]);
+
 /**
- * Inner-ring KO match dot (R32..SF). A small status-ringed junction: `data-status`
- * (live/finished/scheduled → the live/decided/undecided color), `data-focus` from
- * `focusState`, a source (inward, to the parent) + target (outward, from children)
- * `Handle` for the radial edges, and an accessible label naming the matchup so SR
- * users can reach the match; a click opens the panel via the canvas `onNodeClick`.
+ * Inner-ring KO match dot (R32..SF) — the WINNER of its match. A DECIDED dot
+ * renders the winning team's round `Flag shape="round"` roundel inside the
+ * `data-status` ring plus a compact `.radial-dot__score` caption (suppressed to
+ * `title`/`aria` on the tight SF ring per M3); an UNDECIDED dot keeps the neutral
+ * `.radial-dot__core` (TBD) and shows no score. `data-status` (live/finished/
+ * scheduled → the live/decided/undecided color) and `data-focus` are retained; a
+ * source (inward) + target (outward) `Handle` carry the radial edges, and an
+ * accessible label names the matchup (and "won by …" for a decided node) so SR
+ * users can reach the match. A click opens the panel via the canvas `onNodeClick`.
  */
 function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
-  const { status, roundLabel, home, away, focusState } = data;
-  const label = `${roundLabel}: ${refLabel(home)} versus ${refLabel(away)}`;
+  const { status, stage, roundLabel, home, away, winner, winnerCode, winnerFlagUrl, score } = data;
+  const { focusState } = data;
+  const decided = winner !== null;
+  const matchup = `${roundLabel}: ${refLabel(home)} versus ${refLabel(away)}`;
+  const winnerName = decided ? refLabel(winner) : null;
+  const label =
+    decided && score !== null
+      ? `${matchup} — won by ${winnerName} ${score}`
+      : decided
+        ? `${matchup} — won by ${winnerName}`
+        : matchup;
+  const showInlineScore = decided && score !== null && INLINE_SCORE_STAGES.has(stage);
+  // The SF score is kept reachable on the wrapper's title even when the inline
+  // caption is suppressed (it is also in the aria-label above).
+  const dotTitle = decided && score !== null ? `${winnerName ?? ''} ${score}`.trim() : undefined;
 
   return (
     <div
@@ -22,10 +59,22 @@ function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
       data-status={status}
       data-focus={focusState}
       aria-label={label}
+      title={dotTitle}
       role="img"
     >
       <Handle id="t" type="target" position={Position.Top} className={HANDLE} />
-      <span className="radial-dot__core block rounded-full" aria-hidden="true" />
+      {decided ? (
+        <span className="radial-dot__flag block" aria-hidden="true">
+          <Flag code={winnerCode} url={winnerFlagUrl} size={ROUNDEL_PX[stage]} shape="round" />
+        </span>
+      ) : (
+        <span className="radial-dot__core block rounded-full" aria-hidden="true" />
+      )}
+      {showInlineScore && (
+        <span className="radial-dot__score block" aria-hidden="true">
+          {score}
+        </span>
+      )}
       <Handle id="b" type="source" position={Position.Bottom} className={HANDLE} />
     </div>
   );

@@ -15,9 +15,11 @@
  *
  * Immutable: returns new objects; never mutates the input tournament.
  */
-import type { BracketNode, Match, Tournament } from '@/domain/types';
-import { loserTeamId } from '@/domain/bracket/resolve-teams';
+import type { BracketNode, Match, TeamRef, Tournament } from '@/domain/types';
+import { isResolved } from '@/domain/types';
+import { loserTeamId, winnerTeamRef } from '@/domain/bracket/resolve-teams';
 import { STAGE_LABELS } from '@/domain/bracket/stage-order';
+import { formatMatchScore } from './format-score';
 import { computeRadialBracketLayout, type RadialNodePos } from './layout/radial-bracket-layout';
 import { BADGE_RING_RADIUS, HALF_GAP } from './layout/radial-constants';
 import { teamIdOfRef } from './team-focus';
@@ -72,8 +74,28 @@ function badgeNodes(
   });
 }
 
+/**
+ * Derive the winner roundel primitives from the SHARED guarded rule
+ * (`winnerTeamRef`, `isResolved`-guarded): the resolved winning `TeamRef` plus the
+ * view-facing `code`/`flagUrl` read off it (like `TeamBadgeNode`) [L1]. Null when
+ * the match is undecided OR the winning side is still a placeholder.
+ */
+function winnerOf(
+  node: BracketNode,
+  matchById: Map<string, Match>,
+): { winner: TeamRef | null; winnerCode: string | null; winnerFlagUrl: string | null } {
+  const winner = winnerTeamRef(node, matchById);
+  const team = winner !== null && isResolved(winner) ? winner.team : null;
+  return { winner, winnerCode: team?.code ?? null, winnerFlagUrl: team?.flagUrl ?? null };
+}
+
 /** Inner-ring dot for a non-Final KO match (node id === matchId). */
-function matchDotNode(node: BracketNode, pos: RadialNodePos, match?: Match): MatchDotFlowNode {
+function matchDotNode(
+  node: BracketNode,
+  pos: RadialNodePos,
+  matchById: Map<string, Match>,
+  match?: Match,
+): MatchDotFlowNode {
   return {
     id: node.matchId,
     type: 'match-dot',
@@ -85,6 +107,10 @@ function matchDotNode(node: BracketNode, pos: RadialNodePos, match?: Match): Mat
       status: match?.status ?? 'scheduled',
       home: node.home.team,
       away: node.away.team,
+      // DERIVED (pure) from the SHARED winner rule + the single score formatter;
+      // null when the match is undecided OR the winning side is unresolved.
+      ...winnerOf(node, matchById),
+      score: match ? formatMatchScore(match.score) : null,
     },
   };
 }
@@ -93,6 +119,7 @@ function matchDotNode(node: BracketNode, pos: RadialNodePos, match?: Match): Mat
 function finalCenterNode(
   node: BracketNode,
   pos: RadialNodePos,
+  matchById: Map<string, Match>,
   match?: Match,
 ): FinalCenterFlowNode {
   return {
@@ -104,6 +131,9 @@ function finalCenterNode(
       status: match?.status ?? 'scheduled',
       home: node.home.team,
       away: node.away.team,
+      // DERIVED (pure): the CHAMPION via the SHARED winner rule; null until the
+      // Final is decided + the winning side resolved. (No score — decision 1.)
+      ...winnerOf(node, matchById),
     },
   };
 }
@@ -142,9 +172,9 @@ export function buildRadialGraph(tournament: Tournament): RoadmapGraph {
     const match = matchById.get(pos.matchId);
 
     if (node.stage === 'FINAL') {
-      nodes.push(finalCenterNode(node, pos, match));
+      nodes.push(finalCenterNode(node, pos, matchById, match));
     } else {
-      nodes.push(matchDotNode(node, pos, match));
+      nodes.push(matchDotNode(node, pos, matchById, match));
     }
 
     // R32 leaves carry the 32 outer-ring badges at θ_dot ± HALF_GAP.

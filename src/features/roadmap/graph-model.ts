@@ -151,6 +151,19 @@ export type MatchDotNodeData = {
   status: MatchStatus;
   home: TeamRef;
   away: TeamRef;
+  /**
+   * --- NEW (2026-06-30-1416): DERIVED in `build-radial-graph` (pure); null when
+   * the match is undecided OR the winning side is still a placeholder. ---
+   * The winning side's RESOLVED `TeamRef` (guarded by the shared `isResolved`
+   * rule via `winnerTeamRef`), or null for an undecided / unresolved match.
+   */
+  winner: TeamRef | null;
+  /** `winner.team.code` when resolved, else null — the view reads this primitive [L1]. */
+  winnerCode: string | null;
+  /** `winner.team.flagUrl` when resolved, else null — the view reads this primitive [L1]. */
+  winnerFlagUrl: string | null;
+  /** `formatMatchScore(match.score)`, null when the match is undecided. */
+  score: string | null;
   focusState?: FocusState;
 };
 
@@ -160,6 +173,15 @@ export type FinalCenterNodeData = {
   status: MatchStatus;
   home: TeamRef;
   away: TeamRef;
+  /**
+   * --- NEW (2026-06-30-1416): the CHAMPION; null until the Final is decided. ---
+   * (No `score` field — decision 1: the center shows champion + trophy, not a score.)
+   */
+  winner: TeamRef | null;
+  /** `winner.team.code` when resolved, else null — the view reads this primitive [L1]. */
+  winnerCode: string | null;
+  /** `winner.team.flagUrl` when resolved, else null — the view reads this primitive [L1]. */
+  winnerFlagUrl: string | null;
   focusState?: FocusState;
 };
 

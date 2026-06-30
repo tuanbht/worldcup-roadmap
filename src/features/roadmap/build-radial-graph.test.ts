@@ -13,7 +13,9 @@
 // unimplemented builder fails each assertion individually as "not implemented".
 import { describe, expect, it } from 'vitest';
 import { buildRadialGraph } from './build-radial-graph';
-import { loserTeamId } from '@/domain/bracket/resolve-teams';
+import { loserTeamId, winnerTeamId, winnerTeamRef } from '@/domain/bracket/resolve-teams';
+import { formatMatchScore } from './format-score';
+import { isResolved } from '@/domain/types';
 import { HALF_GAP } from './layout/radial-constants';
 import {
   badgeNodeId,
@@ -206,6 +208,101 @@ describe('buildRadialGraph — eliminated via shared loserTeamId [Test 13 / M3]'
     // Guard against a vacuous all-false / all-true result: both branches occur.
     expect(eliminatedSeen, 'at least one eliminated badge').toBeGreaterThan(0);
     expect(survivorSeen, 'at least one surviving badge').toBeGreaterThan(0);
+  });
+});
+
+describe('buildRadialGraph — winner + score on inner nodes [Test 10-13 / Acceptance #1, #3, #5] (2026-06-30-1416)', () => {
+  const byMatchId = new Map(treeNodes.map((n) => [n.matchId, n]));
+
+  it('every match-dot threads winner/score from the SHARED helpers — decided carries the resolved ref + formatted score, undecided carries nulls', () => {
+    const dots = graph().nodes.filter(isDot);
+    let decidedSeen = 0;
+    let undecidedSeen = 0;
+    for (const dot of dots) {
+      const node = byMatchId.get(dot.id);
+      expect(node, `winner-tree node for dot ${dot.id}`).toBeDefined();
+      const match = matchById.get(dot.id);
+      const expectedWinnerId = winnerTeamId(node!, matchById); // ORACLE: the shared rule
+
+      if (expectedWinnerId === null) {
+        // UNDECIDED dot: the negative branch — winner + score primitives are all null.
+        undecidedSeen += 1;
+        expect(dot.data.winner, `undecided dot ${dot.id} winner`).toBeNull();
+        expect(dot.data.winnerCode, `undecided dot ${dot.id} winnerCode`).toBeNull();
+        expect(dot.data.winnerFlagUrl, `undecided dot ${dot.id} winnerFlagUrl`).toBeNull();
+        expect(dot.data.score, `undecided dot ${dot.id} score`).toBeNull();
+        continue;
+      }
+
+      decidedSeen += 1;
+      // winner ref is non-null + resolved, and AGREES with winnerTeamRef by construction.
+      const winner = dot.data.winner;
+      expect(winner, `decided dot ${dot.id} must carry a winner ref`).not.toBeNull();
+      expect(isResolved(winner!), `decided dot ${dot.id} winner must be resolved`).toBe(true);
+      const expectedRef = winnerTeamRef(node!, matchById);
+      expect(winner, `dot ${dot.id} winner === winnerTeamRef`).toEqual(expectedRef);
+      expect(isResolved(winner!) && winner!.team.id).toBe(expectedWinnerId);
+      // The view-facing primitives are derived from that resolved winner team.
+      const team = isResolved(winner!) ? winner!.team : null;
+      expect(team, `resolved winner team for ${dot.id}`).not.toBeNull();
+      expect(dot.data.winnerCode).toBe(team!.code);
+      expect(dot.data.winnerFlagUrl).toBe(team!.flagUrl);
+      // Non-null score equal to the SHARED formatter applied to the real match.
+      expect(match, `match for decided dot ${dot.id}`).toBeDefined();
+      const expectedScore = formatMatchScore(match!.score);
+      expect(expectedScore, `oracle score for ${dot.id}`).not.toBeNull();
+      expect(dot.data.score).toBe(expectedScore);
+    }
+    // Guard against a vacuous run: the mock finishes R32→SF, so decided dots exist.
+    expect(decidedSeen, 'at least one decided dot (mock R32→SF all finished)').toBeGreaterThan(0);
+    // (`undecidedSeen` may be 0 in the all-finished mock; the live FINAL center is
+    // the threaded-null oracle, covered by the next test — kept as documentation.)
+    void undecidedSeen;
+  });
+
+  it('the LIVE final-center carries winner: null, winnerCode: null, winnerFlagUrl: null (the headline TBD case)', () => {
+    const center = graph().nodes.filter(isCenter)[0];
+    expect(center, 'one final-center').toBeDefined();
+    // The mock Final is status:'live', winner null → undecided → no champion flag.
+    expect(matchById.get(center.id)?.status).toBe('live'); // fixture self-check
+    expect(winnerTeamId(finalNode, matchById)).toBeNull(); // oracle: undecided
+    expect(center.data.winner).toBeNull();
+    expect(center.data.winnerCode).toBeNull();
+    expect(center.data.winnerFlagUrl).toBeNull();
+    // Decision 1: the center never carries a score field at all.
+    expect('score' in center.data).toBe(false);
+  });
+
+  it('both branches occur (not vacuous): ≥1 decided dot with winner+score AND ≥1 dot with a "(… pens)" score', () => {
+    const dots = graph().nodes.filter(isDot);
+    const decided = dots.filter((d) => d.data.winner !== null);
+    expect(decided.length, 'at least one decided dot with a winner').toBeGreaterThan(0);
+    const withScore = decided.filter(
+      (d) => typeof d.data.score === 'string' && d.data.score !== '',
+    );
+    expect(withScore.length, 'decided dots carry a score string').toBeGreaterThan(0);
+    // The mock settles level KO games on penalties → at least one "(… pens)" caption.
+    const withPens = decided.filter((d) => (d.data.score ?? '').includes('pens'));
+    expect(withPens.length, 'at least one penalty-shootout score on a dot').toBeGreaterThan(0);
+  });
+
+  it('is deterministic: two builds yield identical winner ids + score strings per node id', () => {
+    const a = buildRadialGraph(deepFreeze(loadTournament()));
+    const b = buildRadialGraph(deepFreeze(loadTournament()));
+    const snap = (g: RoadmapGraph): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const n of g.nodes) {
+        if (n.type === 'match-dot') {
+          const w = n.data.winner;
+          out[n.id] = `${w && isResolved(w) ? w.team.id : 'null'}|${n.data.score ?? 'null'}`;
+        } else if (n.type === 'final-center') {
+          const w = n.data.winner;
+          out[n.id] = `center:${w && isResolved(w) ? w.team.id : 'null'}`;
+        }
+      }
+      return out;
+    };
+    expect(snap(a)).toEqual(snap(b));
   });
 });
 

@@ -296,6 +296,36 @@
   background: var(--color-accent);
   box-shadow: 0 0 0 2px rgb(61 220 151 / 0.6);
 }
+/* Winner roundel: the round Flag of the team that advanced, ringed by the match
+   status color so live/decided coloring still reads. The status ring lives on the
+   wrapper so the Flag image itself keeps its own edge ring. */
+.radial-dot__flag {
+  border-radius: 9999px;
+  line-height: 0;
+  box-shadow: 0 0 0 2px var(--color-edge-strong);
+  transition: box-shadow var(--duration-fast, 150ms) ease;
+}
+.radial-dot[data-status='live'] .radial-dot__flag {
+  box-shadow:
+    0 0 0 2px var(--color-live),
+    0 0 8px rgb(255 77 94 / 0.45);
+}
+.radial-dot[data-status='finished'] .radial-dot__flag {
+  box-shadow: 0 0 0 2px rgb(61 220 151 / 0.6);
+}
+/* Compact score caption (the e2e locator [L2]): tabular figures so the digits
+   don't drift sub-pixel between scores; dim + display font, no layout animation. */
+.radial-dot__score {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--color-dim);
+  white-space: nowrap;
+}
 
 /* ---- Center Final + trophy motif: the focal point ---- */
 .radial-center {
@@ -317,6 +347,17 @@
 .radial-center__trophy {
   width: 28px;
   height: 28px;
+}
+/* Trophy + champion roundel sit together on one row above the two-team line. */
+.radial-center__crown {
+  position: relative;
+}
+/* Champion roundel: the Final winner's round flag with a gold edge ring, echoing
+   the center's gold-glow motif. Round, compositor-friendly, no layout animation. */
+.radial-center__champion {
+  border-radius: 9999px;
+  line-height: 0;
+  box-shadow: 0 0 0 1.5px var(--color-gold);
 }
 
 /* ---- Radial connector edges (SVG paths, styled by className) [M1] ---- */
@@ -370,6 +411,7 @@
   .member-edge--focus-dim,
   .radial-badge__roundel,
   .radial-dot__core,
+  .radial-dot__flag,
   .radial-edge--focus-dim {
     transition: none !important;
   }
