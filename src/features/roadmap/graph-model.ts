@@ -1,8 +1,23 @@
 import type { Edge, Node } from '@xyflow/react';
-import type { Group, MatchStatus, Score, Stage, TeamRef, Venue } from '@/domain/types';
+import type {
+  Group,
+  KnockoutStage,
+  MatchStatus,
+  Score,
+  Stage,
+  TeamRef,
+  Venue,
+} from '@/domain/types';
 
 /** Camera focus for the continuous canvas — replaces the old 3-layout view. */
 export type RoadmapFocus = 'all' | 'groups' | 'knockout';
+
+/**
+ * Selectable graph layout (2026-06-30-1104): `grid` is the default timeline grid;
+ * `circle` is the radial knockout bracket (Final at center). Persisted to
+ * `?layout=` by `useLayoutMode`, mirroring `useStageView`'s `?focus=`.
+ */
+export type LayoutMode = 'grid' | 'circle';
 
 /**
  * Display-layer team-focus mark, stamped ONLY by `applyTeamFocus` in the canvas
@@ -103,12 +118,69 @@ export type GroupStandingsNodeData = {
 export type MatchFlowNode = Node<MatchNodeData, 'match'>;
 export type DayMarkerFlowNode = Node<DayMarkerNodeData, 'day-marker'>;
 export type GroupStandingsFlowNode = Node<GroupStandingsNodeData, 'group-standings'>;
+
+// --- Radial "circle" layout node datas (2026-06-30-1104) --------------------
+
+/**
+ * Outer-ring team badge (one of the 32 R32 participants — home/away of each R32
+ * match). React Flow node id is `badge-<r32MatchId>-<side>` (UNIQUE, since two
+ * badges share one R32 matchId) [H4]; `matchId` is the R32 match the panel
+ * resolves on click; `teamId` drives team focus.
+ */
+export type TeamBadgeNodeData = {
+  /** The R32 match this participant plays in (what a click opens). */
+  matchId: string;
+  /** Resolved team id, or null for a TBD placeholder slot. */
+  teamId: string | null;
+  team: TeamRef;
+  code: string | null;
+  flagUrl: string | null;
+  side: 'home' | 'away';
+  /** Resolved-and-lost → dimmed. */
+  eliminated: boolean;
+  focusState?: FocusState;
+  /** Injected by the canvas: activating the flag sets the focused team. */
+  onFocusTeam?: (teamId: string) => void;
+};
+
+/** Inner-ring KO match dot (R32..SF). Node id === matchId. Status drives color. */
+export type MatchDotNodeData = {
+  matchId: string;
+  stage: KnockoutStage;
+  roundLabel: string;
+  status: MatchStatus;
+  home: TeamRef;
+  away: TeamRef;
+  focusState?: FocusState;
+};
+
+/** Center Final. Node id === Final matchId. */
+export type FinalCenterNodeData = {
+  matchId: string;
+  status: MatchStatus;
+  home: TeamRef;
+  away: TeamRef;
+  focusState?: FocusState;
+};
+
+export type TeamBadgeFlowNode = Node<TeamBadgeNodeData, 'team-badge'>;
+export type MatchDotFlowNode = Node<MatchDotNodeData, 'match-dot'>;
+export type FinalCenterFlowNode = Node<FinalCenterNodeData, 'final-center'>;
+
 /**
  * Timeline-grid graph nodes: one `match` card per match, a `day-marker` per
  * distinct day on the left rail, and a `group-standings` table at the top of each
  * column (the always-on Google-style table — the single per-column header).
+ * WIDENED (additively) with the radial `team-badge`/`match-dot`/`final-center`
+ * nodes; the grid set is unchanged.
  */
-export type RoadmapNode = MatchFlowNode | DayMarkerFlowNode | GroupStandingsFlowNode;
+export type RoadmapNode =
+  | MatchFlowNode
+  | DayMarkerFlowNode
+  | GroupStandingsFlowNode
+  | TeamBadgeFlowNode
+  | MatchDotFlowNode
+  | FinalCenterFlowNode;
 
 export type AdvanceEdgeState = 'decided' | 'undecided' | 'live';
 export type AdvanceEdgeData = {
@@ -129,8 +201,23 @@ export type MemberEdgeData = {
   /** Team-focus mark, stamped ONLY by `applyTeamFocus` (display layer). */
   focusState?: FocusState;
 };
-/** Either an advance/feeder edge OR a dashed membership edge. */
-export type RoadmapEdgeData = AdvanceEdgeData | MemberEdgeData;
+/**
+ * Radial connector edge (2026-06-30-1104): a child match → its parent, curving
+ * inward toward the geometric center. `cx,cy` are carried on the data so
+ * `RadialEdge` can converge to center — React Flow hands the edge only endpoint
+ * coords, not the layout center [M1].
+ */
+export type RadialEdgeData = {
+  /** Reuse the advance-edge state vocabulary (decided | undecided | live). */
+  state: AdvanceEdgeState;
+  cx: number;
+  cy: number;
+  /** Team-focus mark, stamped ONLY by the display layer. */
+  focusState?: FocusState;
+};
+
+/** Either an advance/feeder edge, a dashed membership edge, or a radial edge. */
+export type RoadmapEdgeData = AdvanceEdgeData | MemberEdgeData | RadialEdgeData;
 export type RoadmapEdge = Edge<RoadmapEdgeData>;
 
 export interface RoadmapGraph {

@@ -73,6 +73,9 @@
     --glow-nearest: 0 0 0 1px rgb(99 102 241 / 0.5), 0 0 22px rgb(99 102 241 / 0.3);
     /* Live nearest: a warm `--color-live` ring matching the live affordance. */
     --glow-nearest-live: 0 0 0 1px rgb(255 77 94 / 0.55), 0 0 24px rgb(255 77 94 / 0.34);
+    /* Radial circle center: a soft gold trophy glow making the Final the focal
+       point of the poster (the in-system `--color-gold` hue, no new palette). */
+    --glow-gold: 0 0 0 1px rgb(245 196 81 / 0.5), 0 0 28px rgb(245 196 81 / 0.32);
     --duration-lod: 220ms;
   }
 
@@ -211,6 +214,142 @@
   transition: opacity var(--duration-normal, 300ms) ease;
 }
 
+/* =========================================================================
+   Radial "circle" knockout view (2026-06-30-1104).
+   A designed poster — concentric ring bands, round flag roundels on the outer
+   ring, status-colored connectors converging on a gold-glow trophy center.
+   Compositor-friendly only (transform/opacity/filter); tokens, not literals.
+   ========================================================================= */
+
+/* ---- Ring banding: faint concentric backdrops behind the radial canvas so the
+   rounds read as distinct bands, dimming toward the center to draw the eye to the
+   trophy. Painted on the pane, behind the nodes (a single radial gradient, no
+   animated layout props). Only active when the circle layout is mounted. */
+.pitch-grid:has(.radial-center) {
+  background-image: radial-gradient(
+      circle at 50% 50%,
+      transparent 0,
+      transparent 14%,
+      rgb(148 163 184 / 0.05) 14.4%,
+      transparent 15%,
+      transparent 28%,
+      rgb(148 163 184 / 0.06) 28.4%,
+      transparent 29%,
+      transparent 44%,
+      rgb(148 163 184 / 0.07) 44.4%,
+      transparent 45%,
+      transparent 62%,
+      rgb(148 163 184 / 0.08) 62.4%,
+      transparent 63%
+    ),
+    linear-gradient(rgb(148 163 184 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 0.05) 1px, transparent 1px);
+}
+
+/* ---- Outer-ring team badge ---- */
+.radial-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.radial-badge__roundel {
+  border-radius: 9999px;
+  /* A 1px edge ring + a soft lift so each roundel reads as a chip on the band. */
+  box-shadow:
+    0 0 0 1px var(--color-edge-strong),
+    0 2px 8px rgb(0 0 0 / 0.4);
+  transition:
+    transform var(--duration-fast, 150ms) ease,
+    box-shadow var(--duration-fast, 150ms) ease;
+}
+/* Designed hover/focus: a gentle compositor-only scale-up + accent ring. The
+   focus button is a sibling overlay, so target its hover/focus via :has + the
+   roundel's own group. */
+.radial-badge__roundel:hover,
+.radial-badge:has(.radial-badge__focus:focus-visible) .radial-badge__roundel {
+  transform: scale(1.12);
+  box-shadow: var(--glow-accent);
+}
+/* Eliminated team: desaturate + dim (still legible, clearly out). */
+.radial-badge--eliminated .radial-badge__roundel {
+  filter: saturate(0.25) brightness(0.7);
+}
+.radial-badge--eliminated .radial-badge__code {
+  opacity: 0.6;
+}
+
+/* ---- Inner-ring match dots: a small status-ringed junction ---- */
+.radial-dot__core {
+  width: 12px;
+  height: 12px;
+  background: var(--color-surf-3);
+  box-shadow: 0 0 0 2px var(--color-edge-strong);
+  transition: box-shadow var(--duration-fast, 150ms) ease;
+}
+.radial-dot[data-status='live'] .radial-dot__core {
+  background: var(--color-live);
+  box-shadow:
+    0 0 0 2px var(--color-live),
+    0 0 10px rgb(255 77 94 / 0.5);
+}
+.radial-dot[data-status='finished'] .radial-dot__core {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px rgb(61 220 151 / 0.6);
+}
+
+/* ---- Center Final + trophy motif: the focal point ---- */
+.radial-center {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 35%, var(--color-surf-3), var(--color-surf-1));
+  box-shadow: var(--glow-gold), var(--elevation-card);
+  padding: 0.4rem;
+}
+.radial-center__glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(245 196 81 / 0.18), transparent 70%);
+  pointer-events: none;
+}
+.radial-center__trophy {
+  width: 28px;
+  height: 28px;
+}
+
+/* ---- Radial connector edges (SVG paths, styled by className) [M1] ---- */
+.radial-edge {
+  fill: none;
+  stroke-linecap: round;
+}
+.radial-edge--undecided {
+  stroke: var(--color-edge-strong);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 6;
+}
+.radial-edge--decided {
+  stroke: rgb(61 220 151 / 0.5);
+  stroke-width: 1.75;
+  filter: drop-shadow(0 0 3px rgb(61 220 151 / 0.3));
+}
+.radial-edge--live {
+  stroke: var(--color-live);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  filter: drop-shadow(0 0 4px rgb(255 77 94 / 0.4));
+  animation: var(--animate-edgeflow);
+}
+/* Team-focus highlight/dim — composes with the node focus. Compositor-only. */
+.radial-edge--focus-on {
+  opacity: 1;
+}
+.radial-edge--focus-dim {
+  filter: opacity(0.32);
+  transition: filter var(--duration-normal, 300ms) ease;
+}
+
 /* ---- React Flow chrome theming ---- */
 .react-flow__attribution {
   background: transparent !important;
@@ -219,6 +358,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .advance-edge--live,
+  .radial-edge--live,
   .animate-livepulse {
     animation: none !important;
   }
@@ -227,7 +367,15 @@
   [data-focus='dim'],
   .advance-edge--focus-dim,
   .member-edge--focus-on,
-  .member-edge--focus-dim {
+  .member-edge--focus-dim,
+  .radial-badge__roundel,
+  .radial-dot__core,
+  .radial-edge--focus-dim {
     transition: none !important;
+  }
+  /* No hover scale-up under reduced-motion: keep the ring cue, drop the transform. */
+  .radial-badge__roundel:hover,
+  .radial-badge:has(.radial-badge__focus:focus-visible) .radial-badge__roundel {
+    transform: none;
   }
 }

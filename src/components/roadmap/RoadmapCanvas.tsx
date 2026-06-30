@@ -16,9 +16,11 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { ErrorFallback } from '@/components/error/ErrorFallback';
 import { useTournamentQuery } from '@/features/roadmap/hooks/useTournamentQuery';
 import { useStageView } from '@/features/roadmap/hooks/useStageView';
+import { useLayoutMode } from '@/features/roadmap/hooks/useLayoutMode';
 import { useRoadmapGraph } from '@/features/roadmap/hooks/useRoadmapGraph';
 import { useFitOnChange } from '@/features/roadmap/hooks/useFitOnChange';
 import { useFocusCamera } from '@/features/roadmap/hooks/useFocusCamera';
+import { useRadialRefit } from '@/features/roadmap/hooks/useRadialRefit';
 import { useFocusMatch } from '@/features/roadmap/hooks/useFocusMatch';
 import { useBracketKeyboard } from '@/features/roadmap/hooks/useBracketKeyboard';
 import { useZoomLevel } from '@/features/roadmap/hooks/useZoomLevel';
@@ -27,16 +29,20 @@ import { DESKTOP_MIN_ZOOM, MOBILE_MIN_ZOOM } from '@/features/roadmap/responsive
 import { pickFocusMatchId } from '@/features/roadmap/focus-target';
 import { applyNearestFlag } from '@/features/roadmap/apply-nearest-flag';
 import { useFocusedTeam } from '@/features/roadmap/hooks/useFocusedTeam';
-import { selectTeamFocus, applyTeamFocus } from '@/features/roadmap/team-focus';
+import { selectTeamFocus, applyTeamFocus, type TeamFocus } from '@/features/roadmap/team-focus';
+import { selectRadialTeamFocus } from '@/features/roadmap/radial-focus';
 import type { RoadmapEdge, RoadmapNode } from '@/features/roadmap/graph-model';
 import { StageToggle } from './StageToggle';
+import { LayoutToggle } from './LayoutToggle';
 import { FocusMatchButton } from './FocusMatchButton';
 import { Legend } from './Legend';
 
 function CanvasInner() {
   const { data: tournament, loading, error, refetch } = useTournamentQuery();
   const { focus, setFocus } = useStageView();
-  const { nodes, edges } = useRoadmapGraph(tournament);
+  const { mode, setMode } = useLayoutMode();
+  const isCircle = mode === 'circle';
+  const { nodes, edges } = useRoadmapGraph(tournament, mode);
   const { lod } = useZoomLevel();
   // A single matchMedia read drives the mobile minZoom floor so a 296px standings
   // card opens legibly on a phone instead of clamping to the desktop 0.2 floor.
@@ -50,12 +56,23 @@ function CanvasInner() {
     clear: clearFocusedTeam,
   } = useFocusedTeam(tournament ?? null);
 
-  // The focused team's match-node + edge id set, re-derived only when the team or
-  // the tournament changes. Null when nothing is focused (no dimming).
-  const focusSet = useMemo(
-    () => (tournament && focusedTeamId ? selectTeamFocus(tournament, focusedTeamId) : null),
-    [tournament, focusedTeamId],
-  );
+  // The focused team's node + edge id set, re-derived only when the team, the
+  // tournament, or the layout mode changes. Null when nothing is focused (no
+  // dimming). Circle mode uses the radial inward-path selector (badge → R32 dot →
+  // ancestor dots → Final + the `radial-` edges); grid uses the timeline selector.
+  // Both are adapted to the `TeamFocus` shape `applyTeamFocus` stamps from.
+  const focusSet = useMemo<TeamFocus | null>(() => {
+    if (!tournament || !focusedTeamId) return null;
+    if (isCircle) {
+      const radial = selectRadialTeamFocus(tournament, focusedTeamId);
+      return {
+        teamId: focusedTeamId,
+        matchNodeIds: radial.nodeIds,
+        edgeIds: radial.edgeIds,
+      };
+    }
+    return selectTeamFocus(tournament, focusedTeamId);
+  }, [tournament, focusedTeamId, isCircle]);
 
   // The focused team's display name for the aria-live announcement.
   const focusedTeamName = useMemo(
@@ -82,6 +99,9 @@ function CanvasInner() {
   const displayNodes = useMemo<RoadmapNode[]>(() => {
     const withHandlers = nodes.map<RoadmapNode>((node) => {
       if (node.type === 'match') {
+        return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
+      }
+      if (node.type === 'team-badge') {
         return { ...node, data: { ...node.data, onFocusTeam: setFocusedTeam } };
       }
       if (node.type === 'group-standings') {
@@ -135,6 +155,10 @@ function CanvasInner() {
   // (a visible canvas pan behind the overlay — and a snapshot flake). `nodes` only
   // changes on a real layout/data change, so the camera moves on `focus` alone.
   useFocusCamera(focus, nodes);
+  // Re-fit the camera when the LAYOUT MODE flips (grid <-> circle) so switching
+  // INTO circle snaps to frame the whole ring. Guarded on `mode` (skips first
+  // run, never re-fires on a refetch) so it never fights the cold-load fitter.
+  useRadialRefit(mode);
   // Esc clears both the selected match AND the focused team (independent setters).
   // The overlay shields its own Esc with stopPropagation while open.
   const onEscape = useCallback(() => {
@@ -144,7 +168,14 @@ function CanvasInner() {
   useBracketKeyboard(onEscape);
 
   const onNodeClick = useCallback<NodeMouseHandler<RoadmapNode>>((_, node) => {
-    if (node.type === 'match') setSelected(node.id);
+    // Grid `match` and radial `match-dot`/`final-center` carry their matchId AS the
+    // node id; a radial `team-badge`'s id is `badge-…`, so resolve its R32 match via
+    // `data.matchId`. The panel resolves any real matchId (findMatch/placeholder).
+    if (node.type === 'match' || node.type === 'match-dot' || node.type === 'final-center') {
+      setSelected(node.id);
+    } else if (node.type === 'team-badge') {
+      setSelected(node.data.matchId);
+    }
   }, []);
 
   // R1c: a failed load with no cached tournament must surface a visible error +
@@ -195,16 +226,29 @@ function CanvasInner() {
           size={1}
           color="rgba(148,163,184,0.10)"
         />
-        <StageToggle focus={focus} onChange={setFocus} />
-        <FocusMatchButton
-          targetMatchId={focusTarget.id}
-          isLive={focusTarget.isLive}
-          onActivate={onFocusCurrentMatch}
-        />
-        {/* Desktop-only floating legend — hidden on small screens (legend lives in App header below sm) */}
-        <Panel position="top-right" className="hidden sm:block">
-          <Legend provider={tournament?.meta.provider ?? null} />
-        </Panel>
+        {/* Layout-mode switch (Grid / Circle) — top-left. In grid mode it is
+            nudged BELOW the unmoved StageToggle (grid snapshots stay stable);
+            circle mode shows it alone at the top. */}
+        <LayoutToggle mode={mode} onChange={setMode} offset={!isCircle} />
+        {/* Grid-only chrome: the stage (camera) toggle, the focus-current-match
+            button, and the legend are timeline concepts. Circle mode swaps the
+            whole graph (no group zone / nearest funnel), so it shows only the
+            LayoutToggle and always frames the whole ring. The StageToggle's own
+            top-left Panel is nudged down so the two pills never overlap. */}
+        {!isCircle && (
+          <>
+            <StageToggle focus={focus} onChange={setFocus} />
+            <FocusMatchButton
+              targetMatchId={focusTarget.id}
+              isLive={focusTarget.isLive}
+              onActivate={onFocusCurrentMatch}
+            />
+            {/* Desktop-only floating legend — hidden on small screens (legend lives in App header below sm) */}
+            <Panel position="top-right" className="hidden sm:block">
+              <Legend provider={tournament?.meta.provider ?? null} />
+            </Panel>
+          </>
+        )}
       </ReactFlow>
 
       {/* A malformed match datum or a renderer null-deref in the detail panel

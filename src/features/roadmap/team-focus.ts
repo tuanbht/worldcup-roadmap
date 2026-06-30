@@ -130,6 +130,13 @@ function stampEdge(edge: RoadmapEdge, focusState: 'on' | 'dim'): RoadmapEdge {
   return { ...edge, data };
 }
 
+/** Node types that carry a `focusState` and so are stamped by `applyTeamFocus`:
+ *  the grid `match` card and the radial `team-badge`/`match-dot`/`final-center`
+ *  nodes [C2]. The focus set keys all of them off the node `id` (for a radial
+ *  badge `id` is `badge-…`, NOT its `matchId`, which is exactly what
+ *  `selectRadialTeamFocus` emits). Other node types are returned untouched. */
+const FOCUSABLE_NODE_TYPES = new Set(['match', 'team-badge', 'match-dot', 'final-center']);
+
 export function applyTeamFocus(
   nodes: readonly RoadmapNode[],
   edges: readonly RoadmapEdge[],
@@ -137,7 +144,9 @@ export function applyTeamFocus(
 ): { nodes: RoadmapNode[]; edges: RoadmapEdge[] } {
   if (!focus) return { nodes: [...nodes], edges: [...edges] };
   const stampedNodes = nodes.map((node) =>
-    node.type === 'match' ? stampNode(node, focus.matchNodeIds.has(node.id) ? 'on' : 'dim') : node,
+    FOCUSABLE_NODE_TYPES.has(node.type ?? '')
+      ? stampNode(node, focus.matchNodeIds.has(node.id) ? 'on' : 'dim')
+      : node,
   );
   const stampedEdges = edges.map((edge) =>
     stampEdge(edge, focus.edgeIds.has(edge.id) ? 'on' : 'dim'),

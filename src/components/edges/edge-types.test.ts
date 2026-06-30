@@ -21,7 +21,9 @@ describe('edgeTypes registry — membership edge [Acceptance #8]', () => {
     expect(edgeTypes.advance).toBe(AdvanceEdge);
   });
 
-  it('registers no stray edge types beyond advance + member', () => {
-    expect(Object.keys(edgeTypes).sort()).toEqual(['advance', 'member']);
+  it('registers no stray edge types beyond advance + member + radial', () => {
+    // The radial circle view (2026-06-30-1104) ADDS the `radial` edge type
+    // alongside the grid `advance` + `member`; only the active layout mounts.
+    expect(Object.keys(edgeTypes).sort()).toEqual(['advance', 'member', 'radial']);
   });
 });

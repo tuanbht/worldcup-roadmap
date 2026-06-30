@@ -161,3 +161,109 @@ export function deepFreeze<T>(value: T): T {
 export function sortedEntries<V>(map: ReadonlyMap<string, V>): [string, V][] {
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
+
+// --- Radial "circle" layout derivation helpers (2026-06-30-1104) ------------
+//
+// FIXTURE-DERIVED, never hardcoded: the radial specs read the SAME winner-tree /
+// R32 round the radial builder walks, so a fixture change keeps the specs honest.
+
+/** The FINAL-rooted winner tree's nodes (the radial layout's domain): the 31 KO
+ *  matches reachable from FINAL via `winnerOf` links — R32(16)+R16(8)+QF(4)+SF(2)
+ *  +FINAL(1). THIRD_PLACE (a `loserOf` node) is unreachable and therefore ABSENT,
+ *  exactly as `hierarchy(finalNode, winnerChildrenOf)` excludes it. */
+export function winnerTreeNodes(t: Tournament): BracketNode[] {
+  const byId = new Map(allBracketNodes(t.bracket).map((n) => [n.matchId, n]));
+  const final = t.bracket.rounds.find((r) => r.stage === 'FINAL')?.nodes[0];
+  if (!final) throw new Error('fixture invariant: FINAL round missing');
+  const out: BracketNode[] = [];
+  const walk = (node: BracketNode): void => {
+    out.push(node);
+    for (const child of winnerChildren(node, byId)) walk(child);
+  };
+  walk(final);
+  return out;
+}
+
+/** Every R32 round node (16), the parents of the 32 outer-ring badges. */
+export function r32Nodes(t: Tournament): BracketNode[] {
+  const r32 = t.bracket.rounds.find((r) => r.stage === 'ROUND_OF_32');
+  if (!r32) throw new Error('fixture invariant: ROUND_OF_32 round missing');
+  return [...r32.nodes];
+}
+
+/** A flat list of the 32 R32 participants (home+away of each R32 match) in
+ *  [matchId, side, team] form — the badge ground truth, fixture-derived. */
+export interface R32ParticipantRef {
+  readonly matchId: string;
+  readonly side: 'home' | 'away';
+  readonly team: BracketSlot['team'];
+}
+export function r32ParticipantRefs(t: Tournament): R32ParticipantRef[] {
+  return r32Nodes(t).flatMap((n) => [
+    { matchId: n.matchId, side: 'home' as const, team: n.home.team },
+    { matchId: n.matchId, side: 'away' as const, team: n.away.team },
+  ]);
+}
+
+/** The expected number of outer-ring badges == the 32 R32 participants. */
+export function expectedBadgeCount(t: Tournament): number {
+  return r32ParticipantRefs(t).length;
+}
+
+/** The unique React Flow node id of a badge: `badge-<r32MatchId>-<side>` [H4]. */
+export function badgeNodeId(matchId: string, side: 'home' | 'away'): string {
+  return `badge-${matchId}-${side}`;
+}
+
+/** The radial connector edge id: `radial-<childMatchId>-<parentMatchId>` [H4].
+ *  ONE source of truth for the grammar both the builder + focus specs assert. */
+export function radialEdgeId(childMatchId: string, parentMatchId: string): string {
+  return `radial-${childMatchId}-${parentMatchId}`;
+}
+
+/** A `matchId -> BracketNode` lookup over EVERY bracket node (all rounds). The
+ *  radial specs index the winner tree by match id; derived once here. */
+export function bracketNodeById(t: Tournament): Map<string, BracketNode> {
+  return new Map(allBracketNodes(t.bracket).map((n) => [n.matchId, n]));
+}
+
+/** The single FINAL bracket node (the radial tree's root / center). Throws on a
+ *  malformed fixture so a missing FINAL surfaces loudly, not as `undefined`. */
+export function finalBracketNode(t: Tournament): BracketNode {
+  const node = t.bracket.rounds.find((r) => r.stage === 'FINAL')?.nodes[0];
+  if (!node) throw new Error('fixture invariant: FINAL round missing');
+  return node;
+}
+
+/** The single THIRD_PLACE bracket node (a `loserOf` node OUTSIDE the winner tree —
+ *  the radial view omits it). Throws if the fixture lacks one. */
+export function thirdPlaceBracketNode(t: Tournament): BracketNode {
+  const node = t.bracket.rounds.find((r) => r.stage === 'THIRD_PLACE')?.nodes[0];
+  if (!node) throw new Error('fixture invariant: THIRD_PLACE round missing');
+  return node;
+}
+
+/** A `childMatchId -> parentBracketNode` map over the winner tree — the inward
+ *  link each `radial-<child>-<parent>` edge / focus path walks. Derived from the
+ *  same `winnerChildren` relation the layout/builder use, so one source of truth. */
+export function winnerTreeParentByChild(t: Tournament): Map<string, BracketNode> {
+  const byId = bracketNodeById(t);
+  const parentOf = new Map<string, BracketNode>();
+  for (const parent of winnerTreeNodes(t)) {
+    for (const child of winnerChildren(parent, byId)) parentOf.set(child.matchId, parent);
+  }
+  return parentOf;
+}
+
+/** Every child→parent winner link in the tree (the radial edge oracle): 30 links
+ *  (R32 16 + R16 8 + QF 4 + SF 2). Each yields one `radial-<child>-<parent>` edge. */
+export interface WinnerTreeLink {
+  readonly child: BracketNode;
+  readonly parent: BracketNode;
+}
+export function winnerTreeLinks(t: Tournament): WinnerTreeLink[] {
+  const byId = bracketNodeById(t);
+  return winnerTreeNodes(t).flatMap((parent) =>
+    winnerChildren(parent, byId).map((child) => ({ child, parent })),
+  );
+}

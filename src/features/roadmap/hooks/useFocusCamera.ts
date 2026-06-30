@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useReactFlow, type ReactFlowInstance, type Rect } from '@xyflow/react';
 import { NODE_W, NODE_H, STANDINGS_W, GROUP_TABLE_H } from '../layout/layout-constants';
+import { BADGE_SIZE, DOT_SIZE, CENTER_SIZE } from '../layout/radial-constants';
 import { mobileZoomFloor } from '../responsive';
 import type { RoadmapFocus, RoadmapNode } from '../graph-model';
 
@@ -27,10 +28,15 @@ const DESKTOP_CENTER_MIN_WIDTH = 1024;
  */
 const MOBILE_TOGGLE_CLEARANCE = 64;
 
-/** Footprint of a node by type (guides are roughly card-width / small). */
+/** Footprint of a node by type (guides are roughly card-width / small). The
+ *  radial circle nodes are SQUARE so `boundsOf` frames the circle correctly on a
+ *  mode flip instead of mis-padding with the 260×108 card footprint [H3]. */
 export function footprintOf(node: RoadmapNode): { w: number; h: number } {
   if (node.type === 'day-marker') return { w: 96, h: 32 };
   if (node.type === 'group-standings') return { w: STANDINGS_W, h: GROUP_TABLE_H };
+  if (node.type === 'team-badge') return { w: BADGE_SIZE, h: BADGE_SIZE };
+  if (node.type === 'match-dot') return { w: DOT_SIZE, h: DOT_SIZE };
+  if (node.type === 'final-center') return { w: CENTER_SIZE, h: CENTER_SIZE };
   return { w: NODE_W, h: NODE_H };
 }
 

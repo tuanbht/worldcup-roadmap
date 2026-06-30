@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readScale, settle } from './_settle';
 
 /**
  * Visual regression + responsive overflow (Acceptance #11).
@@ -45,32 +46,6 @@ const BREAKPOINTS = [
   { label: '1024', width: 1024, height: 768 },
   { label: '1440', width: 1440, height: 900 },
 ] as const;
-
-async function readScale(page: Page): Promise<number> {
-  return page.evaluate((sel) => {
-    const el = document.querySelector(sel) as HTMLElement | null;
-    if (!el) return 1;
-    const t = getComputedStyle(el).transform;
-    if (!t || t === 'none') return 1;
-    return new DOMMatrixReadOnly(t).a;
-  }, VIEWPORT);
-}
-
-async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => document.fonts.ready);
-  let last = await readScale(page);
-  await expect
-    .poll(
-      async () => {
-        const next = await readScale(page);
-        const stable = Math.abs(next - last) < 1e-4;
-        last = next;
-        return stable;
-      },
-      { timeout: 6000, intervals: [80, 120, 160, 200] },
-    )
-    .toBe(true);
-}
 
 test.describe('responsive layout', () => {
   test.beforeEach(({}, testInfo) => {

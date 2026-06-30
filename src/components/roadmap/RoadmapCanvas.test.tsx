@@ -42,7 +42,10 @@ vi.mock('@xyflow/react', () => {
     </div>
   );
   const BackgroundVariant = { Dots: 'dots' };
-  return { ReactFlowProvider, ReactFlow, Background, Panel, BackgroundVariant };
+  // `useRadialRefit` (the layout-mode re-fit effect, 2026-06-30-1104) calls
+  // `useReactFlow().fitView`; stub it so the effect is a harmless no-op here.
+  const useReactFlow = () => ({ fitView: () => Promise.resolve(true) });
+  return { ReactFlowProvider, ReactFlow, Background, Panel, BackgroundVariant, useReactFlow };
 });
 
 // ---- Mock feature hooks ----------------------------------------------------
