@@ -101,10 +101,15 @@ describe('buildBracket', () => {
     expect(r16.nodes[3].home.source).toEqual({ kind: 'winnerOf', matchId: r32.nodes[6].matchId });
   });
 
-  it('seeds Round of 32 sources from the group template', () => {
+  it('seeds Round of 32 sources from the official group template', () => {
     const r32 = buildBracket([]).rounds.find((r) => r.stage === 'ROUND_OF_32')!;
-    expect(r32.nodes[0].home.source).toEqual({ kind: 'group', position: '1A' });
+    // Slot 0 is the official runner-up-vs-runner-up opener (Match 73: 2A vs 2B).
+    expect(r32.nodes[0].home.source).toEqual({ kind: 'group', position: '2A' });
     expect(r32.nodes[0].away.source).toEqual({ kind: 'group', position: '2B' });
+    // Slot 2 pins a second official cell through buildBracket (Match 75: 1F vs 2C),
+    // so a transposed table can't pass on slot 0 alone.
+    expect(r32.nodes[2].home.source).toEqual({ kind: 'group', position: '1F' });
+    expect(r32.nodes[2].away.source).toEqual({ kind: 'group', position: '2C' });
   });
 
   it('feeds the third-place play-off from the two semifinal losers', () => {

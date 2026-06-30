@@ -15,9 +15,10 @@
 // "no relayout, positions untouched" contract at the data level (Acceptance #7).
 //
 // Counts/ids are fixture-DERIVED from the validated mock tournament + the real
-// built graph, never invented. The mock resolves team-ARG into TWO knockout
-// matches (R32 #1, R16 #1) and leaves another team's KO slots as placeholders,
-// so both the resolved-include and placeholder-exclude branches are exercised.
+// built graph, never invented. Under the official WC2026 R32 seeding the mock
+// resolves team-ARG into FIVE knockout matches (R32 #7 -> R16 #4 -> QF #2 ->
+// SF #1 -> Final) and leaves another team's KO slots as placeholders, so both the
+// resolved-include and placeholder-exclude branches are exercised.
 //
 // RED until team-focus.ts is implemented (today its functions throw
 // "not implemented"), so each assertion fails for the right (missing-logic) reason.
@@ -53,13 +54,21 @@ function oracleMatchIds(teamId: string): Set<string> {
 }
 
 // --- Fixture-known focus targets (asserted, not assumed) --------------------
-// team-ARG: 3 group matches + 2 RESOLVED knockout matches (R32 #1 -> R16 #1).
-// The mock fully resolves the bracket, so ARG's path is concrete (not placeholders);
-// teams in OTHER halves fill the KO slots ARG never reaches — those are the
-// "resolved but unrelated" matches the exclusion tests use.
+// team-ARG: 3 group matches + 5 RESOLVED knockout matches. Under the OFFICIAL
+// WC2026 Round-of-32 seeding (seeding.ts `R32_SEEDING`), group-A winner `1A`
+// enters R32 slot 7 (`wc2026-r32-7`), and the deterministic mock advances ARG all
+// the way to the Final: R32 #7 -> R16 #4 -> QF #2 -> SF #1 -> F #1. The mock fully
+// resolves the bracket, so ARG's path is concrete (not placeholders); teams in
+// OTHER halves fill the KO slots ARG never reaches — those are the "resolved but
+// unrelated" matches the exclusion tests use.
+//
+// This list is a DELIBERATELY HARDCODED independent expectation (in stage order)
+// so the expectation cannot silently drift: it cross-checks against the test's own
+// `oracleMatchIds(ARG)` / `selectTeamFocus` output, which derive from the loaded
+// tournament. It is NOT itself derived from the tournament — keep it a literal.
 const ARG = 'team-ARG';
 const ARG_GROUP = ['wc2026-gA-1-1', 'wc2026-gA-2-1', 'wc2026-gA-3-1'];
-const ARG_KO = ['wc2026-r32-1', 'wc2026-r16-1'];
+const ARG_KO = ['wc2026-r32-7', 'wc2026-r16-4', 'wc2026-qf-2', 'wc2026-sf-1', 'wc2026-f-1'];
 /** ARG's full match set (group + resolved KO) — the focus target, fixture-derived. */
 const ARG_MATCHES = new Set([...ARG_GROUP, ...ARG_KO]);
 
@@ -214,15 +223,15 @@ describe('selectTeamFocus — edge ids [Acceptance #5]', () => {
     const expectedFeeders = expected.filter((id) => id.startsWith('feed-'));
     const expectedAdvance = expected.filter((id) => id.startsWith('adv-'));
     expect(expectedFeeders.length).toBeGreaterThan(0); // guard
-    expect(expectedAdvance.length).toBeGreaterThan(0); // guard: adv-r32-1 -> r16-1
+    expect(expectedAdvance.length).toBeGreaterThan(0); // guard: adv-r32-7 -> r16-4 ... -> f-1
 
     expect(new Set(focus.edgeIds)).toEqual(new Set(expected)); // EXACTLY this set
   });
 
   it('excludes advance edges that touch the team set on only ONE end', () => {
-    // adv-<other-r32>-<r16-1> shares only the r16-1 endpoint with ARG's set, and
-    // adv-<r16-1>-<qf-1> shares only r16-1; with a "both endpoints focused" rule
-    // neither may be highlighted.
+    // An advance edge feeding ARG's r16-4 from a NON-ARG r32 slot shares only the
+    // r16-4 endpoint with ARG's set; with a "both endpoints focused" rule it (and
+    // any other one-sided advance edge) must not be highlighted.
     const focus = selectTeamFocus(tournament, ARG);
     const oneSided = graph.edges.filter(
       (e) => e.id.startsWith('adv-') && ARG_MATCHES.has(e.source) !== ARG_MATCHES.has(e.target),
