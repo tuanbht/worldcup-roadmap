@@ -102,4 +102,38 @@ describe('mapFifaMatches', () => {
     expect(m.home).toEqual({ kind: 'placeholder', label: 'W49' });
     expect(m.away).toEqual({ kind: 'placeholder', label: 'W50' });
   });
+
+  // build-bracket slots real KO fixtures by FIFA MatchNumber (R16 = 89–96, so the
+  // R16 fixture fed by R32 slots 2 & 3 is matchNumber 90). The mapper must SURFACE
+  // raw.MatchNumber onto the domain Match — it is currently dropped. The slot key
+  // is the SINGLE point of truth for placement, so each surfacing case is pinned.
+  it('surfaces a present raw MatchNumber onto the domain Match unchanged', () => {
+    const r16WithNumber: RawMatch = { ...finishedKo, MatchNumber: 90 };
+    const [m] = mapFifaMatches([r16WithNumber]);
+    expect(m.matchNumber).toBe(90);
+  });
+
+  it('coalesces an explicit null raw MatchNumber to null (not undefined)', () => {
+    // schema.ts types MatchNumber as nullable; an explicit null must surface as a
+    // strict null so build-bracket's `n == null` kickoff fallback fires cleanly.
+    const r16WithNull: RawMatch = { ...finishedKo, MatchNumber: null };
+    const [m] = mapFifaMatches([r16WithNull]);
+    expect(m.matchNumber).toBeNull();
+  });
+
+  it('defaults matchNumber to null when raw MatchNumber is absent', () => {
+    // liveGroup carries no MatchNumber (group-stage row) → must surface as null,
+    // NOT undefined, so the field is always present for build-bracket to read.
+    const [m] = mapFifaMatches([liveGroup]);
+    expect(m.matchNumber).toBeNull();
+  });
+
+  it('surfaces matchNumber per row across a mixed batch (no cross-contamination)', () => {
+    // A batch mixing a numbered KO row with an unnumbered group row must map each
+    // independently — the numbered fixture keeps its number, the other stays null.
+    const r32WithNumber: RawMatch = { ...finishedKo, MatchNumber: 76 };
+    const [ko, group] = mapFifaMatches([r32WithNumber, liveGroup]);
+    expect(ko.matchNumber).toBe(76);
+    expect(group.matchNumber).toBeNull();
+  });
 });

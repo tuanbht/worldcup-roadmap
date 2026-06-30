@@ -77,4 +77,12 @@ export interface Match {
   /** Live elapsed minute, when known. */
   readonly minute: number | null;
   readonly venue: Venue;
+  /**
+   * Official FIFA bracket fixture number for knockout matches
+   * (R32 = 73–88, R16 = 89–96, QF = 97–100, SF = 101–102, 3rd = 103, Final = 104).
+   * Set ONLY by the FIFA mapper from `raw.MatchNumber`; read ONLY by build-bracket
+   * to slot real fixtures into their true bracket position. `null`/absent otherwise
+   * (mock, legacy, group stage) → build-bracket falls back to kickoff order.
+   */
+  readonly matchNumber?: number | null;
 }

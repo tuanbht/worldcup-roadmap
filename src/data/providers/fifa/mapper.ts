@@ -139,6 +139,10 @@ export function mapFifaMatches(raws: readonly RawMatch[]): Match[] {
       status,
       minute: mapMinute(raw, status),
       venue: mapVenue(raw),
+      // Surface the official FIFA bracket fixture number (already validated in
+      // schema.ts) so build-bracket can slot real KO fixtures by their true
+      // bracket position instead of kickoff time. Null when absent/explicit-null.
+      matchNumber: raw.MatchNumber ?? null,
     };
   });
 }
