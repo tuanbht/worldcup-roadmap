@@ -3,9 +3,8 @@
 // Component spec for RadialEdge — the radial connector of the circle view
 // (requirement 2026-06-30-1104; plan Test Strategy 25 / Acceptance #3) [M1]. It
 // renders `path.radial-edge.radial-edge--{state}`, appends
-// `radial-edge--focus-{on,dim}` when `focusState` is set, and curves toward the
-// `(cx,cy)` carried on `RadialEdgeData` (so the rendered path is NOT a straight
-// line between the endpoints).
+// `radial-edge--focus-{on,dim}` when `focusState` is set, and draws a STRAIGHT
+// child→parent line (`M..L..`) — the match-to-match "matrix" edge, never a curve.
 //
 // The edge is rendered inside an <svg> + ReactFlowProvider (BaseEdge needs the RF
 // context); we read the rendered <path>'s class + `d`. RED until RadialEdge is
@@ -98,12 +97,16 @@ describe('RadialEdge — team-focus class [Test 25 / Acceptance #7]', () => {
   });
 });
 
-describe('RadialEdge — converges to center [Test 25 / M1]', () => {
-  it('uses cx,cy from data so the path is curved (not the straight endpoint line)', () => {
+describe('RadialEdge — straight match-to-match "matrix" line [Test 25]', () => {
+  it('draws a STRAIGHT child→parent line (M..L..), never a curve command', () => {
     const path = renderEdge({ state: 'decided', ...CENTER });
     const d = path!.getAttribute('d') ?? '';
-    // A converge-to-center path is a curve (C/Q/A command), not a bare line.
+    // The matrix edge is a straight segment: a single moveto + lineto, with NO
+    // curve command (no C/Q/A/S/T) bowing it toward the center.
     expect(d).not.toBe('');
-    expect(/[CQAcqa]/.test(d), `radial path should curve toward center: ${d}`).toBe(true);
+    expect(/^M[^A-Za-z]*L[^A-Za-z]*$/.test(d), `radial path should be a straight line: ${d}`).toBe(
+      true,
+    );
+    expect(/[CQAScqas]/.test(d), `radial path must not curve: ${d}`).toBe(false);
   });
 });
