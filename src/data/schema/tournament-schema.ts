@@ -32,6 +32,11 @@ const stageSchema = z.enum([
   'FINAL',
 ]);
 
+const koFeederRefSchema = z.object({
+  kind: z.enum(['winnerOf', 'loserOf']),
+  matchNumber: z.number(),
+});
+
 const matchSchema = z.object({
   id: z.string(),
   providerMatchId: z.string(),
@@ -53,6 +58,16 @@ const matchSchema = z.object({
       idMatch: z.string(),
     })
     .nullable(),
+  // Optional FIFA-only structured feeders (mirrors the domain `Match.feeders`);
+  // absent on mock/legacy/group rows. Modelled so a future FIFA `parseTournament`
+  // round-trip preserves it instead of silently stripping the key.
+  matchNumber: z.number().nullable().optional(),
+  feeders: z
+    .object({
+      home: koFeederRefSchema.nullable(),
+      away: koFeederRefSchema.nullable(),
+    })
+    .optional(),
 });
 
 const standingRowSchema = z.object({

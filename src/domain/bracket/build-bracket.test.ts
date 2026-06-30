@@ -34,6 +34,11 @@ interface MatchOptions {
   readonly winner?: Outcome | null;
   /** Official FIFA bracket fixture number; omit to exercise the kickoff fallback. */
   readonly matchNumber?: number | null;
+  /**
+   * FIFA-only structured feeder refs (parsed from PlaceHolderA/B). Omit to
+   * exercise the legacy adjacent-pair fallback (mock/legacy path).
+   */
+  readonly feeders?: Match['feeders'];
 }
 
 function makeMatch(opts: MatchOptions): Match {
@@ -52,12 +57,64 @@ function makeMatch(opts: MatchOptions): Match {
     minute: null,
     venue: { name: null, city: null },
     matchNumber: opts.matchNumber ?? null,
+    ...(opts.feeders ? { feeders: opts.feeders } : {}),
   };
 }
 
 function findNode(bracket: ReturnType<typeof buildBracket>, stage: Stage, slot: number) {
   const round = bracket.rounds.find((r) => r.stage === stage)!;
   return round.nodes[slot];
+}
+
+// ---- Whole-tree structural invariants (DRY, reused by every KO suite) -------
+// These walk EVERY node — R32 through Final AND the third-place play-off — so an
+// invariant can never be silently scoped to the round under test. Each returns
+// the number of nodes it asserted on, letting callers guard against a vacuous
+// (zero-check) pass.
+
+/** Stable string key for a slot source, so two sources can be compared. */
+function sourceKey(source: BracketNode['home']['source']): string {
+  return source.kind === 'group' ? `group:${source.position}` : source.matchId;
+}
+
+/**
+ * Assert no knockout node renders the same resolved team on both sides — the
+ * exact shape of the "Paraguay vs Paraguay" duplicate. Only resolved/resolved
+ * pairs are comparable (a placeholder side cannot duplicate a team). Returns the
+ * count of resolved-pair nodes actually checked.
+ */
+function assertNoDuplicateTeam(bracket: Bracket): number {
+  let checks = 0;
+  for (const r of bracket.rounds) {
+    for (const node of r.nodes) {
+      if (!isResolved(node.home.team) || !isResolved(node.away.team)) continue;
+      expect(
+        node.home.team.team.id,
+        `${r.stage} slot ${node.slotIndex} must not show the same team on both sides`,
+      ).not.toBe(node.away.team.team.id);
+      checks++;
+    }
+  }
+  return checks;
+}
+
+/**
+ * Assert no node draws both of its edges from one child — the structural shape of
+ * a slot decoupled from the topology. Holds regardless of whether teams are
+ * resolved. Returns the total node count visited (the full tree is 32 nodes).
+ */
+function assertNoSelfFeeding(bracket: Bracket): number {
+  let nodeCount = 0;
+  for (const r of bracket.rounds) {
+    for (const node of r.nodes) {
+      nodeCount++;
+      expect(
+        sourceKey(node.home.source),
+        `${r.stage} slot ${node.slotIndex} must feed from two DISTINCT sources`,
+      ).not.toBe(sourceKey(node.away.source));
+    }
+  }
+  return nodeCount;
 }
 
 // Shared cast of teams reused across the R2 cases (DRY: one source of truth so a
@@ -551,34 +608,251 @@ describe('buildBracket', () => {
     });
 
     it('INVARIANT: no knockout node draws both of its sources from the same child', () => {
-      const bracket = buildRegression();
-
       // A self-feeding node (both edges pointing at one child) is the structural
       // shape of the original bug class — a slot decoupled from the topology. This
       // must hold for the WHOLE tree (R32 → Final + third place), every node,
       // regardless of whether the displayed teams are resolved yet.
-      let nodeCount = 0;
-      for (const r of bracket.rounds) {
-        for (const node of r.nodes) {
-          nodeCount++;
-          const homeRef =
-            node.home.source.kind === 'group'
-              ? `group:${node.home.source.position}`
-              : node.home.source.matchId;
-          const awayRef =
-            node.away.source.kind === 'group'
-              ? `group:${node.away.source.position}`
-              : node.away.source.matchId;
-          expect(
-            homeRef,
-            `${r.stage} slot ${node.slotIndex} must feed from two DISTINCT sources`,
-          ).not.toBe(awayRef);
-        }
-      }
+      const nodeCount = assertNoSelfFeeding(buildRegression());
 
       // Sanity: the full 32-team tree (16+8+4+2+1) plus the third-place node = 32
       // nodes were all visited, so the assertion ran over the entire bracket.
       expect(nodeCount).toBe(32);
+    });
+  });
+
+  // ==========================================================================
+  // R16 · derive feeders from FIFA PlaceHolder (W##) refs, NOT adjacency
+  // ==========================================================================
+  // Live bug: a Round-of-16 card rendered the SAME team on both sides — "Paraguay
+  // vs Paraguay". FIFA sent no duplicate (Away.IdTeam was null); build-bracket
+  // manufactured it from an ADJACENT-PAIR feeder map. FIFA's real 2026 bracket
+  // interleaves the halves and encodes the true pairing in each KO fixture's
+  // PlaceHolderA/B ("W74" = winner of MatchNumber 74):
+  //   R16 match 89: W74 / W77  → winner(74) vs winner(77)
+  //   R16 match 90: W73 / W75  → winner(73) vs winner(75)
+  // build-bracket must wire R16+ sources from those refs (look up the prior-round
+  // child at `refMatchNumber − STAGE_FIRST_MATCH[childStage]`), not from
+  // childNodes[2k]/[2k+1]. RED under the current adjacency wiring.
+  describe('R16 feeders derived from FIFA PlaceHolder refs (not adjacency)', () => {
+    // Stage bases, mirrored from STAGE_FIRST_MATCH (R32 = 73, R16 = 89). Local so a
+    // bug in the production constant cannot mask a bug in the feeder lookup. A real
+    // fixture's slot = matchNumber − base, so e.g. W77 → R32 slot 77−73 = 4.
+    const R32_BASE = 73;
+    const R16_BASE = 89;
+
+    const winnerOf = (matchId: string) => ({ kind: 'winnerOf' as const, matchId });
+
+    function round(bracket: Bracket, stage: Stage) {
+      return bracket.rounds.find((r) => r.stage === stage)!;
+    }
+
+    // ---- Shared FIFA-fixture factories (DRY across both repro scenarios) ------
+    // The Paraguay 2-match case and the full 16-match case differ only in WHICH
+    // R32 slots are present and which feeder refs each R16 fixture carries — so
+    // both are built from one R32 row factory + one feeder-fixture builder. No
+    // copy-pasted match literals.
+
+    interface R32Spec {
+      readonly slot: number; // 0..15 → matchNumber R32_BASE + slot
+      readonly home: Team;
+      readonly away: Team;
+      readonly winner: Outcome; // 'home' | 'away' — the team that advances
+    }
+
+    /** A finished R32 fixture pinned to its true slot via matchNumber. */
+    function makeR32(spec: R32Spec): Match {
+      return makeMatch({
+        id: `wc2026-ko-r32-${spec.slot + 1}`,
+        stage: 'ROUND_OF_32',
+        home: teamRef(spec.home),
+        away: teamRef(spec.away),
+        kickoff: `2026-06-28T${String(spec.slot % 24).padStart(2, '0')}:00:00Z`,
+        status: 'finished',
+        winner: spec.winner,
+        matchNumber: R32_BASE + spec.slot,
+      });
+    }
+
+    /**
+     * An R16 fixture SHELL carrying FIFA feeder refs. `home`/`away` default to the
+     * cosmetic "W##" placeholder labels (matching how FIFA ships an unresolved
+     * shell); pass an explicit ref to model a side FIFA has pre-resolved.
+     */
+    function makeR16WithFeeders(opts: {
+      readonly id: string;
+      readonly matchNumber: number;
+      readonly homeFeederMatch: number;
+      readonly awayFeederMatch: number;
+      readonly home?: TeamRef;
+      readonly away?: TeamRef;
+    }): Match {
+      return makeMatch({
+        id: opts.id,
+        stage: 'ROUND_OF_16',
+        home: opts.home ?? placeholderRef(`W${opts.homeFeederMatch}`),
+        away: opts.away ?? placeholderRef(`W${opts.awayFeederMatch}`),
+        kickoff: `2026-07-05T${String(opts.matchNumber % 24).padStart(2, '0')}:00:00Z`,
+        status: 'scheduled',
+        matchNumber: opts.matchNumber,
+        feeders: {
+          home: { kind: 'winnerOf', matchNumber: opts.homeFeederMatch },
+          away: { kind: 'winnerOf', matchNumber: opts.awayFeederMatch },
+        },
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // PARAGUAY REGRESSION — the live "Paraguay vs Paraguay" duplicate
+    // --------------------------------------------------------------------------
+    // Protagonists & their match numbers (named so the intent is unmistakable):
+    //   match 73 (R32 slot 0): South Africa 0–1 Canada → the top-ADJACENT feeder
+    //     the buggy wiring would point R16 slot 0's home at.
+    //   match 74 (R32 slot 1, "W74"): Germany 1–1 Paraguay, Paraguay wins → the
+    //     team that gets DUPLICATED under adjacency (childNodes[1] = buggy away).
+    //   match 77 (R32 slot 4, "W77"): ABSENT — the GENUINE unplayed other feeder;
+    //     synthetic node, decidedTeam null → an unresolved placeholder.
+    //   R16 match 89 (slot 0): scheduled shell, home pre-resolved to Paraguay
+    //     (FIFA's W74), away placeholder "W77", feeders {home: W74, away: W77}.
+    const PARAGUAY = makeTeam('paraguay'); // wins match 74 — the would-be duplicate
+    const W74_PARAGUAY = 74; // Paraguay's real R32 → home feeder of R16 89
+    const W77_UNPLAYED = 77; // the genuine unplayed other feeder of R16 89
+
+    const r32m73 = makeR32({
+      slot: 0,
+      home: makeTeam('south-africa'),
+      away: makeTeam('canada'), // Canada wins — top-adjacent decoy feeder
+      winner: 'away',
+    });
+    const r32m74 = makeR32({
+      slot: W74_PARAGUAY - R32_BASE, // slot 1
+      home: makeTeam('germany'),
+      away: PARAGUAY, // Paraguay wins
+      winner: 'away',
+    });
+    // Match 77 is intentionally ABSENT (slot 4 stays synthetic + unresolved).
+    const r16m89 = makeR16WithFeeders({
+      id: 'wc2026-ko-r16-paraguay',
+      matchNumber: 89,
+      homeFeederMatch: W74_PARAGUAY,
+      awayFeederMatch: W77_UNPLAYED,
+      home: teamRef(PARAGUAY), // FIFA pre-resolved W74
+      away: placeholderRef('W77'), // W77 unplayed → placeholder
+    });
+
+    function paraguayBracket(): Bracket {
+      return buildBracket([r32m73, r32m74, r16m89]);
+    }
+
+    it('does NOT render the same team on both sides (no "Paraguay vs Paraguay")', () => {
+      const r16Slot0 = round(paraguayBracket(), 'ROUND_OF_16').nodes[0];
+
+      // Home is the resolved fixture team, Paraguay (W74).
+      expect(isResolved(r16Slot0.home.team) && r16Slot0.home.team.team.id).toBe(PARAGUAY.id);
+
+      // Away must NOT also be Paraguay. Match 77 is unplayed → away is an
+      // UNRESOLVED placeholder, not back-filled from the adjacent match-74 feeder.
+      expect(r16Slot0.away.team.kind).toBe('placeholder');
+      expect(isResolved(r16Slot0.away.team)).toBe(false);
+    });
+
+    it('keeps every KO node free of a same-team duplicate (whole-tree invariant)', () => {
+      // The duplicate manifests in THIS bracket under adjacency, so walking the
+      // entire tree here (R32 → Final + third place) is the load-bearing guard,
+      // not just the slot-0 spot check above.
+      const checks = assertNoDuplicateTeam(paraguayBracket());
+      // R32 slots 0 & 1 are finished with distinct teams → at least those two
+      // resolved-pair nodes were actually compared (no vacuous pass).
+      expect(checks).toBeGreaterThanOrEqual(2);
+    });
+
+    it('sources R16 slot 0 from W74 (R32 slot 1) and W77 (R32 slot 4), not the adjacent pair', () => {
+      const bracket = paraguayBracket();
+      const r32 = round(bracket, 'ROUND_OF_32');
+      const r16Slot0 = round(bracket, 'ROUND_OF_16').nodes[0];
+
+      // home.source = winnerOf(match 74) → R32 slot 74−73 = 1 (the real r32m74).
+      expect(r16Slot0.home.source).toEqual(winnerOf(r32.nodes[W74_PARAGUAY - R32_BASE].matchId));
+      // away.source = winnerOf(match 77) → R32 slot 77−73 = 4 (synthetic node).
+      expect(r16Slot0.away.source).toEqual(winnerOf(r32.nodes[W77_UNPLAYED - R32_BASE].matchId));
+
+      // And explicitly NOT the adjacency pair (winnerOf slot 0 / slot 1):
+      expect(r16Slot0.home.source).not.toEqual(winnerOf(r32.nodes[0].matchId));
+      expect(r16Slot0.away.source).not.toEqual(winnerOf(r32.nodes[1].matchId));
+    });
+
+    // --------------------------------------------------------------------------
+    // FEEDERS-MATCH-PLACEHOLDER — 89=W74/W77 and 90=W73/W75 (a second pairing)
+    // --------------------------------------------------------------------------
+    // A full R32 round (matchNumbers 73–88, slots 0–15, all finished home-wins so
+    // every lineage resolves) plus two R16 fixtures carrying their FIFA feeder
+    // refs. Asserts each R16 node's two sources reference the matches named in its
+    // PlaceHolders, NOT the adjacent pair. All-distinct R32 teams keep the
+    // no-duplicate invariant meaningful (every resolved pair is genuinely two
+    // different teams).
+    describe('feeders match the named PlaceHolder matches for 89 and 90', () => {
+      const r32: readonly Match[] = Array.from({ length: 16 }, (_, slot) =>
+        makeR32({
+          slot,
+          home: makeTeam(`r32-home-${slot}`),
+          away: makeTeam(`r32-away-${slot}`),
+          winner: 'home',
+        }),
+      );
+
+      // R16 match 89 (slot 0): W74 / W77 → R32 slots 1 & 4.
+      const r16m89Full = makeR16WithFeeders({
+        id: 'wc2026-ko-r16-89',
+        matchNumber: 89,
+        homeFeederMatch: 74,
+        awayFeederMatch: 77,
+      });
+      // R16 match 90 (slot 1): W73 / W75 → R32 slots 0 & 2.
+      const r16m90Full = makeR16WithFeeders({
+        id: 'wc2026-ko-r16-90',
+        matchNumber: 90,
+        homeFeederMatch: 73,
+        awayFeederMatch: 75,
+      });
+
+      function fullBracket(): Bracket {
+        return buildBracket([...r32, r16m89Full, r16m90Full]);
+      }
+
+      it('R16 slot 0 (match 89) sources reference R32 slots 1 (W74) and 4 (W77)', () => {
+        const bracket = fullBracket();
+        const r32Round = round(bracket, 'ROUND_OF_32');
+        const slot0 = round(bracket, 'ROUND_OF_16').nodes[89 - R16_BASE];
+
+        expect(slot0.home.source).toEqual(winnerOf(r32Round.nodes[74 - R32_BASE].matchId)); // slot 1
+        expect(slot0.away.source).toEqual(winnerOf(r32Round.nodes[77 - R32_BASE].matchId)); // slot 4
+      });
+
+      it('R16 slot 1 (match 90) sources reference R32 slots 0 (W73) and 2 (W75), not 73/74', () => {
+        const bracket = fullBracket();
+        const r32Round = round(bracket, 'ROUND_OF_32');
+        const slot1 = round(bracket, 'ROUND_OF_16').nodes[90 - R16_BASE];
+
+        // PlaceHolder-driven: 73→R32 slot 0, 75→R32 slot 2.
+        expect(slot1.home.source).toEqual(winnerOf(r32Round.nodes[73 - R32_BASE].matchId)); // slot 0
+        expect(slot1.away.source).toEqual(winnerOf(r32Round.nodes[75 - R32_BASE].matchId)); // slot 2
+
+        // Adjacency (childNodes[2*1]/[2*1+1] = slots 2 & 3) would put slot 3 here;
+        // the feeder W73 routes home to slot 0 instead. Guard against adjacency.
+        expect(slot1.home.source).not.toEqual(winnerOf(r32Round.nodes[3].matchId));
+      });
+
+      it('INVARIANT: no KO node built with feeders shows the same team on both sides', () => {
+        // The two R16 feeder fixtures fully resolve from the finished R32 round, so
+        // at least those two resolved-pair nodes are compared (guard against a
+        // vacuous loop). Walks the whole tree incl. the third-place play-off.
+        const resolvedPairChecks = assertNoDuplicateTeam(fullBracket());
+        expect(resolvedPairChecks).toBeGreaterThanOrEqual(2);
+      });
+
+      it('INVARIANT: no KO node draws both sources from the same child (with feeders)', () => {
+        // The full 32-node tree (16+8+4+2+1 + third place) is walked end to end.
+        expect(assertNoSelfFeeding(fullBracket())).toBe(32);
+      });
     });
   });
 });

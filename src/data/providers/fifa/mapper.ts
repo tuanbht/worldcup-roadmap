@@ -1,4 +1,5 @@
 import type {
+  KoFeederRef,
   Match,
   MatchStatus,
   Outcome,
@@ -120,6 +121,28 @@ function mapProviderRef(raw: RawMatch): ProviderRef | null {
   };
 }
 
+/** Strict `"W##"`/`"L##"` knockout feeder ref. Trims surrounding whitespace. */
+const FEEDER_REF = /^([WL])(\d+)$/;
+
+/**
+ * Parse a FIFA PlaceHolder string into a structured `KoFeederRef`, or `null` for
+ * any value that is not a strict `"W##"`/`"L##"` match-winner/loser reference.
+ *
+ * Accepts only UPPERCASE `W`/`L` followed by a positive integer (after trimming
+ * surrounding whitespace): `"W74"→winnerOf 74`, `" L101 "→loserOf 101`. Everything
+ * else — group positions (`"1A"`, `"RU-B"`), wordy labels (`"3rd Place"`), empty,
+ * lowercase, inner whitespace, decimals, `W0`/`L00`, or junk — yields `null` so
+ * build-bracket keeps its non-match (R32 group-seeding) sources untouched.
+ */
+function parseFeederRef(placeholder: string | null | undefined): KoFeederRef | null {
+  if (placeholder == null) return null;
+  const m = FEEDER_REF.exec(placeholder.trim());
+  if (!m) return null;
+  const matchNumber = Number(m[2]);
+  if (!Number.isInteger(matchNumber) || matchNumber < 1) return null;
+  return { kind: m[1] === 'W' ? 'winnerOf' : 'loserOf', matchNumber };
+}
+
 /** Normalize raw FIFA match records into the domain model. Pure + immutable. */
 export function mapFifaMatches(raws: readonly RawMatch[]): Match[] {
   return raws.map((raw) => {
@@ -143,6 +166,14 @@ export function mapFifaMatches(raws: readonly RawMatch[]): Match[] {
       // schema.ts) so build-bracket can slot real KO fixtures by their true
       // bracket position instead of kickoff time. Null when absent/explicit-null.
       matchNumber: raw.MatchNumber ?? null,
+      // Structured knockout feeders parsed from PlaceHolderA/B. Always present on
+      // FIFA rows (both sides may be null for R32 group positions); build-bracket
+      // reads these to wire R16+ edges from FIFA's true pairing, not adjacency.
+      // The cosmetic home/away placeholder labels above are unaffected.
+      feeders: {
+        home: parseFeederRef(raw.PlaceHolderA),
+        away: parseFeederRef(raw.PlaceHolderB),
+      },
     };
   });
 }

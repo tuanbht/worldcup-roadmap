@@ -9,6 +9,7 @@ export type {
   Score,
   Match,
   ProviderRef,
+  KoFeederRef,
 } from './match';
 export { EMPTY_SCORE } from './match';
 export type {

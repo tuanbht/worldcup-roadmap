@@ -3,6 +3,7 @@ import type {
   BracketNode,
   BracketRound,
   KnockoutStage,
+  KoFeederRef,
   Match,
   SlotSource,
   TeamRef,
@@ -99,6 +100,60 @@ function decidedTeam(
 }
 
 /**
+ * Locate the prior-round child node a FIFA feeder ref points at. Every node — real
+ * or synthetic — sits at slot `matchNumber − STAGE_FIRST_MATCH[stage]`, so the ref
+ * resolves by the same arithmetic. Returns `null` (→ adjacency fallback) when the
+ * implied slot is out of `[0, count)`, guarding a malformed or cross-stage ref from
+ * indexing past the child array.
+ */
+function childByFeederRef(
+  ref: KoFeederRef,
+  childStage: KnockoutStage,
+  childNodes: readonly BracketNode[],
+): { node: BracketNode; which: 'winner' | 'loser' } | null {
+  const slot = ref.matchNumber - STAGE_FIRST_MATCH[childStage];
+  if (slot < 0 || slot >= childNodes.length) return null;
+  return { node: childNodes[slot], which: ref.kind === 'winnerOf' ? 'winner' : 'loser' };
+}
+
+/**
+ * Resolve one side (home or away) of a knockout node: its advance-edge source and
+ * its displayed team. When a FIFA feeder `ref` is present it drives both from the
+ * located child; otherwise the code falls back BYTE-IDENTICALLY to the legacy
+ * adjacency child (`childNodes[fallbackSlot]`) with the given `fallbackWhich`
+ * (`'winner'` for the main rounds, `'loser'` for the third-place play-off).
+ *
+ * Team derivation: prefer the real fixture's own RESOLVED team for this side; else
+ * propagate the located feeder's winner/loser; else a slot-aware placeholder.
+ */
+function resolveSide(args: {
+  readonly fixtureTeam: TeamRef | null;
+  readonly ref: KoFeederRef | null;
+  readonly childStage: KnockoutStage;
+  readonly childNodes: readonly BracketNode[];
+  readonly fallbackSlot: number;
+  readonly fallbackWhich: 'winner' | 'loser';
+  readonly matchById: Map<string, Match>;
+}): { source: SlotSource; team: TeamRef } {
+  const { fixtureTeam, ref, childStage, childNodes, fallbackSlot, fallbackWhich, matchById } = args;
+  const located = ref ? childByFeederRef(ref, childStage, childNodes) : null;
+  const child = located ? located.node : childNodes[fallbackSlot];
+  const which = located ? located.which : fallbackWhich;
+  const source: SlotSource = {
+    kind: which === 'winner' ? 'winnerOf' : 'loserOf',
+    matchId: child.matchId,
+  };
+  const team: TeamRef =
+    fixtureTeam && isResolved(fixtureTeam)
+      ? fixtureTeam
+      : (decidedTeam(child, matchById, which) ??
+        placeholderRef(
+          `${which === 'winner' ? 'Winner' : 'Loser'} ${shortLabel(childStage, child.slotIndex)}`,
+        ));
+  return { source, team };
+}
+
+/**
  * Derive the full knockout `Bracket` from the flat match list.
  *
  * The topology (16→8→4→2→1 plus a third-place play-off) is always complete, even
@@ -146,24 +201,32 @@ export function buildBracket(matches: readonly Match[]): Bracket {
         homeTeam = match ? match.home : placeholderRef(R32_SEEDING[slot].home);
         awayTeam = match ? match.away : placeholderRef(R32_SEEDING[slot].away);
       } else {
-        const top = childNodes![slot * 2];
-        const bottom = childNodes![slot * 2 + 1];
-        homeSource = { kind: 'winnerOf', matchId: top.matchId };
-        awaySource = { kind: 'winnerOf', matchId: bottom.matchId };
-        // A real later-round fixture can exist as a placeholder *shell*
-        // (PlaceHolderA/B, no IdTeam) before its feeder resolves. Only trust the
-        // fixture's own team when it is actually resolved; otherwise propagate the
-        // finished feeder's winner, falling back to a labelled placeholder.
-        homeTeam =
-          match && isResolved(match.home)
-            ? match.home
-            : (decidedTeam(top, matchById, 'winner') ??
-              placeholderRef(`Winner ${shortLabel(childStage!, slot * 2)}`));
-        awayTeam =
-          match && isResolved(match.away)
-            ? match.away
-            : (decidedTeam(bottom, matchById, 'winner') ??
-              placeholderRef(`Winner ${shortLabel(childStage!, slot * 2 + 1)}`));
+        // Wire each side INDEPENDENTLY. When the real fixture carries FIFA feeder
+        // refs (PlaceHolderA/B → W##/L##), the source + team derive from the child
+        // those refs name; absent a ref the side falls back BYTE-IDENTICALLY to the
+        // legacy adjacency child (`childNodes[slot*2]` / `[slot*2+1]`, winnerOf).
+        const home = resolveSide({
+          fixtureTeam: match ? match.home : null,
+          ref: match?.feeders?.home ?? null,
+          childStage: childStage!,
+          childNodes: childNodes!,
+          fallbackSlot: slot * 2,
+          fallbackWhich: 'winner',
+          matchById,
+        });
+        const away = resolveSide({
+          fixtureTeam: match ? match.away : null,
+          ref: match?.feeders?.away ?? null,
+          childStage: childStage!,
+          childNodes: childNodes!,
+          fallbackSlot: slot * 2 + 1,
+          fallbackWhich: 'winner',
+          matchById,
+        });
+        homeSource = home.source;
+        awaySource = away.source;
+        homeTeam = home.team;
+        awayTeam = away.team;
       }
 
       nodes.push({
@@ -202,24 +265,36 @@ function buildThirdPlace(
   const real = placeRealByStage('THIRD_PLACE', realByStage.get('THIRD_PLACE') ?? [], 1)[0];
   const matchId = real ? real.id : syntheticId('THIRD_PLACE', 0);
 
-  // Same shell guard as the main rounds: a real third-place fixture may carry
-  // placeholder home/away until both semifinals resolve. Trust the fixture team
-  // only when resolved; otherwise propagate the semifinal losers.
-  const homeTeam: TeamRef =
-    real && isResolved(real.home)
-      ? real.home
-      : (decidedTeam(sf[0], matchById, 'loser') ?? placeholderRef('Loser SF-1'));
-  const awayTeam: TeamRef =
-    real && isResolved(real.away)
-      ? real.away
-      : (decidedTeam(sf[1], matchById, 'loser') ?? placeholderRef('Loser SF-2'));
+  // The third-place fixture's FIFA feeders are the two semifinal LOSERS ("L101"/
+  // "L102"). Route each side through the same resolver as the main rounds with
+  // `childStage='SEMI_FINALS'`, default `which='loser'`. Absent feeders → the
+  // adjacency fallback (sf[0]/sf[1], loserOf) reproduces the legacy "Loser SF-1/2"
+  // wiring byte-identically (the mock supplies no feeders).
+  const home = resolveSide({
+    fixtureTeam: real ? real.home : null,
+    ref: real?.feeders?.home ?? null,
+    childStage: 'SEMI_FINALS',
+    childNodes: sf,
+    fallbackSlot: 0,
+    fallbackWhich: 'loser',
+    matchById,
+  });
+  const away = resolveSide({
+    fixtureTeam: real ? real.away : null,
+    ref: real?.feeders?.away ?? null,
+    childStage: 'SEMI_FINALS',
+    childNodes: sf,
+    fallbackSlot: 1,
+    fallbackWhich: 'loser',
+    matchById,
+  });
 
   const node: BracketNode = {
     matchId,
     stage: 'THIRD_PLACE',
     slotIndex: 0,
-    home: { side: 'home', source: { kind: 'loserOf', matchId: sf[0].matchId }, team: homeTeam },
-    away: { side: 'away', source: { kind: 'loserOf', matchId: sf[1].matchId }, team: awayTeam },
+    home: { side: 'home', source: home.source, team: home.team },
+    away: { side: 'away', source: away.source, team: away.team },
   };
 
   return { stage: 'THIRD_PLACE', label: STAGE_LABELS.THIRD_PLACE, nodes: [node] };

@@ -18,6 +18,16 @@ export type MatchResolution = 'regular' | 'extra_time' | 'penalties';
 
 export type Outcome = 'home' | 'away' | 'draw';
 
+/**
+ * A structured knockout feeder reference, parsed from FIFA's `"W##"`/`"L##"`
+ * PlaceHolder strings (`"W74"` = winner of MatchNumber 74). The `matchNumber`
+ * is the official FIFA fixture number — the same key build-bracket slots by.
+ */
+export interface KoFeederRef {
+  readonly kind: 'winnerOf' | 'loserOf';
+  readonly matchNumber: number;
+}
+
 export interface Venue {
   readonly name: string | null;
   readonly city: string | null;
@@ -85,4 +95,16 @@ export interface Match {
    * (mock, legacy, group stage) → build-bracket falls back to kickoff order.
    */
   readonly matchNumber?: number | null;
+  /**
+   * FIFA-only structured feeders parsed from `PlaceHolderA`/`PlaceHolderB`.
+   * `home`/`away` is the winnerOf/loserOf ref for that side, or `null` for
+   * non-match placeholders (R32 group positions like "1A"/"RU-B"/"3rd…"). Read
+   * ONLY by build-bracket to wire R16+ feeder edges from FIFA's true pairing
+   * instead of adjacency. Absent on mock/legacy/group rows → build-bracket uses
+   * the legacy adjacent-pair wiring (mock stays byte-identical).
+   */
+  readonly feeders?: {
+    readonly home: KoFeederRef | null;
+    readonly away: KoFeederRef | null;
+  };
 }
