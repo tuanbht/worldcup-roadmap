@@ -16,13 +16,8 @@ export type RoadmapFocus = 'all' | 'groups' | 'knockout';
  * Selectable graph layout (2026-06-30-1104): `grid` is the default timeline grid;
  * `circle` is the radial knockout bracket (Final at center). Persisted to
  * `?layout=` by `useLayoutMode`, mirroring `useStageView`'s `?focus=`.
- *
- * WIDENED (2026-07-01-1030, matrix journey-lanes): `matrix` draws the WHOLE
- * tournament (group stage → Final) as a subway/journey map — station nodes per
- * match, per-team orthogonal lane edges. TYPE-ONLY scaffold in the RED phase; the
- * `useLayoutMode` `VALID` runtime list stays `['grid','circle']` until GREEN.
  */
-export type LayoutMode = 'grid' | 'circle' | 'matrix';
+export type LayoutMode = 'grid' | 'circle';
 
 /**
  * Display-layer team-focus mark, stamped ONLY by `applyTeamFocus` in the canvas
@@ -208,38 +203,6 @@ export type TeamBadgeFlowNode = Node<TeamBadgeNodeData, 'team-badge'>;
 export type MatchDotFlowNode = Node<MatchDotNodeData, 'match-dot'>;
 export type FinalCenterFlowNode = Node<FinalCenterNodeData, 'final-center'>;
 
-// --- Matrix "journey-lanes" layout node data (2026-07-01-1030) ---------------
-
-/**
- * A `matrix-match` STATION node — one per match across GROUP_STAGE + every KO
- * round in the subway/journey view. Node id === matchId. Renders its two teams
- * (`Flag`/`refLabel`) + score/status; group stations compose `Group {group} ·
- * MD{matchday}` for their header, KO stations use `STAGE_LABELS[stage]`. TYPE
- * scaffold only in the RED phase; `build-matrix-graph` emits it at GREEN.
- */
-export type MatrixMatchNodeData = {
-  matchId: string;
-  stage: Stage;
-  /** Group stations compose "Group X · MDn"; KO stations use STAGE_LABELS[stage]. */
-  roundLabel: string;
-  /** Group letter "A".."L" for group-stage stations; null in the knockout. */
-  group: string | null;
-  /** Matchday 1..3 in the group stage; null otherwise. */
-  matchday: number | null;
-  home: TeamRef;
-  away: TeamRef;
-  /** `formatMatchScore(match.score)`; null when the match is undecided. */
-  score: string | null;
-  status: MatchStatus;
-  isFinal: boolean;
-  isThirdPlace: boolean;
-  /** Raw ISO-UTC kickoff of this match; null when the slot has no fixture. */
-  readonly kickoff: string | null;
-  /** Reserved for the DEFERRED team-focus optional; unset in v1. */
-  focusState?: FocusState;
-};
-export type MatrixMatchFlowNode = Node<MatrixMatchNodeData, 'matrix-match'>;
-
 /**
  * Timeline-grid graph nodes: one `match` card per match, a `day-marker` per
  * distinct day on the left rail, and a `group-standings` table at the top of each
@@ -253,8 +216,7 @@ export type RoadmapNode =
   | GroupStandingsFlowNode
   | TeamBadgeFlowNode
   | MatchDotFlowNode
-  | FinalCenterFlowNode
-  | MatrixMatchFlowNode;
+  | FinalCenterFlowNode;
 
 export type AdvanceEdgeState = 'decided' | 'undecided' | 'live';
 export type AdvanceEdgeData = {
@@ -290,27 +252,8 @@ export type RadialEdgeData = {
   focusState?: FocusState;
 };
 
-/**
- * Matrix "lane" edge (2026-07-01-1030): one orthogonal (`smoothstep`, many-corner)
- * hop between a team's consecutive matches, colored by a stable per-team hue. Edge
- * id grammar `lane-<teamId>-<srcMatchId>-<dstMatchId>`; the union of a team's lane
- * edges is its subway line. TYPE scaffold only in the RED phase.
- */
-export type MatrixLaneEdgeData = {
-  /** The team this lane belongs to (the resolved-team membership it was derived from). */
-  teamId: string;
-  /** Stable per-team hue (oklch string) — one color per team's whole lane. */
-  color: string;
-  /** Reserved for the DEFERRED team-focus optional; unset in v1. */
-  focusState?: FocusState;
-};
-
-/** Either an advance/feeder edge, a dashed membership edge, a radial edge, or a matrix lane. */
-export type RoadmapEdgeData =
-  | AdvanceEdgeData
-  | MemberEdgeData
-  | RadialEdgeData
-  | MatrixLaneEdgeData;
+/** Either an advance/feeder edge, a dashed membership edge, or a radial edge. */
+export type RoadmapEdgeData = AdvanceEdgeData | MemberEdgeData | RadialEdgeData;
 export type RoadmapEdge = Edge<RoadmapEdgeData>;
 
 export interface RoadmapGraph {

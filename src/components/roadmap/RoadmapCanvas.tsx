@@ -42,11 +42,6 @@ function CanvasInner() {
   const { focus, setFocus } = useStageView();
   const { mode, setMode } = useLayoutMode();
   const isCircle = mode === 'circle';
-  // Grid-only chrome (StageToggle / FocusMatchButton / Legend) and the LayoutToggle
-  // offset are timeline concepts. Both `circle` AND `matrix` swap the whole graph,
-  // so they hide the chrome and drop the LayoutToggle offset (M1) — one predicate
-  // drives BOTH so the toggle never floats alone above nothing.
-  const showGridChrome = mode === 'grid';
   const { nodes, edges } = useRoadmapGraph(tournament, mode);
   const { lod } = useZoomLevel();
   // A single matchMedia read drives the mobile minZoom floor so a 296px standings
@@ -176,12 +171,7 @@ function CanvasInner() {
     // Grid `match` and radial `match-dot`/`final-center` carry their matchId AS the
     // node id; a radial `team-badge`'s id is `badge-…`, so resolve its R32 match via
     // `data.matchId`. The panel resolves any real matchId (findMatch/placeholder).
-    if (
-      node.type === 'match' ||
-      node.type === 'match-dot' ||
-      node.type === 'final-center' ||
-      node.type === 'matrix-match'
-    ) {
+    if (node.type === 'match' || node.type === 'match-dot' || node.type === 'final-center') {
       setSelected(node.id);
     } else if (node.type === 'team-badge') {
       setSelected(node.data.matchId);
@@ -236,16 +226,16 @@ function CanvasInner() {
           size={1}
           color="rgba(148,163,184,0.10)"
         />
-        {/* Layout-mode switch (Grid / Circle / Matrix) — top-left. In grid mode it
-            is nudged BELOW the unmoved StageToggle (grid snapshots stay stable);
-            circle AND matrix modes show it alone at the top (no offset). */}
-        <LayoutToggle mode={mode} onChange={setMode} offset={showGridChrome} />
+        {/* Layout-mode switch (Grid / Circle) — top-left. In grid mode it is
+            nudged BELOW the unmoved StageToggle (grid snapshots stay stable);
+            circle mode shows it alone at the top. */}
+        <LayoutToggle mode={mode} onChange={setMode} offset={!isCircle} />
         {/* Grid-only chrome: the stage (camera) toggle, the focus-current-match
-            button, and the legend are timeline concepts. Circle AND matrix modes
-            swap the whole graph (no group zone / nearest funnel), so they show only
-            the LayoutToggle and always frame the whole graph. The StageToggle's own
+            button, and the legend are timeline concepts. Circle mode swaps the
+            whole graph (no group zone / nearest funnel), so it shows only the
+            LayoutToggle and always frames the whole ring. The StageToggle's own
             top-left Panel is nudged down so the two pills never overlap. */}
-        {showGridChrome && (
+        {!isCircle && (
           <>
             <StageToggle focus={focus} onChange={setFocus} />
             <FocusMatchButton

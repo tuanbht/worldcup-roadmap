@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LayoutMode } from '../graph-model';
 
-const VALID: readonly LayoutMode[] = ['grid', 'circle', 'matrix'];
+const VALID: readonly LayoutMode[] = ['grid', 'circle'];
 const DEFAULT_MODE: LayoutMode = 'grid';
 
 export interface LayoutModeState {

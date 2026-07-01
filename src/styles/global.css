@@ -457,101 +457,6 @@
   transition: filter var(--duration-normal, 300ms) ease;
 }
 
-/* =========================================================================
-   Matrix "journey-lanes" view — the whole tournament as a subway map.
-   Legible station cards on the dark canvas; per-team orthogonal lane edges with
-   slightly rounded corners. Compositor-friendly only (transform/opacity/stroke).
-   ========================================================================= */
-
-/* Station node — a subway stop where two team lanes meet. The emitted (x,y) is the
-   station CENTER, so translate(-50%,-50%) centers the card on it and the Left/Right
-   lane handles attach center-to-center along the line (same trick as .radial-dot). */
-.matrix-station {
-  position: relative;
-  width: 240px;
-  transform: translate(-50%, -50%);
-  padding: 8px 12px;
-  border-radius: var(--radius-card, 14px);
-  border: 1px solid var(--color-edge);
-  background: linear-gradient(to bottom, var(--color-surf-2), var(--color-surf-1));
-  box-shadow: var(--elevation-card);
-  /* Compositor-only hover cue: a gentle lift + ring, no layout-bound props. */
-  transition:
-    transform var(--duration-fast, 150ms) ease,
-    border-color var(--duration-fast, 150ms) ease,
-    box-shadow var(--duration-fast, 150ms) ease;
-}
-.matrix-station:hover {
-  transform: translate(-50%, -50%) scale(1.02);
-  border-color: var(--color-edge-strong);
-  box-shadow: var(--elevation-hover);
-}
-/* A left status rail keeps live/finished/scheduled readable at a glance. */
-.matrix-station::before {
-  content: '';
-  position: absolute;
-  inset: 8px auto 8px 0;
-  width: 3px;
-  border-radius: 9999px;
-  background: var(--color-edge-strong);
-}
-.matrix-station[data-status='live']::before {
-  background: var(--color-live);
-}
-.matrix-station[data-status='finished']::before {
-  background: var(--color-accent);
-}
-/* Final band accents — gold for the Final, a warmer surface for the 3rd-place. */
-.matrix-station[data-final='true'] {
-  border-color: rgb(245 196 81 / 0.5);
-  background: linear-gradient(to bottom, var(--color-surf-3), var(--color-surf-1));
-}
-.matrix-station[data-final='true']::before {
-  background: var(--color-gold);
-}
-.matrix-station[data-third='true'] {
-  border-color: rgb(245 196 81 / 0.28);
-}
-
-.matrix-station__head {
-  min-width: 0;
-}
-.matrix-station__round {
-  color: var(--color-dim);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.matrix-station__status {
-  color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.72rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.matrix-station[data-status='live'] .matrix-station__status {
-  color: var(--color-live);
-}
-.matrix-station__name {
-  color: var(--color-ink);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-/* Lane edge (SVG path) — the per-team stroke color is set inline from data.color by
-   MatrixLaneEdge; this class carries only width + rounded corners/caps. The reserved
-   .matrix-lane--focus-dim hook is intentionally UNWIRED in v1 (plan-review M2). */
-.matrix-lane {
-  fill: none;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.matrix-lane--focus-dim {
-  filter: opacity(0.28);
-  transition: filter var(--duration-normal, 300ms) ease;
-}
-
 /* ---- React Flow chrome theming ---- */
 .react-flow__attribution {
   background: transparent !important;
@@ -573,18 +478,12 @@
   .radial-badge__roundel,
   .radial-dot__core,
   .radial-dot__flag,
-  .radial-edge--focus-dim,
-  .matrix-station,
-  .matrix-lane--focus-dim {
+  .radial-edge--focus-dim {
     transition: none !important;
   }
   /* No hover scale-up under reduced-motion: keep the ring cue, drop the transform. */
   .radial-badge__roundel:hover,
   .radial-badge:has(.radial-badge__focus:focus-visible) .radial-badge__roundel {
     transform: none;
-  }
-  /* Station keeps its centering translate but drops the hover scale-up. */
-  .matrix-station:hover {
-    transform: translate(-50%, -50%);
   }
 }
