@@ -101,3 +101,42 @@ describe('useLayoutMode — preserves co-existing params [Test 20]', () => {
     expect(result.current.setMode).toBe(set);
   });
 });
+
+// --- Matrix journey-lanes mode (2026-07-01-1030) ----------------------------
+//
+// The THIRD layout mode `matrix` joins `grid`/`circle` in the allow-list. These
+// mirror the circle blocks above. RED until `useLayoutMode.ts` widens VALID to
+// `['grid','circle','matrix']`: today `matrix` is NOT in VALID, so `?layout=matrix`
+// falls back to `grid` and `setMode('matrix')` still WRITES the param but hydration
+// rejects it — the round-trip assertion fails behaviorally (rejected token), not a
+// typo/import error.
+describe('useLayoutMode — matrix mode [Acceptance #1]', () => {
+  it('hydrates matrix from ?layout=matrix after mount', async () => {
+    setSearch('?layout=matrix');
+    // RED: VALID excludes 'matrix' → readMode() returns the default 'grid'.
+    await mountSettledOn('matrix');
+  });
+
+  it('setMode(matrix) updates state AND writes ?layout=matrix', async () => {
+    const { result } = await mountSettledOn('grid');
+    act(() => result.current.setMode('matrix'));
+    expect(result.current.mode).toBe('matrix');
+    expect(param('layout')).toBe('matrix');
+  });
+
+  it('round-trips ?layout=matrix (write then re-hydrate) preserving ?focus= and ?team=', async () => {
+    setSearch('?focus=knockout&team=BRA');
+    const { result } = await mountSettledOn('grid');
+
+    // Write matrix on a URL that already carries the sibling params.
+    act(() => result.current.setMode('matrix'));
+    expect(param('layout')).toBe('matrix');
+    // The sibling params written by useStageView/useFocusedTeam must survive.
+    expect(param('focus')).toBe('knockout');
+    expect(param('team')).toBe('BRA');
+
+    // Re-mount against the freshly-written URL → the value must hydrate back to
+    // matrix (a genuine round-trip through the allow-list). RED: VALID rejects it.
+    await mountSettledOn('matrix');
+  });
+});

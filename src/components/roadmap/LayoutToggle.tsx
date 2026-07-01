@@ -4,6 +4,7 @@ import type { LayoutMode } from '@/features/roadmap/graph-model';
 const OPTIONS: ReadonlyArray<{ value: LayoutMode; label: string }> = [
   { value: 'grid', label: 'Grid' },
   { value: 'circle', label: 'Circle' },
+  { value: 'matrix', label: 'Matrix' },
 ];
 
 interface LayoutToggleProps {

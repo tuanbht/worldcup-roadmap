@@ -23,10 +23,11 @@ describe('nodeTypes registry — group-header removed [Acceptance #1, #2]', () =
     expect(nodeTypes['day-marker']).toBeDefined();
   });
 
-  it('registers exactly the grid + radial node types and no others', () => {
+  it('registers exactly the grid + radial + matrix node types and no others', () => {
     // The registry is the single source of truth for what React Flow can mount;
     // assert the WHOLE key set so a re-added pill (or a stray type) is caught. The
-    // radial circle view (2026-06-30-1104) ADDS the three radial node types
+    // radial circle view (2026-06-30-1104) ADDS the three radial node types, and
+    // the matrix journey-lanes view (2026-07-01-1030) ADDS `matrix-match`,
     // alongside the surviving grid three; only the active layout mounts.
     expect(Object.keys(nodeTypes).sort()).toEqual([
       'day-marker',
@@ -34,6 +35,7 @@ describe('nodeTypes registry — group-header removed [Acceptance #1, #2]', () =
       'group-standings',
       'match',
       'match-dot',
+      'matrix-match',
       'team-badge',
     ]);
   });
