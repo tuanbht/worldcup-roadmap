@@ -306,6 +306,64 @@ describe('buildRadialGraph — winner + score on inner nodes [Test 10-13 / Accep
   });
 });
 
+describe('buildRadialGraph — kickoff on inner nodes [Acceptance #3] (2026-07-01-0900)', () => {
+  /** ORACLE: the kickoff the builder MUST thread for the node whose id === `matchId`,
+   *  read from the SAME `matchById` map the builder walks (`match?.kickoff ?? null`) —
+   *  never a hardcoded ISO string, so the mock is the single source of truth. */
+  const expectedKickoff = (matchId: string): string | null =>
+    matchById.get(matchId)?.kickoff ?? null;
+
+  it('every match-dot threads kickoff === the source match.kickoff (fixture-derived oracle)', () => {
+    const dots = graph().nodes.filter(isDot);
+    expect(dots.length, 'guard: not vacuous').toBeGreaterThan(0);
+    for (const dot of dots) {
+      const expected = expectedKickoff(dot.id);
+      // Every winner-tree KO match in the mock has a non-null ISO kickoff, so this
+      // asserts a REAL string per dot (not merely "not undefined").
+      expect(typeof expected, `oracle kickoff for ${dot.id} is a real ISO string`).toBe('string');
+      expect(dot.data.kickoff, `dot ${dot.id} threads match.kickoff`).toBe(expected);
+    }
+  });
+
+  it('the final-center threads kickoff === the Final match.kickoff', () => {
+    const center = graph().nodes.filter(isCenter)[0];
+    expect(center, 'one final-center').toBeDefined();
+    const expected = expectedKickoff(center.id);
+    expect(typeof expected, 'the Final has a real ISO kickoff in the mock').toBe('string');
+    expect(center.data.kickoff, 'center threads the Final match.kickoff').toBe(expected);
+    // Regression: adding kickoff must NOT introduce a score on the center (decision 1).
+    expect('score' in center.data).toBe(false);
+  });
+
+  it('every inner node carries kickoff as a string (never undefined) for the fully-fixtured mock', () => {
+    // Non-vacuous positive guard: the builder must EMIT the key on every dot/center,
+    // not leave it undefined (the current RED state).
+    for (const node of graph().nodes) {
+      if (node.type === 'match-dot' || node.type === 'final-center') {
+        expect(
+          typeof node.data.kickoff,
+          `${node.type} ${node.id} must carry a kickoff string`,
+        ).toBe('string');
+      }
+    }
+  });
+
+  it('a fixtureless KO slot (no backing match) → kickoff === null (the ?? null guard)', () => {
+    // Drive the null branch through the public builder: the radial LAYOUT reads only
+    // `tournament.bracket`, so emptying `matches` keeps every dot/center but makes
+    // `matchById.get(id)` miss → `match === undefined` → `match?.kickoff ?? null`.
+    const noFixtures = { ...tournament, matches: [] };
+    const g = buildRadialGraph(noFixtures);
+    const inner = g.nodes.filter((n) => n.type === 'match-dot' || n.type === 'final-center');
+    expect(inner.length, 'still emits every inner node without fixtures').toBeGreaterThan(0);
+    for (const node of inner) {
+      if (node.type === 'match-dot' || node.type === 'final-center') {
+        expect(node.data.kickoff, `${node.type} ${node.id} without a fixture → null`).toBeNull();
+      }
+    }
+  });
+});
+
 describe('buildRadialGraph — immutability [Test 14]', () => {
   it('builds against a deeply-frozen tournament without throwing and is structurally stable', () => {
     const frozen = deepFreeze(loadTournament());

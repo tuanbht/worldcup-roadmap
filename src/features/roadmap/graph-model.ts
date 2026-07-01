@@ -164,6 +164,13 @@ export type MatchDotNodeData = {
   winnerFlagUrl: string | null;
   /** `formatMatchScore(match.score)`, null when the match is undecided. */
   score: string | null;
+  /**
+   * --- NEW (2026-07-01-0900): threaded by `build-radial-graph` (pure) as
+   * `match?.kickoff ?? null`. ---
+   * Kick-off ISO-UTC of this match; null when the KO slot has no fixture yet.
+   * Formatted in the viewer's local zone by the view. Mirrors `MatchNodeData.kickoff`.
+   */
+  readonly kickoff: string | null;
   focusState?: FocusState;
 };
 
@@ -182,6 +189,13 @@ export type FinalCenterNodeData = {
   winnerCode: string | null;
   /** `winner.team.flagUrl` when resolved, else null — the view reads this primitive [L1]. */
   winnerFlagUrl: string | null;
+  /**
+   * --- NEW (2026-07-01-0900): threaded by `build-radial-graph` (pure) as
+   * `match?.kickoff ?? null`. ---
+   * Kick-off ISO-UTC of the Final; null when the fixture is absent. Formatted in the
+   * viewer's local zone by the view. (No `score` — decision 1.)
+   */
+  readonly kickoff: string | null;
   focusState?: FocusState;
 };
 

@@ -111,6 +111,9 @@ function matchDotNode(
       // null when the match is undecided OR the winning side is unresolved.
       ...winnerOf(node, matchById),
       score: match ? formatMatchScore(match.score) : null,
+      // Raw ISO-UTC kickoff threaded for the view to format in the viewer's local
+      // zone; null when the KO slot has no backing fixture. Mirrors the grid.
+      kickoff: match?.kickoff ?? null,
     },
   };
 }
@@ -134,6 +137,8 @@ function finalCenterNode(
       // DERIVED (pure): the CHAMPION via the SHARED winner rule; null until the
       // Final is decided + the winning side resolved. (No score — decision 1.)
       ...winnerOf(node, matchById),
+      // Raw ISO-UTC kickoff of the Final; null when the fixture is absent.
+      kickoff: match?.kickoff ?? null,
     },
   };
 }

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { refLabel } from '@/domain/types';
 import type { MatchDotFlowNode } from '@/features/roadmap/graph-model';
+import { formatDateTime, localTimeZone } from '@/lib/datetime';
 import { Flag } from '@/components/ui/Flag';
 
 const HANDLE = '!h-1 !w-1 !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0';
@@ -42,16 +43,22 @@ const INLINE_SCORE_STAGES: ReadonlySet<MatchDotFlowNode['data']['stage']> = new 
  */
 function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
   const { status, stage, roundLabel, home, away, winner, winnerCode, winnerFlagUrl, score } = data;
-  const { focusState } = data;
+  const { focusState, kickoff } = data;
   const decided = winner !== null;
   const matchup = `${roundLabel}: ${refLabel(home)} versus ${refLabel(away)}`;
   const winnerName = decided ? refLabel(winner) : null;
-  const label =
+  // Kick-off caption in the viewer's LOCAL browser zone (single date façade),
+  // resolved explicitly so the zone is read once at the view boundary; "Date TBD"
+  // when null.
+  const when = formatDateTime(kickoff, localTimeZone());
+  const outcome =
     decided && score !== null
       ? `${matchup} — won by ${winnerName} ${score}`
       : decided
         ? `${matchup} — won by ${winnerName}`
         : matchup;
+  // Fold the date/time into the SR label so the kickoff reaches assistive tech too.
+  const label = `${outcome} — ${when}`;
   const showInlineScore = decided && score !== null && INLINE_SCORE_STAGES.has(stage);
   // The SF score is kept reachable on the wrapper's title even when the inline
   // caption is suppressed (it is also in the aria-label above).
@@ -85,6 +92,12 @@ function MatchDotNodeImpl({ data }: NodeProps<MatchDotFlowNode>) {
           {score}
         </span>
       )}
+      {/* Kick-off caption: a real <time> carrying the raw ISO instant on its
+          `dateTime` (omitted for a TBD kickoff so the attribute is never invalid);
+          value also folded into the aria-label above, so hide it from SR here. */}
+      <time className="radial-dot__when" dateTime={kickoff ?? undefined} aria-hidden="true">
+        {when}
+      </time>
       <Handle
         id="b"
         type="source"

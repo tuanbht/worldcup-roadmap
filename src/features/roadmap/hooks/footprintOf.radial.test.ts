@@ -49,6 +49,7 @@ const dot: MatchDotFlowNode = {
     winnerCode: null,
     winnerFlagUrl: null,
     score: null,
+    kickoff: '2026-07-05T04:00:00Z',
   },
 };
 
@@ -64,6 +65,7 @@ const center: FinalCenterFlowNode = {
     winner: null,
     winnerCode: null,
     winnerFlagUrl: null,
+    kickoff: '2026-07-05T04:00:00Z',
   },
 };
 

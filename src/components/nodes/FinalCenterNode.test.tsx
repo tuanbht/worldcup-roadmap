@@ -16,6 +16,13 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { teamRef } from '@/domain/types';
 import type { FinalCenterNodeData } from '@/features/roadmap/graph-model';
 import { ARG, FRA } from './__test-support__/team-row-fixtures';
+import {
+  EXPECTED_CAPTION_EDT,
+  ISO,
+  TBD_CAPTION,
+  expectedCaption,
+  pinLocalZone,
+} from './__test-support__/pinned-zone';
 import { FinalCenterNode } from './FinalCenterNode';
 
 function makeData(overrides: Partial<FinalCenterNodeData> = {}): FinalCenterNodeData {
@@ -28,6 +35,7 @@ function makeData(overrides: Partial<FinalCenterNodeData> = {}): FinalCenterNode
     winner: null,
     winnerCode: null,
     winnerFlagUrl: null,
+    kickoff: ISO,
     ...overrides,
   };
 }
@@ -110,5 +118,59 @@ describe('FinalCenterNode — champion flag vs TBD [Test 17 / Acceptance #1, #2,
       'a live Final must NOT render a champion flag',
     ).toBeNull();
     expect(container.querySelector('.radial-dot__score')).toBeNull();
+  });
+});
+
+describe('FinalCenterNode — kickoff date/time caption [Acceptance #2, #4] (2026-07-01-0900)', () => {
+  // Pin the viewer's local zone (see __test-support__/pinned-zone.ts) so the center's
+  // `formatDateTime(kickoff)` resolves deterministically to TZ; oracles derive from
+  // that SAME pinned zone via `expectedCaption()` — no CI-machine-zone dependence.
+  pinLocalZone();
+
+  it('renders the raw ISO Final instant in the <time> `dateTime` attribute (not the formatted text)', () => {
+    const { container } = renderCenter(makeData({ kickoff: ISO }));
+    const time = container.querySelector('time');
+    expect(time, 'a <time> caption must render for the Final kickoff').not.toBeNull();
+    // The canonical raw instant lives on the attribute, never the human caption text.
+    expect(time!.getAttribute('datetime')).toBe(ISO);
+    expect(time!.getAttribute('datetime')).not.toBe(time!.textContent);
+  });
+
+  it('renders the Final caption in the browser-local zone, applying the EDT shift (04:00Z → 00:00)', () => {
+    const { container } = renderCenter(makeData({ kickoff: ISO }));
+    const time = container.querySelector('time');
+    expect(time!.textContent).toBe(expectedCaption());
+    // Pinned literal: the local zone SHIFTED 04:00Z to 00:00 — browser-local, not UTC.
+    expect(time!.textContent).toBe(EXPECTED_CAPTION_EDT);
+    expect(time!.textContent).toMatch(/^\d{2} [A-Z][a-z]{2}, \d{2}:\d{2}$/);
+    expect(time!.textContent).not.toContain('Invalid');
+    // Decision 1: the caption is NOT a score caption and NOT a rounded-full roundel —
+    // the champion `.rounded-full` discriminator and score selector stay distinct.
+    const when = container.querySelector('.radial-dot__when');
+    expect(when, 'the kickoff caption uses the dedicated .radial-dot__when class').not.toBeNull();
+    expect(when!.tagName.toLowerCase()).toBe('time');
+    expect(when!.classList.contains('radial-dot__score')).toBe(false);
+    expect(when!.classList.contains('rounded-full')).toBe(false);
+    // Never emit a score caption on the center, even with the new WHEN caption present.
+    expect(container.querySelector('.radial-dot__score')).toBeNull();
+  });
+
+  it('gives the center an aria-label that includes the formatted date/time', () => {
+    const { container } = renderCenter(makeData({ kickoff: ISO }));
+    const labelled = container.querySelector('[aria-label]');
+    expect(labelled, 'the center must carry an aria-label folding in the kickoff').not.toBeNull();
+    expect(labelled!.getAttribute('aria-label')).toContain(expectedCaption());
+  });
+
+  it('a null kickoff → the caption shows "Date TBD" and emits NO invalid dateTime attribute', () => {
+    const { container } = renderCenter(makeData({ kickoff: null }));
+    const time = container.querySelector('time');
+    expect(time, 'a <time> caption must still render for a TBD kickoff').not.toBeNull();
+    expect(time!.textContent).toBe(TBD_CAPTION);
+    // A null kickoff must NOT produce an invalid `dateTime`: absent or empty, never
+    // the fallback caption.
+    const dt = time!.getAttribute('datetime');
+    expect(dt === null || dt === '', 'null kickoff → no invalid dateTime attribute').toBe(true);
+    expect(dt).not.toBe(TBD_CAPTION);
   });
 });

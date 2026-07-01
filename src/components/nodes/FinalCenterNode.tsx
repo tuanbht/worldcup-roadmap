@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Trophy } from 'lucide-react';
 import { refLabel } from '@/domain/types';
 import type { FinalCenterFlowNode } from '@/features/roadmap/graph-model';
+import { formatDateTime, localTimeZone } from '@/lib/datetime';
 import { Flag } from '@/components/ui/Flag';
 
 const HANDLE = '!h-1 !w-1 !min-h-0 !min-w-0 !border-0 !bg-transparent !opacity-0';
@@ -24,8 +25,16 @@ const CHAMPION_PX = 22;
  * `focusState` via `data-focus`.
  */
 function FinalCenterNodeImpl({ data }: NodeProps<FinalCenterFlowNode>) {
-  const { status, home, away, focusState, winner, winnerCode, winnerFlagUrl } = data;
+  const { status, home, away, focusState, winner, winnerCode, winnerFlagUrl, kickoff } = data;
   const champion = winner !== null ? refLabel(winner) : null;
+  // Kick-off caption in the viewer's LOCAL browser zone (single date façade),
+  // resolved explicitly at the view boundary; "Date TBD" when null.
+  const when = formatDateTime(kickoff, localTimeZone());
+  // The center had no aria-label; add one naming the Final matchup + folding in the
+  // kickoff so SR users reach the date/time (the visible <time> is aria-hidden).
+  const matchup = `Final: ${refLabel(home)} versus ${refLabel(away)}`;
+  const label =
+    champion !== null ? `${matchup} — champion ${champion} — ${when}` : `${matchup} — ${when}`;
 
   return (
     <div
@@ -33,6 +42,8 @@ function FinalCenterNodeImpl({ data }: NodeProps<FinalCenterFlowNode>) {
       data-final="true"
       data-status={status}
       data-focus={focusState}
+      aria-label={label}
+      role="img"
     >
       <Handle
         id="t"
@@ -59,6 +70,11 @@ function FinalCenterNodeImpl({ data }: NodeProps<FinalCenterFlowNode>) {
           {refLabel(away)}
         </span>
       </div>
+      {/* Kick-off caption: a real <time> carrying the raw ISO instant on `dateTime`
+          (omitted for a TBD kickoff); value also folded into the aria-label above. */}
+      <time className="radial-dot__when" dateTime={kickoff ?? undefined} aria-hidden="true">
+        {when}
+      </time>
     </div>
   );
 }

@@ -352,6 +352,33 @@
   color: var(--color-dim);
   white-space: nowrap;
 }
+/* Kick-off date/time caption (`<time>`): the browser-local "dd MMM, HH:mm" for
+   every dot, shown ALWAYS-ON below the roundel (out of flow so it never shifts the
+   roundel off the polar center). Anchored on the INNER side (toward center, away
+   from the r=720 badge ring); a subtle pill lifts it off the dark canvas without
+   the reserved `rounded-full` utility. Tabular figures + no layout animation. */
+.radial-dot__when {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  /* Clear the roundel; when a decided outer-ring dot ALSO shows the inline score
+     (also at top:100%), sit BELOW it so the two single-line captions never overlap. */
+  margin-top: 11px;
+  transform: translateX(-50%);
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-surf-2) 82%, transparent);
+  box-shadow: inset 0 0 0 1px var(--color-edge);
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--color-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 /* ---- Center Final + trophy motif: the focal point ---- */
 .radial-center {
@@ -387,6 +414,16 @@
   border-radius: 9999px;
   line-height: 0;
   box-shadow: 0 0 0 1.5px var(--color-gold);
+}
+/* The Final's kick-off caption lives INSIDE the 96px center (spare room under the
+   two-team line), not hung off `top:100%` like the dot's — override the anchor so
+   it stacks in-flow below the teams and stays clear of the inward connectors. */
+.radial-center .radial-dot__when {
+  position: relative;
+  top: auto;
+  left: auto;
+  margin-top: 4px;
+  transform: none;
 }
 
 /* ---- Radial connector edges (SVG paths, styled by className) [M1] ---- */
